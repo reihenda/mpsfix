@@ -1,0 +1,37 @@
+/* Fix untuk modal Bootstrap agar tetap bisa scroll */
+.modal {
+    overflow-y: auto !important;
+}
+
+.modal-open {
+    overflow: auto !important;
+    padding-right: 0 !important;
+}
+
+/* Class baru untuk mengatasi masalah scrolling */
+.modal-open-scrollable {
+    overflow: auto !important;
+    padding-right: 0 !important;
+}
+
+.modal-dialog {
+    max-height: 90vh;
+    overflow-y: initial !important;
+}
+
+.modal-body {
+    overflow-y: auto;
+    max-height: calc(90vh - 150px);
+}
+
+/* Fix untuk iPad dan mobile */
+@media (max-width: 768px) {
+    .modal-body {
+        max-height: calc(100vh - 150px);
+    }
+}
+
+/* Pastikan form elemen tidak terpotong */
+.modal input, .modal select, .modal textarea {
+    max-width: 100%;
+}

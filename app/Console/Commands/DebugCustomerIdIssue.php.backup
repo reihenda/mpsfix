@@ -1,0 +1,205 @@
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use App\Models\User;
+use App\Models\DataPencatatan;
+use Illuminate\Support\Facades\DB;
+
+class DebugCustomerIdIssue extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'debug:customer-id {--customer_id=}';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Debug customer_id issues in data_pencatatan and users relationship';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle()
+    {
+        $customerId = $this->option('customer_id');
+
+        $this->info("🔍 DEBUGGING CUSTOMER_ID ISSUES");
+        $this->newLine();
+
+        // 1. Check users table
+        $this->info("1. 📊 USERS TABLE ANALYSIS:");
+        $customers = User::whereIn('role', ['customer', 'fob'])->get();
+        $this->table(
+            ['ID', 'Name', 'Role', 'Email', 'Data Pencatatan Count'],
+            $customers->map(function ($user) {
+                return [
+                    $user->id,
+                    $user->name,
+                    $user->role,
+                    $user->email,
+                    $user->dataPencatatan()->count()
+                ];
+            })
+        );
+
+        $this->newLine();
+
+        // 2. Check data_pencatatan table
+        $this->info("2. 📝 DATA_PENCATATAN TABLE ANALYSIS:");
+        
+        $dataPencatatanStats = DB::table('data_pencatatan')
+            ->select(
+                DB::raw('COUNT(*) as total_records'),
+                DB::raw('COUNT(DISTINCT customer_id) as unique_customers'),
+                DB::raw('COUNT(CASE WHEN customer_id IS NULL THEN 1 END) as null_customer_id'),
+                DB::raw('COUNT(CASE WHEN customer_id = 0 THEN 1 END) as zero_customer_id')
+            )
+            ->first();
+
+        $this->table(
+            ['Metric', 'Count'],
+            [
+                ['Total Records', $dataPencatatanStats->total_records],
+                ['Unique Customers', $dataPencatatanStats->unique_customers],
+                ['NULL customer_id', $dataPencatatanStats->null_customer_id],
+                ['Zero customer_id', $dataPencatatanStats->zero_customer_id],
+            ]
+        );
+
+        $this->newLine();
+
+        // 3. Check invalid customer_id references
+        $this->info("3. ❌ INVALID CUSTOMER_ID REFERENCES:");
+        
+        $invalidCustomerIds = DB::table('data_pencatatan as dp')
+            ->leftJoin('users as u', 'dp.customer_id', '=', 'u.id')
+            ->whereNull('u.id')
+            ->whereNotNull('dp.customer_id')
+            ->where('dp.customer_id', '!=', 0)
+            ->select('dp.customer_id', DB::raw('COUNT(*) as count'))
+            ->groupBy('dp.customer_id')
+            ->get();
+
+        if ($invalidCustomerIds->isNotEmpty()) {
+            $this->table(
+                ['Customer ID', 'Records Count'],
+                $invalidCustomerIds->map(function ($item) {
+                    return [$item->customer_id, $item->count];
+                })
+            );
+        } else {
+            $this->info("✅ No invalid customer_id references found");
+        }
+
+        $this->newLine();
+
+        // 4. Check data_input structure issues
+        $this->info("4. 📋 DATA_INPUT STRUCTURE ANALYSIS:");
+        
+        $dataInputIssues = DataPencatatan::whereNotNull('customer_id')
+            ->where('customer_id', '!=', 0)
+            ->get()
+            ->map(function ($item) {
+                $dataInput = is_string($item->data_input) 
+                    ? json_decode($item->data_input, true) 
+                    : $item->data_input;
+                
+                return [
+                    'id' => $item->id,
+                    'customer_id' => $item->customer_id,
+                    'customer_exists' => $item->customer ? '✅' : '❌',
+                    'has_data_input' => !empty($dataInput) ? '✅' : '❌',
+                    'has_waktu_awal' => !empty($dataInput['pembacaan_awal']['waktu']) ? '✅' : '❌',
+                    'data_input_keys' => !empty($dataInput) ? implode(', ', array_keys($dataInput)) : 'EMPTY'
+                ];
+            })
+            ->take(10); // Ambil 10 sample saja
+
+        $this->table(
+            ['Record ID', 'Customer ID', 'Customer Exists', 'Has Data Input', 'Has Waktu Awal', 'Data Input Keys'],
+            $dataInputIssues
+        );
+
+        $this->newLine();
+
+        // 5. Specific customer analysis
+        if ($customerId) {
+            $this->info("5. 🎯 SPECIFIC CUSTOMER ANALYSIS (ID: {$customerId}):");
+            
+            $customer = User::find($customerId);
+            if (!$customer) {
+                $this->error("❌ Customer with ID {$customerId} not found");
+                return 1;
+            }
+
+            $this->info("Customer Details:");
+            $this->info("  - Name: {$customer->name}");
+            $this->info("  - Role: {$customer->role}");
+            $this->info("  - Email: {$customer->email}");
+            
+            $dataPencatatan = $customer->dataPencatatan;
+            $this->info("  - Data Pencatatan Count: {$dataPencatatan->count()}");
+
+            if ($dataPencatatan->count() > 0) {
+                $this->newLine();
+                $this->info("Sample Data Pencatatan:");
+                
+                $sampleData = $dataPencatatan->take(3)->map(function ($item) {
+                    $dataInput = is_string($item->data_input) 
+                        ? json_decode($item->data_input, true) 
+                        : $item->data_input;
+                    
+                    $waktuAwal = null;
+                    if (!empty($dataInput['pembacaan_awal']['waktu'])) {
+                        $waktuAwal = $dataInput['pembacaan_awal']['waktu'];
+                    }
+                    
+                    return [
+                        $item->id,
+                        $item->customer_id,
+                        $waktuAwal ?? 'NULL',
+                        !empty($dataInput) ? 'YES' : 'NO',
+                        $item->harga_final ?? 0
+                    ];
+                });
+
+                $this->table(
+                    ['Record ID', 'Customer ID', 'Waktu Awal', 'Has Data Input', 'Harga Final'],
+                    $sampleData
+                );
+            }
+        }
+
+        $this->newLine();
+
+        // 6. Recommendations
+        $this->info("6. 💡 RECOMMENDATIONS:");
+        
+        if ($dataPencatatanStats->null_customer_id > 0) {
+            $this->warn("⚠️  Found {$dataPencatatanStats->null_customer_id} records with NULL customer_id");
+            $this->info("   Fix: UPDATE data_pencatatan SET customer_id = ? WHERE customer_id IS NULL");
+        }
+        
+        if ($dataPencatatanStats->zero_customer_id > 0) {
+            $this->warn("⚠️  Found {$dataPencatatanStats->zero_customer_id} records with zero customer_id");
+            $this->info("   Fix: UPDATE data_pencatatan SET customer_id = ? WHERE customer_id = 0");
+        }
+        
+        if ($invalidCustomerIds->isNotEmpty()) {
+            $this->error("❌ Found invalid customer_id references that don't exist in users table");
+            $this->info("   Fix: Either create missing users or update customer_id to valid values");
+        }
+
+        $this->newLine();
+        $this->info("🔧 Use this command to fix specific customer: php artisan debug:customer-id --customer_id=X");
+
+        return 0;
+    }
+}

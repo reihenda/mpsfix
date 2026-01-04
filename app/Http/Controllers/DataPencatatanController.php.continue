@@ -1,0 +1,372 @@
+    // Process skipped dates and create entries for them
+    // Tambahkan Illuminate\Http\Request
+    // Komentar ini ditambahkan sebagai penanda untuk import yang diperlukan
+    private function processSkippedDates(User $customer, array $currentData)
+    {
+        // Mendapatkan data pencatatan terakhir sebelum data saat ini
+        $latestEntry = $customer->dataPencatatan()
+            ->get()
+            ->filter(function ($item) use ($currentData) {
+                $dataInput = $this->ensureArray($item->data_input);
+
+                // Skip jika data tidak lengkap
+                if (empty($dataInput) || empty($dataInput['pembacaan_akhir']['waktu'])) {
+                    return false;
+                }
+
+                // Cek apakah tanggal akhir dari data sebelumnya berada sebelum tanggal awal data saat ini
+                $waktuAkhir = Carbon::parse($dataInput['pembacaan_akhir']['waktu']);
+                $currentWaktuAwal = Carbon::parse($currentData['pembacaan_awal']['waktu']);
+
+                return $waktuAkhir->lt($currentWaktuAwal);
+            })
+            ->sortByDesc(function ($item) {
+                $dataInput = $this->ensureArray($item->data_input);
+                return isset($dataInput['pembacaan_akhir']['waktu']) ?
+                    Carbon::parse($dataInput['pembacaan_akhir']['waktu'])->timestamp : 0;
+            })
+            ->first();
+
+        // Jika tidak ada data sebelumnya, tidak ada yang perlu diproses
+        if (!$latestEntry) {
+            return;
+        }
+
+        $latestData = $this->ensureArray($latestEntry->data_input);
+
+        // Cek apakah ada gap antara data terakhir dan data saat ini
+        $latestEndDate = Carbon::parse($latestData['pembacaan_akhir']['waktu']);
+        $currentStartDate = Carbon::parse($currentData['pembacaan_awal']['waktu']);
+
+        // Jika gap kurang dari 1 hari, tidak perlu diproses
+        if ($latestEndDate->diffInDays($currentStartDate) < 1) {
+            return;
+        }
+
+        // MODIFIKASI: Hanya buat data untuk tanggal yang sepenuhnya terlewat
+        // Ambil tanggal dari waktu pembacaan awal saat ini (tanpa jam)
+        $currentStartDay = $currentStartDate->copy()->startOfDay();
+
+        // Membuat array tanggal untuk setiap hari yang terlewat
+        $dates = [];
+        $date = $latestEndDate->copy()->addDay()->startOfDay();
+
+        // Hanya proses tanggal hingga sehari sebelum tanggal awal data baru
+        while ($date->lt($currentStartDay)) {
+            $dates[] = $date->copy();
+            $date->addDay();
+        }
+
+        // Membuat entri data untuk setiap tanggal yang terlewat
+        foreach ($dates as $date) {
+            // Buat entri dengan nilai pembacaan awal dan akhir yang sama
+            $skippedData = [
+                'pembacaan_awal' => [
+                    'waktu' => $date->format('Y-m-d 00:00'),
+                    'volume' => $latestData['pembacaan_akhir']['volume']
+                ],
+                'pembacaan_akhir' => [
+                    'waktu' => $date->copy()->format('Y-m-d 23:59'),
+                    'volume' => $latestData['pembacaan_akhir']['volume']
+                ],
+                'volume_flow_meter' => 0
+            ];
+
+            // Konversi ke JSON
+            $dataInput = json_encode($skippedData);
+
+            // Buat entri baru
+            $dataPencatatan = new DataPencatatan();
+            $dataPencatatan->customer_id = $customer->id;
+            $dataPencatatan->data_input = $dataInput;
+            $dataPencatatan->nama_customer = $customer->name;
+            $dataPencatatan->status_pembayaran = 'lunas'; // Otomatis dianggap lunas karena tidak ada perubahan volume
+            $dataPencatatan->harga_final = 0; // Harga nol karena tidak ada konsumsi
+
+            $dataPencatatan->save();
+        }
+    }
+
+    // Menampilkan detail data
+    public function show(DataPencatatan $dataPencatatan)
+    {
+        // Cek otorisasi
+        $user = Auth::user();
+        if (!$user->isAdmin() && !$user->isSuperAdmin() && $dataPencatatan->customer_id !== $user->id) {
+            abort(403, 'Unauthorized access');
+        }
+
+        return view('data-pencatatan.show', compact('dataPencatatan'));
+    }
+
+    // Edit data
+    public function edit(DataPencatatan $dataPencatatan)
+    {
+        $customers = User::where('role', User::ROLE_CUSTOMER)->get();
+        return view('data-pencatatan.edit', compact('dataPencatatan', 'customers'));
+    }
+
+    // Update data
+    public function update(Request $request, DataPencatatan $dataPencatatan)
+    {
+        $validatedData = $request->validate([
+            'customer_id' => 'required|exists:users,id',
+            'data_input' => 'required|array'
+        ]);
+
+        // Flatten and sanitize data input
+        $sanitizedDataInput = $this->sanitizeDataInput($validatedData['data_input']);
+
+        // Validate specific input requirements
+        $this->validateDataInput($sanitizedDataInput);
+
+        // Konversi data input ke JSON
+        $dataInput = json_encode($sanitizedDataInput);
+
+        $dataPencatatan->customer_id = $validatedData['customer_id'];
+        $dataPencatatan->data_input = $dataInput;
+        $dataPencatatan->nama_customer = User::findOrFail($validatedData['customer_id'])->name;
+
+        // Hitung ulang harga
+        $dataPencatatan->hitungHarga();
+
+        $dataPencatatan->save();
+
+        // Rekalkulasi total pembelian customer setelah update data
+        app(UserController::class)->rekalkulasiTotalPembelian(User::findOrFail($validatedData['customer_id']));
+
+        return redirect()->route('data-pencatatan.customer-detail', [
+            'customer' => $validatedData['customer_id'],
+            'refresh' => true
+        ])->with('success', 'Data berhasil diupdate');
+    }
+
+    public function updateCustomerPricing(Request $request, User $customer)
+    {
+        $validatedData = $request->validate([
+            'harga_per_meter_kubik' => 'required|numeric|min:0',
+            'tekanan_keluar' => 'required|numeric',
+            'suhu' => 'required|numeric',
+            'koreksi_meter' => 'required|numeric'
+        ]);
+
+        // Perform koreksi meter calculation to verify
+        $A = (floatval($validatedData['tekanan_keluar']) + 1.01325) / 1.01325;
+        $B = 300 / (floatval($validatedData['suhu']) + 273);
+        $C = 1 + 0.002 * floatval($validatedData['tekanan_keluar']);
+        $calculatedKoreksiMeter = $A * $B * $C;
+
+        // Check if calculated result matches the provided result (with small tolerance)
+        if (abs($calculatedKoreksiMeter - floatval($validatedData['koreksi_meter'])) > 0.0001) {
+            return back()->with('error', 'Perhitungan koreksi meter tidak sesuai');
+        }
+
+        // Update customer pricing information
+        $customer->harga_per_meter_kubik = floatval($validatedData['harga_per_meter_kubik']);
+        $customer->tekanan_keluar = floatval($validatedData['tekanan_keluar']);
+        $customer->suhu = floatval($validatedData['suhu']);
+        $customer->koreksi_meter = floatval($validatedData['koreksi_meter']);
+        $customer->save();
+
+        return back()->with('success', 'Harga dan koreksi meter berhasil diperbarui');
+    }
+
+    // Optional: Method to get customer details
+    public function getCustomerDetails(User $customer)
+    {
+        return response()->json([
+            'name' => $customer->name,
+            'email' => $customer->email,
+            'harga_per_meter_kubik' => $customer->harga_per_meter_kubik ?? 0,
+            'tekanan_keluar' => $customer->tekanan_keluar ?? 0,
+            'suhu' => $customer->suhu ?? 0,
+            'koreksi_meter' => $customer->koreksi_meter ?? 1
+        ]);
+    }
+    // Get the latest reading data for a customer
+    public function getLatestReading(Request $request)
+    {
+        $customerId = $request->input('customer_id');
+
+        if (!$customerId) {
+            return response()->json(['error' => 'Missing customer ID', 'success' => false], 400);
+        }
+
+        // Find the customer
+        $customer = User::find($customerId);
+        if (!$customer) {
+            return response()->json(['error' => 'Customer not found', 'success' => false], 404);
+        }
+
+        try {
+            // Get the most recent entry for this customer
+            $latestEntry = $customer->dataPencatatan()
+                ->get()
+                ->filter(function ($item) {
+                    $dataInput = $this->ensureArray($item->data_input);
+                    return !empty($dataInput) && !empty($dataInput['pembacaan_akhir']['waktu']) && isset($dataInput['pembacaan_akhir']['volume']);
+                })
+                ->sortByDesc(function ($item) {
+                    $dataInput = $this->ensureArray($item->data_input);
+                    return Carbon::parse($dataInput['pembacaan_akhir']['waktu'])->timestamp;
+                })
+                ->first();
+
+            if ($latestEntry) {
+                $dataInput = $this->ensureArray($latestEntry->data_input);
+                $latestDate = Carbon::parse($dataInput['pembacaan_akhir']['waktu'])->format('d-m-Y H:i');
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'volume' => floatval($dataInput['pembacaan_akhir']['volume'] ?? 0),
+                        'date' => $latestDate,
+                        'message' => 'Menggunakan data pembacaan terakhir'
+                    ]
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada data pembacaan sebelumnya'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Error: ' . $e->getMessage(),
+                'message' => 'Terjadi kesalahan saat memproses data'
+            ]);
+        }
+    }
+    // Di DataPencatatanController.php, tambahkan method baru:
+    public function createWithCustomer(Request $request, $customerId)
+    {
+        // Ambil daftar customer untuk dipilih
+        $customers = User::where('role', User::ROLE_CUSTOMER)->get();
+
+        // Get the selected customer
+        $selectedCustomer = User::findOrFail($customerId);
+
+        // Get the latest reading data for this customer
+        $latestData = null;
+        $latestVolume = null;
+        $latestDate = null;
+
+        // Find the latest entry
+        $latestEntry = $selectedCustomer->dataPencatatan()
+            ->get()
+            ->filter(function ($item) {
+                $dataInput = $this->ensureArray($item->data_input);
+                return !empty($dataInput) && !empty($dataInput['pembacaan_akhir']['waktu']) && isset($dataInput['pembacaan_akhir']['volume']);
+            })
+            ->sortByDesc(function ($item) {
+                $dataInput = $this->ensureArray($item->data_input);
+                return Carbon::parse($dataInput['pembacaan_akhir']['waktu'])->timestamp;
+            })
+            ->first();
+
+        if ($latestEntry) {
+            $dataInput = $this->ensureArray($latestEntry->data_input);
+            $latestVolume = floatval($dataInput['pembacaan_akhir']['volume'] ?? 0);
+            $latestDate = Carbon::parse($dataInput['pembacaan_akhir']['waktu'])->format('d-m-Y H:i');
+            session()->flash('success', 'Data pembacaan terakhir berhasil diambil');
+        }
+
+        return view('data-pencatatan.create', compact('customers', 'selectedCustomer', 'latestVolume', 'latestDate'));
+    }
+
+    // Sanitize and flatten nested input data
+    private function sanitizeDataInput(array $dataInput)
+    {
+        $sanitized = [];
+
+        // Sanitize pembacaan awal
+        if (isset($dataInput['pembacaan_awal'])) {
+            $sanitized['pembacaan_awal'] = [
+                'waktu' => is_array($dataInput['pembacaan_awal']['waktu'] ?? null)
+                    ? ''
+                    : ($dataInput['pembacaan_awal']['waktu'] ?? ''),
+                'volume' => is_array($dataInput['pembacaan_awal']['volume'] ?? null)
+                    ? 0
+                    : floatval($dataInput['pembacaan_awal']['volume'] ?? 0)
+            ];
+        }
+
+        // Sanitize pembacaan akhir
+        if (isset($dataInput['pembacaan_akhir'])) {
+            $sanitized['pembacaan_akhir'] = [
+                'waktu' => is_array($dataInput['pembacaan_akhir']['waktu'] ?? null)
+                    ? ''
+                    : ($dataInput['pembacaan_akhir']['waktu'] ?? ''),
+                'volume' => is_array($dataInput['pembacaan_akhir']['volume'] ?? null)
+                    ? 0
+                    : floatval($dataInput['pembacaan_akhir']['volume'] ?? 0)
+            ];
+        }
+
+        // Sanitize volume flow meter
+        $sanitized['volume_flow_meter'] = isset($dataInput['volume_flow_meter'])
+            ? (is_array($dataInput['volume_flow_meter'])
+                ? 0
+                : floatval($dataInput['volume_flow_meter']))
+            : 0;
+
+        return $sanitized;
+    }
+
+    // Validasi khusus untuk input data
+    private function validateDataInput(array $dataInput)
+    {
+        // Validasi pembacaan awal
+        if (!isset($dataInput['pembacaan_awal']['waktu']) || !isset($dataInput['pembacaan_awal']['volume'])) {
+            throw new \InvalidArgumentException('Data pembacaan awal tidak lengkap');
+        }
+
+        // Validasi pembacaan akhir
+        if (!isset($dataInput['pembacaan_akhir']['waktu']) || !isset($dataInput['pembacaan_akhir']['volume'])) {
+            throw new \InvalidArgumentException('Data pembacaan akhir tidak lengkap');
+        }
+
+        // Validasi volume
+        $volumeAwal = floatval($dataInput['pembacaan_awal']['volume']);
+        $volumeAkhir = floatval($dataInput['pembacaan_akhir']['volume']);
+
+        if ($volumeAkhir < $volumeAwal) {
+            throw new \InvalidArgumentException('Volume akhir tidak boleh kurang dari volume awal');
+        }
+
+        // Validasi waktu
+        $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
+        $waktuAkhir = Carbon::parse($dataInput['pembacaan_akhir']['waktu']);
+
+        if ($waktuAkhir <= $waktuAwal) {
+            throw new \InvalidArgumentException('Waktu pembacaan akhir harus lebih besar dari waktu pembacaan awal');
+        }
+
+        // Validasi volume flow meter
+        $volumeFlowMeter = $volumeAkhir - $volumeAwal;
+
+        // Pastikan perhitungan volume flow meter sesuai
+        if (abs($volumeFlowMeter - floatval($dataInput['volume_flow_meter'])) > 0.001) {
+            throw new \InvalidArgumentException('Perhitungan volume flow meter tidak sesuai');
+        }
+    }
+
+    // Proses pembayaran (optional)
+    public function prosesPembayaran(DataPencatatan $dataPencatatan)
+    {
+        // Validasi apakah user yang sedang login adalah customer dari data ini
+        $user = Auth::user();
+        if (!$user->isCustomer() || $dataPencatatan->customer_id !== $user->id) {
+            abort(403, 'Unauthorized access');
+        }
+
+        $dataPencatatan->status_pembayaran = 'lunas';
+        $dataPencatatan->save();
+
+        return redirect()->back()->with('success', 'Pembayaran berhasil diproses');
+    }
+
+    // Untuk kompatibilitas dengan .continue, destroy method dihapus dari file ini
+    // Karena implementasi satu method destroy sudah berada di DataPencatatanController.php utama
+}
