@@ -71,8 +71,6 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
     // Operator GTM - View Only untuk Keuangan
     // Index untuk melihat daftar operator
     Route::get('/operator-gtm', [App\Http\Controllers\OperatorGtmController::class, 'index'])->name('operator-gtm.index');
-    // Show untuk melihat detail operator dan data lembur (READ ONLY untuk Keuangan)
-    Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show');
 
     // Keuangan Routes - Full Access untuk Keuangan
     Route::get('/keuangan/accounts', [FinancialAccountController::class, 'index'])->name('keuangan.accounts.index');
@@ -229,20 +227,20 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     // Operator GTM - CREATE/UPDATE/DELETE (HANYA Admin)
     // CRITICAL: Route STATIS harus SEBELUM route DINAMIS untuk menghindari konflik!
     // ========================================================================
-    
+
     // Route statis untuk operator-gtm (harus di atas route dinamis)
     Route::get('/operator-gtm/create', [App\Http\Controllers\OperatorGtmController::class, 'create'])->name('operator-gtm.create');
-    
+
     // Route statis untuk operator-gtm-lembur (harus di atas route dinamis)
     Route::get('/operator-gtm-lembur/{lembur}/edit', [App\Http\Controllers\OperatorGtmController::class, 'editLembur'])->name('operator-gtm.edit-lembur');
     Route::put('/operator-gtm-lembur/{lembur}', [App\Http\Controllers\OperatorGtmController::class, 'updateLembur'])->name('operator-gtm.update-lembur');
     Route::delete('/operator-gtm-lembur/{lembur}', [App\Http\Controllers\OperatorGtmController::class, 'destroyLembur'])->name('operator-gtm.destroy-lembur');
-    
+
     // Route dengan parameter dinamis untuk operator-gtm (harus setelah route statis)
     Route::get('/operator-gtm/{operatorGtm}/create-lembur', [App\Http\Controllers\OperatorGtmController::class, 'createLembur'])->name('operator-gtm.create-lembur');
     Route::get('/operator-gtm/{operatorGtm}/edit', [App\Http\Controllers\OperatorGtmController::class, 'edit'])->name('operator-gtm.edit');
-    // Note: Route show sudah dipindah ke grup keuangan di atas untuk READ ACCESS
-    
+    Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show');
+
     // Route POST/PUT/DELETE untuk operator-gtm
     Route::post('/operator-gtm', [App\Http\Controllers\OperatorGtmController::class, 'store'])->name('operator-gtm.store');
     Route::post('/operator-gtm/{operatorGtm}/lembur', [App\Http\Controllers\OperatorGtmController::class, 'storeLembur'])->name('operator-gtm.store-lembur');
