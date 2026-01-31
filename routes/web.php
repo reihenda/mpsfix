@@ -316,6 +316,10 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     Route::post('/fob/{fobId}/update-pricing', [UserController::class, 'updateFobPricing'])
         ->name('fob.update-pricing');
 
+    // Route GET untuk print deposit history FOB
+    Route::get('/fob/{customer}/print-deposit-history', [FobController::class, 'printDepositHistory'])
+        ->name('fob.print-deposit-history');
+
     // Debug Routes - HANYA Admin
     Route::get('/test/process-queue', [App\Http\Controllers\QueueTestController::class, 'processQueue'])->name('test.process-queue');
     Route::get('/test/check-cache', [App\Http\Controllers\QueueTestController::class, 'checkCache'])->name('test.check-cache');

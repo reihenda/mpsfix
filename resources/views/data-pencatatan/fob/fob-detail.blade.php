@@ -564,9 +564,12 @@
                                         data-target="#tambahDepositModal">
                                         <i class="fas fa-plus mr-1"></i> Tambah Deposit
                                     </button>
-                                    <button class="btn btn-warning w-100" data-toggle="modal"
+                                    <button class="btn btn-warning w-100 mb-2" data-toggle="modal"
                                         data-target="#penguranganSaldoModal">
                                         <i class="fas fa-minus mr-1"></i> Pengurangan Saldo
+                                    </button>
+                                    <button class="btn btn-info w-100" data-toggle="modal" data-target="#printDepositFilterModal">
+                                        <i class="fas fa-print mr-1"></i> Print History Deposit
                                     </button>
                                 </div>
                             </div>
@@ -901,6 +904,47 @@
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Print Deposit History Filter Modal --}}
+            <div class="modal fade" id="printDepositFilterModal" tabindex="-1" role="dialog"
+                aria-labelledby="printDepositFilterModalLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header bg-info text-white">
+                            <h5 class="modal-title" id="printDepositFilterModalLabel">
+                                <i class="fas fa-print mr-2"></i>Print History Deposit
+                            </h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <form action="{{ route('fob.print-deposit-history', $customer->id) }}" method="GET" id="printDepositFilterForm" target="_blank">
+                            <div class="modal-body">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    Pilih rentang tanggal untuk mencetak history deposit.
+                                </div>
+                                <div class="form-group">
+                                    <label for="deposit_tanggal_mulai"><strong>Tanggal Mulai:</strong></label>
+                                    <input type="date" name="tanggal_mulai" id="deposit_tanggal_mulai" class="form-control" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="deposit_tanggal_akhir"><strong>Tanggal Akhir:</strong></label>
+                                    <input type="date" name="tanggal_akhir" id="deposit_tanggal_akhir" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                    <i class="fas fa-times mr-1"></i>Batal
+                                </button>
+                                <button type="submit" class="btn btn-info">
+                                    <i class="fas fa-print mr-1"></i>Print
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -1499,6 +1543,19 @@
 
             // Initialize tooltips
             $('[data-toggle="tooltip"]').tooltip();
+
+            // Set default date values untuk print deposit modal
+            $('#printDepositFilterModal').on('shown.bs.modal', function() {
+                // Set default tanggal ke bulan ini jika belum ada value
+                if (!$('#deposit_tanggal_mulai').val()) {
+                    var today = new Date();
+                    var firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                    var lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+                    $('#deposit_tanggal_mulai').val(firstDay.toISOString().split('T')[0]);
+                    $('#deposit_tanggal_akhir').val(lastDay.toISOString().split('T')[0]);
+                }
+            });
 
             // Menghilangkan kode AJAX yang membingungkan
             // Biarkan form submit secara native untuk memudahkan debugging

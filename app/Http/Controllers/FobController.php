@@ -1685,4 +1685,83 @@ class FobController extends Controller
             ]);
         }
     }
+
+    /**
+     * Print deposit history for FOB customer
+     */
+    public function printDepositHistory(Request $request, User $customer)
+    {
+        // Verify that customer is FOB
+        if (!$customer->isFOB()) {
+            return redirect()->back()->with('error', 'User yang dipilih bukan FOB');
+        }
+
+        // Get filter parameters
+        $tanggalMulai = $request->input('tanggal_mulai');
+        $tanggalAkhir = $request->input('tanggal_akhir');
+
+        // Validate dates
+        if (!$tanggalMulai || !$tanggalAkhir) {
+            return redirect()->back()->with('error', 'Tanggal mulai dan tanggal akhir harus diisi');
+        }
+
+        // Parse dates
+        $startDate = Carbon::parse($tanggalMulai)->startOfDay();
+        $endDate = Carbon::parse($tanggalAkhir)->endOfDay();
+
+        // Get deposit history - use the same method as regular customers
+        $depositHistory = $this->ensureArray($customer->deposit_history);
+
+        // Add keterangan to deposit history items
+        $depositHistory = collect($depositHistory)->map(function ($deposit) {
+            return [
+                'date' => $deposit['date'] ?? '',
+                'amount' => $deposit['amount'] ?? 0,
+                'keterangan' => $deposit['keterangan'] ?? 'penambahan',
+                'deskripsi' => $deposit['deskripsi'] ?? ($deposit['description'] ?? '-'),
+            ];
+        })->toArray();
+
+        // Filter deposit by date range
+        $filteredDeposits = collect($depositHistory)->filter(function($deposit) use ($startDate, $endDate) {
+            if (empty($deposit['date'])) {
+                return false;
+            }
+
+            $depositDate = Carbon::parse($deposit['date']);
+            return $depositDate->between($startDate, $endDate);
+        })->sortBy('date')->values();
+
+        // Calculate totals within date range
+        $totalDepositInRange = 0;
+        $totalPurchaseInRange = 0;
+
+        foreach ($filteredDeposits as $deposit) {
+            $amount = floatval($deposit['amount'] ?? 0);
+            if ($deposit['keterangan'] === 'penambahan') {
+                $totalDepositInRange += $amount;
+            } else {
+                $totalPurchaseInRange += abs($amount);
+            }
+        }
+
+        // Calculate balance
+        $saldoTersisa = ($customer->total_deposit ?? 0) - ($customer->total_purchases ?? 0);
+
+        // Prepare data for view
+        $data = [
+            'customer' => $customer,
+            'depositHistory' => $filteredDeposits,
+            'tanggalMulai' => $startDate->format('d F Y'),
+            'tanggalAkhir' => $endDate->format('d F Y'),
+            'totalDepositOverall' => $customer->total_deposit ?? 0,
+            'totalPurchaseOverall' => $customer->total_purchases ?? 0,
+            'saldoTersisa' => $saldoTersisa,
+            'totalDepositInRange' => $totalDepositInRange,
+            'tanggalCetak' => Carbon::now()->format('d F Y H:i'),
+        ];
+
+        // Return print view - use the same view as regular customers
+        return view('data-pencatatan.print-deposit-history', $data);
+    }
 }
