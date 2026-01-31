@@ -71,6 +71,8 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
     // Operator GTM - View Only untuk Keuangan
     // Index untuk melihat daftar operator
     Route::get('/operator-gtm', [App\Http\Controllers\OperatorGtmController::class, 'index'])->name('operator-gtm.index');
+    // Show untuk melihat detail operator dan data lembur (READ ONLY untuk Keuangan)
+    Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show');
 
     // Keuangan Routes - Full Access untuk Keuangan
     Route::get('/keuangan/accounts', [FinancialAccountController::class, 'index'])->name('keuangan.accounts.index');
@@ -239,7 +241,7 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     // Route dengan parameter dinamis untuk operator-gtm (harus setelah route statis)
     Route::get('/operator-gtm/{operatorGtm}/create-lembur', [App\Http\Controllers\OperatorGtmController::class, 'createLembur'])->name('operator-gtm.create-lembur');
     Route::get('/operator-gtm/{operatorGtm}/edit', [App\Http\Controllers\OperatorGtmController::class, 'edit'])->name('operator-gtm.edit');
-    Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show');
+    // Note: Route show sudah dipindah ke grup keuangan di atas untuk READ ACCESS
 
     // Route POST/PUT/DELETE untuk operator-gtm
     Route::post('/operator-gtm', [App\Http\Controllers\OperatorGtmController::class, 'store'])->name('operator-gtm.store');
