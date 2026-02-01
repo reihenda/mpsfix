@@ -184,6 +184,37 @@
             font-weight: 600;
         }
 
+        /* Monthly Summary Styles */
+        .monthly-summary {
+            margin-top: 30px;
+            margin-bottom: 25px;
+        }
+
+        .monthly-summary h3 {
+            font-size: 16px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .monthly-summary table {
+            margin-bottom: 0;
+        }
+
+        .monthly-summary table thead {
+            background: #17a2b8;
+        }
+
+        .monthly-summary table tfoot {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+
+        .monthly-summary table tfoot td {
+            border-top: 2px solid #343a40;
+        }
+
         .footer {
             margin-top: 30px;
             padding-top: 15px;
@@ -351,6 +382,95 @@
                 @endforelse
             </tbody>
         </table>
+
+        <!-- Monthly Summary Section -->
+        @if(count($depositHistory) > 0)
+        <div class="monthly-summary">
+            <h3><i class="fas fa-chart-bar"></i> Ringkasan Per Bulan</h3>
+            @php
+                // Group deposits by month
+                $depositsByMonth = collect($depositHistory)->filter(function($deposit) {
+                    return !empty($deposit['date']);
+                })->groupBy(function($deposit) {
+                    return \Carbon\Carbon::parse($deposit['date'])->format('Y-m');
+                })->sortKeys();
+
+                // Calculate totals per month
+                $monthlyTotals = $depositsByMonth->map(function($deposits, $yearMonth) {
+                    $penambahan = 0;
+                    $pengurangan = 0;
+                    foreach ($deposits as $deposit) {
+                        $amount = floatval($deposit['amount'] ?? 0);
+                        if ($deposit['keterangan'] === 'penambahan') {
+                            $penambahan += $amount;
+                        } else {
+                            $pengurangan += abs($amount);
+                        }
+                    }
+                    return [
+                        'yearMonth' => $yearMonth,
+                        'penambahan' => $penambahan,
+                        'pengurangan' => $pengurangan,
+                        'netto' => $penambahan - $pengurangan
+                    ];
+                });
+
+                // Calculate grand totals
+                $grandTotalPenambahan = $monthlyTotals->sum('penambahan');
+                $grandTotalPengurangan = $monthlyTotals->sum('pengurangan');
+                $grandTotalNetto = $grandTotalPenambahan - $grandTotalPengurangan;
+            @endphp
+
+            <table>
+                <thead>
+                    <tr>
+                        <th width="25%">Periode</th>
+                        <th width="25%" class="text-right">Total Penambahan</th>
+                        <th width="25%" class="text-right">Total Pengurangan</th>
+                        <th width="25%" class="text-right">Netto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($monthlyTotals as $monthly)
+                    <tr>
+                        <td>{{ \Carbon\Carbon::parse($monthly['yearMonth'] . '-01')->format('F Y') }}</td>
+                        <td class="text-right">
+                            <span class="amount-positive">Rp {{ number_format($monthly['penambahan'], 2, ',', '.') }}</span>
+                        </td>
+                        <td class="text-right">
+                            <span class="amount-negative">Rp {{ number_format($monthly['pengurangan'], 2, ',', '.') }}</span>
+                        </td>
+                        <td class="text-right">
+                            @if($monthly['netto'] >= 0)
+                                <span class="amount-positive">Rp {{ number_format($monthly['netto'], 2, ',', '.') }}</span>
+                            @else
+                                <span class="amount-negative">Rp {{ number_format($monthly['netto'], 2, ',', '.') }}</span>
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td><strong>TOTAL</strong></td>
+                        <td class="text-right">
+                            <span class="amount-positive">Rp {{ number_format($grandTotalPenambahan, 2, ',', '.') }}</span>
+                        </td>
+                        <td class="text-right">
+                            <span class="amount-negative">Rp {{ number_format($grandTotalPengurangan, 2, ',', '.') }}</span>
+                        </td>
+                        <td class="text-right">
+                            @if($grandTotalNetto >= 0)
+                                <span class="amount-positive">Rp {{ number_format($grandTotalNetto, 2, ',', '.') }}</span>
+                            @else
+                                <span class="amount-negative">Rp {{ number_format($grandTotalNetto, 2, ',', '.') }}</span>
+                            @endif
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        @endif
 
         <!-- Footer -->
         <div class="footer">
