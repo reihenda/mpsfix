@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>Rekap Penjualan Tahun {{ $tahun }}</title>
+    <title>Rekap Penjualan {{ $typeLabel }} Tahun {{ $tahun }}</title>
     <style type="text/css">
         @page {
             size: landscape;
@@ -228,7 +228,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>LAPORAN REKAP PENJUALAN TAHUN {{ $tahun }}</h1>
+        <h1>LAPORAN REKAP PENJUALAN {{ strtoupper($typeLabel) }} TAHUN {{ $tahun }}</h1>
         <h2 style="border-bottom: none; display: block; text-align: center;">PT MOSAFA PRIMA SINERGI</h2>
     </div>
 
@@ -237,7 +237,7 @@
     </button>
 
     <div class="summary-section" style="text-align: center;">
-        <h2 style="display: block; text-align: center; margin-left: auto; margin-right: auto;">Ringkasan Penjualan Tahunan {{ $tahun }}</h2>
+        <h2 style="display: block; text-align: center; margin-left: auto; margin-right: auto;">Ringkasan Penjualan {{ $typeLabel }} Tahunan {{ $tahun }}</h2>
         <table class="summary" style="width: 60%; margin: 0 auto;">
             <tr>
                 <td width="60%"><strong>Total Volume Pemakaian (Sm³)</strong></td>
@@ -259,7 +259,7 @@
     <!-- Halaman kedua dimulai di sini -->
     <div style="text-align: center; margin-bottom: 20px;">
         <h2 style="display: block; border-bottom: none; margin-left: auto; margin-right: auto;">PT MOSAFA PRIMA SINERGI</h2>
-        <h3 style="display: block; margin-left: auto; margin-right: auto; font-size: 16px; color: #2980b9 !important;">Rekap Penjualan Bulanan Tahun {{ $tahun }}</h3>
+        <h3 style="display: block; margin-left: auto; margin-right: auto; font-size: 16px; color: #2980b9 !important;">Rekap Penjualan Bulanan {{ $typeLabel }} Tahun {{ $tahun }}</h3>
     </div>
     <div style="display: flex; justify-content: space-between;">
         <div style="width: 48%;">
@@ -314,7 +314,7 @@
 
     <div class="page-break"></div>
 
-    <h2>Rekap Penjualan Per Customer Tahun {{ $tahun }}</h2>
+    <h2>Rekap Penjualan Per {{ $typeLabel }} Tahun {{ $tahun }}</h2>
     <table>
         <thead>
             <tr>
@@ -351,7 +351,7 @@
 
     <div class="page-break"></div>
 
-    <h2>Detail Penjualan Per Bulan Per Customer Tahun {{ $tahun }}</h2>
+    <h2>Detail Penjualan Per Bulan Per {{ $typeLabel }} Tahun {{ $tahun }}</h2>
     <table style="font-size: 10px;">
         <thead>
             <tr>
@@ -414,7 +414,7 @@
 
     <div class="page-break"></div>
 
-    <h2>Detail Biaya Pemakaian Per Bulan Per Customer Tahun {{ $tahun }}</h2>
+    <h2>Detail Biaya Pemakaian Per Bulan Per {{ $typeLabel }} Tahun {{ $tahun }}</h2>
     <table style="font-size: 10px;">
         <thead>
             <tr>

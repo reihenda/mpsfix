@@ -16,9 +16,17 @@
             <div class="card">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h3 class="card-title"><i class="fas fa-filter mr-2"></i>Filter Data</h3>
-                    <a href="{{ route('rekap.penjualan.cetak', ['tahun' => $selectedTahun]) }}" class="btn btn-success btn-sm" target="_blank">
-                        <i class="fas fa-print mr-1"></i> Cetak Rekap Penjualan
-                    </a>
+                    <div>
+                        <a href="{{ route('rekap.penjualan.cetak', ['tahun' => $selectedTahun, 'type' => 'total']) }}" class="btn btn-success btn-sm" target="_blank">
+                            <i class="fas fa-print mr-1"></i> Cetak Rekap Total
+                        </a>
+                        <a href="{{ route('rekap.penjualan.cetak', ['tahun' => $selectedTahun, 'type' => 'customer']) }}" class="btn btn-primary btn-sm" target="_blank">
+                            <i class="fas fa-print mr-1"></i> Cetak Rekap Customer
+                        </a>
+                        <a href="{{ route('rekap.penjualan.cetak', ['tahun' => $selectedTahun, 'type' => 'fob']) }}" class="btn btn-warning btn-sm" target="_blank">
+                            <i class="fas fa-print mr-1"></i> Cetak Rekap FOB
+                        </a>
+                    </div>
                 </div>
                 <div class="card-body py-3">
                     <form action="{{ route('rekap.penjualan.index') }}" method="GET" class="d-flex align-items-center">

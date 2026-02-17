@@ -565,13 +565,36 @@ class RekapPenjualanController extends Controller
     {
         // Get filter parameters
         $tahun = $request->input('tahun', date('Y'));
-        
-        // Mendapatkan semua customer (biasa dan FOB)
-        $customersDb = User::where('role', 'customer')->get()->toArray();
-        $fobDb = User::where('role', 'fob')->get()->toArray();
+        $type = $request->input('type', 'total');
 
-        // Gabungkan customer biasa dan FOB menggunakan array_merge
-        $customers = array_merge($customersDb, $fobDb);
+        // Validasi type parameter
+        if (!in_array($type, ['total', 'customer', 'fob'])) {
+            $type = 'total';
+        }
+
+        // Mendapatkan customer berdasarkan type
+        switch ($type) {
+            case 'customer':
+                $customers = User::where('role', 'customer')->get()->toArray();
+                break;
+            case 'fob':
+                $customers = User::where('role', 'fob')->get()->toArray();
+                break;
+            case 'total':
+            default:
+                $customersDb = User::where('role', 'customer')->get()->toArray();
+                $fobDb = User::where('role', 'fob')->get()->toArray();
+                $customers = array_merge($customersDb, $fobDb);
+                break;
+        }
+
+        // Label untuk judul berdasarkan type
+        $typeLabels = [
+            'total'    => 'Total (Customer + FOB)',
+            'customer' => 'Customer',
+            'fob'      => 'FOB',
+        ];
+        $typeLabel = $typeLabels[$type];
         
         // Data bulanan untuk rekap tahunan
         $monthlyData = [];
@@ -624,17 +647,24 @@ class RekapPenjualanController extends Controller
                 // Filter berdasarkan bulan dan tahun dari data_input
                 $dataPencatatanBulan = $allDataPencatatan->filter(function($item) use ($yearMonth) {
                     $dataInput = json_decode($item->data_input, true) ?? [];
-                    
-                    // Jika data input kosong atau tidak ada waktu awal, skip
-                    if (empty($dataInput) || empty($dataInput['pembacaan_awal']['waktu'])) {
+
+                    if (empty($dataInput)) {
                         return false;
                     }
-                    
-                    // Convert the timestamp to year-month format for comparison
-                    $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m');
-                    
-                    // Filter by year-month
-                    return $waktuAwal === $yearMonth;
+
+                    // Cek format FOB (menggunakan 'waktu' langsung)
+                    if (!empty($dataInput['waktu'])) {
+                        $waktu = Carbon::parse($dataInput['waktu'])->format('Y-m');
+                        return $waktu === $yearMonth;
+                    }
+
+                    // Cek format customer biasa (menggunakan 'pembacaan_awal.waktu')
+                    if (!empty($dataInput['pembacaan_awal']['waktu'])) {
+                        $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m');
+                        return $waktuAwal === $yearMonth;
+                    }
+
+                    return false;
                 });
 
                 $pemakaianBulan = 0;
@@ -686,6 +716,8 @@ class RekapPenjualanController extends Controller
         // Data untuk view PDF
         $data = [
             'tahun' => $tahun,
+            'type' => $type,
+            'typeLabel' => $typeLabel,
             'yearlyData' => $yearlyData,
             'customersData' => $customersData,
             'currentDate' => Carbon::now()->format('d F Y')
