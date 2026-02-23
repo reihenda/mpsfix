@@ -240,11 +240,11 @@
         <h2 style="display: block; text-align: center; margin-left: auto; margin-right: auto;">Ringkasan Penjualan {{ $typeLabel }} Tahunan {{ $tahun }}</h2>
         <table class="summary" style="width: 60%; margin: 0 auto;">
             <tr>
-                <td width="60%"><strong>Total Volume Pemakaian (Sm³)</strong></td>
+                <td width="60%"><strong>Total Volume Penjualan (Sm³)</strong></td>
                 <td class="text-right"><strong>{{ number_format($yearlyData['total']['total_pemakaian'], 2) }}</strong></td>
             </tr>
             <tr>
-                <td><strong>Total Biaya Pemakaian (Rp)</strong></td>
+                <td><strong>Total Penjualan (Rp)</strong></td>
                 <td class="text-right"><strong>Rp {{ number_format($yearlyData['total']['total_pembelian'], 0) }}</strong></td>
             </tr>
             <tr>
@@ -292,7 +292,7 @@
                     <tr>
                         <th class="text-center" width="10%">No</th>
                         <th width="40%">Bulan</th>
-                        <th class="text-right" width="50%">Biaya Pemakaian (Rp)</th>
+                        <th class="text-right" width="50%">Penjualan (Rp)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -357,7 +357,7 @@
             <tr>
                 <th rowspan="2" class="text-center" style="vertical-align: middle; width: 3%;">No</th>
                 <th rowspan="2" style="vertical-align: middle; width: 15%;">Customer</th>
-                <th colspan="12" class="text-center">Volume Pemakaian (Sm³)</th>
+                <th colspan="12" class="text-center">Volume Penjualan (Sm³)</th>
                 <th rowspan="2" class="text-center" style="vertical-align: middle; width: 6%;">Total</th>
             </tr>
             <tr>
@@ -414,13 +414,13 @@
 
     <div class="page-break"></div>
 
-    <h2>Detail Biaya Pemakaian Per Bulan Per {{ $typeLabel }} Tahun {{ $tahun }}</h2>
+    <h2>Detail Penjualan Per Bulan Per {{ $typeLabel }} Tahun {{ $tahun }}</h2>
     <table style="font-size: 10px;">
         <thead>
             <tr>
                 <th rowspan="2" class="text-center" style="vertical-align: middle; width: 3%;">No</th>
                 <th rowspan="2" style="vertical-align: middle; width: 15%;">Customer</th>
-                <th colspan="12" class="text-center">Biaya Pemakaian (Rp)</th>
+                <th colspan="12" class="text-center">Penjualan (Rp)</th>
                 <th rowspan="2" class="text-center" style="vertical-align: middle; width: 6%;">Total</th>
             </tr>
             <tr>
