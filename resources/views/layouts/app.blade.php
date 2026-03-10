@@ -491,6 +491,15 @@
                             </li>
                         @endif
 
+                        @if (Auth::user()->isStaff())
+                            <li class="nav-item">
+                                <a href="{{ route('data-pencatatan.index') }}" class="nav-link">
+                                    <i class="nav-icon fas fa-clipboard-list"></i>
+                                    <p>Pencatatan Data Customer</p>
+                                </a>
+                            </li>
+                        @endif
+
                         @if (Auth::user()->isCustomer() || Auth::user()->isFOB())
                             <li class="nav-item">
                                 <a href="{{ Auth::user()->isCustomer() ? route('customer.dashboard') : route('fob.dashboard') }}" class="nav-link">

@@ -47,14 +47,11 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan,customer,fob'])->grou
 });
 
 // ============================================================================
-// Rute untuk Admin, SuperAdmin, dan Keuangan (READ ACCESS)
+// Rute untuk Admin, SuperAdmin, Keuangan, dan Staff (READ ACCESS Data Pencatatan)
+// Staff hanya bisa melihat data pencatatan customer, tidak bisa edit
 // ============================================================================
-Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function () {
-
-    // Dashboard untuk Keuangan
-    Route::get('/keuangan', [KeuanganController::class, 'index'])->name('keuangan.index');
-
-    // Data Pencatatan - View Only untuk Keuangan
+Route::middleware(['auth', 'role:admin,superadmin,keuangan,staff'])->group(function () {
+    // Data Pencatatan - View Only untuk Keuangan dan Staff
     Route::get('/data-pencatatan', [DataPencatatanController::class, 'index'])
         ->name('data-pencatatan.index');
     Route::get('/data-pencatatan/{dataPencatatan}', [DataPencatatanController::class, 'show'])
@@ -67,6 +64,15 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
         ->name('data-pencatatan.filter');
     Route::post('/data-pencatatan/{customer}/filter-month-year', [DataPencatatanController::class, 'filterByMonthYear'])
         ->name('data-pencatatan.filter-month-year');
+});
+
+// ============================================================================
+// Rute untuk Admin, SuperAdmin, dan Keuangan (READ ACCESS - tanpa Staff)
+// ============================================================================
+Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function () {
+
+    // Dashboard untuk Keuangan
+    Route::get('/keuangan', [KeuanganController::class, 'index'])->name('keuangan.index');
 
     // Operator GTM - View Only untuk Keuangan
     // Index untuk melihat daftar operator

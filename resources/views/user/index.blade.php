@@ -122,6 +122,7 @@
                                 <option value="customer" {{ old('role') == 'customer' ? 'selected' : '' }}>Customer</option>
                                 <option value="fob" {{ old('role') == 'fob' ? 'selected' : '' }}>FOB</option>
                                 <option value="demo" {{ old('role') == 'demo' ? 'selected' : '' }}>Demo</option>
+                                <option value="staff" {{ old('role') == 'staff' ? 'selected' : '' }}>Staff</option>
                             </select>
                             @error('role')
                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -214,6 +215,7 @@
                                 <option value="customer">Customer</option>
                                 <option value="fob">FOB</option>
                                 <option value="demo">Demo</option>
+                                <option value="staff">Staff</option>
                             </select>
                             <div class="invalid-feedback">Role harus dipilih</div>
                         </div>

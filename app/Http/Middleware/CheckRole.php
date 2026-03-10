@@ -39,6 +39,9 @@ class CheckRole
                 case 'demo':
                     if ($user->isDemo()) return $next($request);
                     break;
+                case 'staff':
+                    if ($user->isStaff()) return $next($request);
+                    break;
             }
         }
 

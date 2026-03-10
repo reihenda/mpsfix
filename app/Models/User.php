@@ -20,6 +20,7 @@ class User extends Authenticatable
     const ROLE_CUSTOMER = 'customer';
     const ROLE_FOB = 'fob';
     const ROLE_DEMO = 'demo';
+    const ROLE_STAFF = 'staff';
 
     /**
      * The attributes that are mass assignable.
@@ -1253,6 +1254,14 @@ class User extends Authenticatable
     public function isKeuangan()
     {
         return $this->role === self::ROLE_KEUANGAN;
+    }
+
+    /**
+     * Check if user is staff
+     */
+    public function isStaff()
+    {
+        return $this->role === self::ROLE_STAFF;
     }
 
     /**
