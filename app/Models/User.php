@@ -21,6 +21,7 @@ class User extends Authenticatable
     const ROLE_FOB = 'fob';
     const ROLE_DEMO = 'demo';
     const ROLE_STAFF = 'staff';
+    const ROLE_MMBTU = 'mmbtu';
 
     /**
      * The attributes that are mass assignable.
@@ -41,6 +42,8 @@ class User extends Authenticatable
         'deposit_history',
         'monthly_balances',
         'harga_per_meter_kubik',
+        'harga_per_mmbtu_usd',
+        'pembagi_sm3_ke_mmbtu',
         'tekanan_keluar',
         'suhu',
         'koreksi_meter',
@@ -65,6 +68,8 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'harga_per_meter_kubik' => 'decimal:2',
+        'harga_per_mmbtu_usd' => 'decimal:4',
+        'pembagi_sm3_ke_mmbtu' => 'decimal:6',
         'tekanan_keluar' => 'decimal:3',
         'suhu' => 'decimal:2',
         'koreksi_meter' => 'decimal:14',
@@ -1224,12 +1229,12 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user is customer or FOB
-     * Fungsi untuk bisa menampilkan data FOB di dashboard
+     * Check if user is customer or FOB (or MMBTU)
+     * Fungsi untuk bisa menampilkan data di dashboard
      */
     public function isCustomerOrFOB()
     {
-        return $this->role === self::ROLE_CUSTOMER || $this->role === self::ROLE_FOB;
+        return in_array($this->role, [self::ROLE_CUSTOMER, self::ROLE_FOB, self::ROLE_MMBTU]);
     }
 
     /**
@@ -1262,6 +1267,161 @@ class User extends Authenticatable
     public function isStaff()
     {
         return $this->role === self::ROLE_STAFF;
+    }
+
+    /**
+     * Check if user is MMBTU customer
+     */
+    public function isMmbtu()
+    {
+        return $this->role === self::ROLE_MMBTU;
+    }
+
+    /**
+     * Check if user is any type of customer (customer, fob, or mmbtu)
+     */
+    public function isAnyCustomer()
+    {
+        return in_array($this->role, [self::ROLE_CUSTOMER, self::ROLE_FOB, self::ROLE_MMBTU]);
+    }
+
+    /**
+     * Add pricing history khusus MMBTU customer
+     * Menyimpan harga_per_mmbtu_usd, pembagi_sm3_ke_mmbtu, tekanan, suhu, koreksi_meter
+     */
+    public function addPricingHistoryMmbtu($hargaPerMmbtuUsd, $pembajangSm3Mmbtu, $tekananKeluar, $suhu, $koreksiMeter, $customDate = null)
+    {
+        try {
+            DB::beginTransaction();
+
+            $hargaPerMmbtuUsd = floatval(str_replace(',', '.', $hargaPerMmbtuUsd));
+            $pembajangSm3Mmbtu = floatval(str_replace(',', '.', $pembajangSm3Mmbtu));
+            $tekananKeluar = floatval(str_replace(',', '.', $tekananKeluar));
+            $suhu = floatval(str_replace(',', '.', $suhu));
+            $koreksiMeter = floatval(str_replace(',', '.', $koreksiMeter));
+
+            $pricingDate = $customDate ?: now();
+            $yearMonth = $pricingDate->format('Y-m');
+
+            $pricingEntry = [
+                'date' => $pricingDate->format('Y-m-d H:i:s'),
+                'year_month' => $yearMonth,
+                'harga_per_meter_kubik' => 0, // tidak dipakai untuk MMBTU
+                'harga_per_mmbtu_usd' => round($hargaPerMmbtuUsd, 4),
+                'pembagi_sm3_ke_mmbtu' => round($pembajangSm3Mmbtu, 6),
+                'tekanan_keluar' => round($tekananKeluar, 3),
+                'suhu' => round($suhu, 2),
+                'koreksi_meter' => round($koreksiMeter, 8),
+                'is_mmbtu' => true,
+            ];
+
+            $pricingHistory = $this->ensureArray($this->pricing_history);
+
+            $existingIndex = null;
+            foreach ($pricingHistory as $index => $entry) {
+                if (isset($entry['year_month']) && $entry['year_month'] === $yearMonth) {
+                    $existingIndex = $index;
+                    break;
+                }
+            }
+
+            if ($existingIndex !== null) {
+                $pricingHistory[$existingIndex] = $pricingEntry;
+            } else {
+                $pricingHistory[] = $pricingEntry;
+            }
+
+            $this->setAttribute('pricing_history', $pricingHistory);
+
+            $currentMonth = now()->format('Y-m');
+            if ($yearMonth === $currentMonth) {
+                $this->setAttribute('harga_per_mmbtu_usd', $hargaPerMmbtuUsd);
+                $this->setAttribute('pembagi_sm3_ke_mmbtu', $pembajangSm3Mmbtu);
+                $this->setAttribute('tekanan_keluar', $tekananKeluar);
+                $this->setAttribute('suhu', $suhu);
+                $this->setAttribute('koreksi_meter', $koreksiMeter);
+            }
+
+            $result = $this->save();
+
+            DB::commit();
+
+            return $result;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error in addPricingHistoryMmbtu', [
+                'user_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Tambah deposit untuk MMBTU customer
+     * Deposit disimpan dalam USD (mmbtu_amount * harga_satuan_usd)
+     */
+    public function addDepositMmbtu($mmbtuAmount, $hargaSatuanUsd, $description = null, $customDate = null, $keterangan = 'penambahan')
+    {
+        try {
+            DB::beginTransaction();
+
+            $mmbtuAmount = floatval($mmbtuAmount);
+            $hargaSatuanUsd = floatval($hargaSatuanUsd);
+            $totalUsd = $mmbtuAmount * $hargaSatuanUsd;
+
+            $depositDate = $customDate ? $customDate : now();
+
+            $depositEntry = [
+                'date' => $depositDate->format('Y-m-d H:i:s'),
+                'mmbtu_amount' => round($mmbtuAmount, 4),
+                'harga_satuan_usd' => round($hargaSatuanUsd, 4),
+                'amount' => round($totalUsd, 4), // total USD
+                'keterangan' => $keterangan,
+                'deskripsi' => $description,
+                'is_mmbtu' => true,
+            ];
+
+            $depositHistory = $this->ensureArray($this->deposit_history);
+            $depositHistory[] = $depositEntry;
+
+            $this->total_deposit += $totalUsd;
+            $this->deposit_history = $depositHistory;
+            $this->save();
+
+            DB::commit();
+
+            return true;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error in addDepositMmbtu', [
+                'user_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Dapatkan harga per MMBTU (USD) untuk tanggal tertentu
+     */
+    public function getHargaPerMmbtuUsdForDate($date)
+    {
+        $carbonDate = $date instanceof Carbon ? $date : Carbon::parse($date);
+        $yearMonth = $carbonDate->format('Y-m');
+        $pricingData = $this->getPricingForYearMonth($yearMonth, $carbonDate);
+        return floatval($pricingData['harga_per_mmbtu_usd'] ?? 0);
+    }
+
+    /**
+     * Dapatkan pembagi SM3 ke MMBTU untuk tanggal tertentu
+     */
+    public function getPembajangSm3MmbtuForDate($date)
+    {
+        $carbonDate = $date instanceof Carbon ? $date : Carbon::parse($date);
+        $yearMonth = $carbonDate->format('Y-m');
+        $pricingData = $this->getPricingForYearMonth($yearMonth, $carbonDate);
+        return floatval($pricingData['pembagi_sm3_ke_mmbtu'] ?? 1);
     }
 
     /**

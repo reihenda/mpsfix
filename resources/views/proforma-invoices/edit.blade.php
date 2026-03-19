@@ -105,6 +105,7 @@
                 </div>
             </div>
 
+            @if(!$isMmbtu)
             <!-- Periode Data -->
             <div class="row">
                 <div class="col-md-12">
@@ -115,9 +116,9 @@
                 <div class="col-md-6">
                     <div class="form-group">
                         <label for="period_start_date">Tanggal Mulai <span class="text-danger">*</span></label>
-                        <input type="date" class="form-control @error('period_start_date') is-invalid @enderror" 
-                               id="period_start_date" name="period_start_date" 
-                               value="{{ old('period_start_date', $proformaInvoice->period_start_date->format('Y-m-d')) }}" required>
+                        <input type="date" class="form-control @error('period_start_date') is-invalid @enderror"
+                               id="period_start_date" name="period_start_date"
+                               value="{{ old('period_start_date', $proformaInvoice->period_start_date ? $proformaInvoice->period_start_date->format('Y-m-d') : '') }}" required>
                         @error('period_start_date')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -126,9 +127,9 @@
                 <div class="col-md-6">
                     <div class="form-group">
                         <label for="period_end_date">Tanggal Selesai <span class="text-danger">*</span></label>
-                        <input type="date" class="form-control @error('period_end_date') is-invalid @enderror" 
-                               id="period_end_date" name="period_end_date" 
-                               value="{{ old('period_end_date', $proformaInvoice->period_end_date->format('Y-m-d')) }}" required>
+                        <input type="date" class="form-control @error('period_end_date') is-invalid @enderror"
+                               id="period_end_date" name="period_end_date"
+                               value="{{ old('period_end_date', $proformaInvoice->period_end_date ? $proformaInvoice->period_end_date->format('Y-m-d') : '') }}" required>
                         @error('period_end_date')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -136,6 +137,7 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             <!-- Input Manual Volume dan Harga -->
             <div class="row">
@@ -144,17 +146,73 @@
                         <i class="fas fa-calculator mr-2"></i>Input Manual Perhitungan
                     </h5>
                 </div>
+                @if($isMmbtu)
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="volume_mmbtu">Volume (MMBTU) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="number" step="0.0001" class="form-control @error('volume_mmbtu') is-invalid @enderror"
+                                   id="volume_mmbtu" name="volume_mmbtu"
+                                   value="{{ old('volume_mmbtu', $proformaInvoice->volume_mmbtu ?? '0') }}" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">MMBTU</span>
+                            </div>
+                        </div>
+                        @error('volume_mmbtu')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="price_per_mmbtu_usd">Harga Satuan (USD/MMBTU) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text">$</span>
+                            </div>
+                            <input type="number" step="0.0001" class="form-control @error('price_per_mmbtu_usd') is-invalid @enderror"
+                                   id="price_per_mmbtu_usd" name="price_per_mmbtu_usd"
+                                   value="{{ old('price_per_mmbtu_usd', $proformaInvoice->price_per_mmbtu_usd ?? '0') }}" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">/MMBTU</span>
+                            </div>
+                        </div>
+                        @error('price_per_mmbtu_usd')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="kurs_usd">Kurs USD (Rp) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text">Rp</span>
+                            </div>
+                            <input type="number" step="0.01" class="form-control @error('kurs_usd') is-invalid @enderror"
+                                   id="kurs_usd" name="kurs_usd"
+                                   value="{{ old('kurs_usd', $proformaInvoice->kurs_usd ?? '0') }}" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">/USD</span>
+                            </div>
+                        </div>
+                        @error('kurs_usd')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+                @else
                 <div class="col-md-4">
                     <div class="form-group">
                         <label for="volume_per_day">
-                            Volume Pemakaian (Sm3) / Hari 
+                            Volume Pemakaian (Sm3) / Hari
                             <span class="text-danger">*</span>
-                            <i class="fas fa-info-circle text-info ml-1" 
-                               title="Volume pemakaian gas per hari dalam satuan Sm3. Angka ini akan dikalikan dengan jumlah hari di periode." 
+                            <i class="fas fa-info-circle text-info ml-1"
+                               title="Volume pemakaian gas per hari dalam satuan Sm3."
                                data-toggle="tooltip"></i>
                         </label>
-                        <input type="number" step="0.001" class="form-control @error('volume_per_day') is-invalid @enderror" 
-                               id="volume_per_day" name="volume_per_day" 
+                        <input type="number" step="0.001" class="form-control @error('volume_per_day') is-invalid @enderror"
+                               id="volume_per_day" name="volume_per_day"
                                value="{{ old('volume_per_day', $proformaInvoice->volume_per_day ?? '0') }}" required>
                         @error('volume_per_day')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -164,12 +222,9 @@
                 </div>
                 <div class="col-md-4">
                     <div class="form-group">
-                        <label for="price_per_sm3">
-                            Harga Satuan (Rp) 
-                            <span class="text-danger">*</span>
-                        </label>
-                        <input type="number" step="0.01" class="form-control @error('price_per_sm3') is-invalid @enderror" 
-                               id="price_per_sm3" name="price_per_sm3" 
+                        <label for="price_per_sm3">Harga Satuan (Rp) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" class="form-control @error('price_per_sm3') is-invalid @enderror"
+                               id="price_per_sm3" name="price_per_sm3"
                                value="{{ old('price_per_sm3', $proformaInvoice->price_per_sm3 ?? $customer->harga_per_meter_kubik ?? '0') }}" required>
                         @error('price_per_sm3')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -180,11 +235,12 @@
                 <div class="col-md-4">
                     <div class="form-group">
                         <label for="total_days">Total Hari (otomatis)</label>
-                        <input type="number" class="form-control" id="total_days" name="total_days" readonly 
+                        <input type="number" class="form-control" id="total_days" name="total_days" readonly
                                value="{{ old('total_days', $proformaInvoice->total_days ?? '0') }}">
-                        <small class="text-muted">Dihitung otomatis dari periode tanggal (tanggal akhir tidak termasuk)</small>
+                        <small class="text-muted">Dihitung otomatis dari periode tanggal</small>
                     </div>
                 </div>
+                @endif
             </div>
 
             <!-- Preview Perhitungan -->
@@ -193,6 +249,22 @@
                     <div class="card bg-light">
                         <div class="card-body">
                             <h6 class="card-title"><i class="fas fa-calculator mr-2"></i>Preview Perhitungan</h6>
+                            @if($isMmbtu)
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <p class="mb-1"><strong>Volume MMBTU:</strong> <span id="preview_volume_mmbtu">{{ number_format($proformaInvoice->volume_mmbtu ?? 0, 4) }}</span> MMBTU</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1"><strong>Harga/MMBTU:</strong> $ <span id="preview_price_mmbtu">{{ number_format($proformaInvoice->price_per_mmbtu_usd ?? 0, 4) }}</span></p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1"><strong>Total USD:</strong> $ <span id="preview_total_usd">{{ number_format($proformaInvoice->total_usd ?? 0, 4) }}</span></p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1"><strong>Total IDR:</strong> Rp <span id="preview_total_idr">{{ number_format($proformaInvoice->total_amount ?? 0, 0, ',', '.') }}</span></p>
+                                </div>
+                            </div>
+                            @else
                             <div class="row">
                                 <div class="col-md-6">
                                     <p class="mb-1"><strong>Total Volume:</strong> <span id="preview_total_volume">{{ number_format($proformaInvoice->total_volume ?? 0, 2) }}</span> Sm3</p>
@@ -203,6 +275,7 @@
                                     <p class="mb-0"><small class="text-muted">Total volume × Harga per Sm3</small></p>
                                 </div>
                             </div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -284,72 +357,83 @@
 @section('js')
 <script>
 $(document).ready(function() {
+    @if($isMmbtu)
+    $('#volume_mmbtu, #price_per_mmbtu_usd, #kurs_usd').on('input', function() {
+        const volume = parseFloat($('#volume_mmbtu').val()) || 0;
+        const price = parseFloat($('#price_per_mmbtu_usd').val()) || 0;
+        const kurs = parseFloat($('#kurs_usd').val()) || 0;
+        const totalUsd = volume * price;
+        const totalIdr = totalUsd * kurs;
+        $('#preview_volume_mmbtu').text(volume.toFixed(4));
+        $('#preview_price_mmbtu').text(price.toFixed(4));
+        $('#preview_total_usd').text(new Intl.NumberFormat('en-US', {minimumFractionDigits: 4}).format(totalUsd));
+        $('#preview_total_idr').text(new Intl.NumberFormat('id-ID').format(Math.round(totalIdr)));
+    });
+    @else
     // Event listener untuk perhitungan real-time
     $('#volume_per_day, #price_per_sm3').on('input', function() {
         calculatePreview();
     });
-    
+
     $('#period_start_date, #period_end_date').change(function() {
         calculateDaysAndPreview();
     });
-    
-    // Function untuk menghitung total hari
+
     function calculateDaysAndPreview() {
         const startDate = $('#period_start_date').val();
         const endDate = $('#period_end_date').val();
-        
+
         if (startDate && endDate) {
             const start = new Date(startDate);
             const end = new Date(endDate);
             const diffTime = Math.abs(end - start);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
+
             $('#total_days').val(diffDays);
             calculatePreview();
-            
+
             if (diffDays > 60) {
                 alert('Periode maksimal adalah 60 hari!');
                 $('#period_end_date').val('');
             }
         }
     }
-    
-    // Function untuk menghitung preview
+
     function calculatePreview() {
         const volumePerDay = parseFloat($('#volume_per_day').val()) || 0;
         const pricePerSm3 = parseFloat($('#price_per_sm3').val()) || 0;
         const totalDays = parseFloat($('#total_days').val()) || 0;
-        
+
         const totalVolume = volumePerDay * totalDays;
         const totalAmount = totalVolume * pricePerSm3;
-        
+
         $('#preview_total_volume').text(totalVolume.toFixed(2));
         $('#preview_total_amount').text(new Intl.NumberFormat('id-ID').format(Math.round(totalAmount)));
     }
-    
+
+    $('#period_start_date').change(function() {
+        const selectedDate = $(this).val();
+        $('#period_end_date').attr('min', selectedDate);
+        calculateDaysAndPreview();
+    });
+
+    calculateDaysAndPreview();
+    $('#period_end_date').attr('min', $('#period_start_date').val());
+    @endif
+
     // Set minimum dates
     $('#proforma_date').change(function() {
         const selectedDate = $(this).val();
         $('#due_date').attr('min', selectedDate);
         $('#validity_date').attr('min', selectedDate);
     });
-    
-    $('#period_start_date').change(function() {
-        const selectedDate = $(this).val();
-        $('#period_end_date').attr('min', selectedDate);
-        calculateDaysAndPreview();
-    });
-    
+
     // Initialize tooltips
     $('[data-toggle="tooltip"]').tooltip();
-    
-    // Initialize calculation on page load
-    calculateDaysAndPreview();
-    
+
     // Initialize minimum dates
     $('#due_date').attr('min', $('#proforma_date').val());
     $('#validity_date').attr('min', $('#proforma_date').val());
-    $('#period_end_date').attr('min', $('#period_start_date').val());
 });
 </script>
 @endsection

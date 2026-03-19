@@ -42,6 +42,9 @@ class CheckRole
                 case 'staff':
                     if ($user->isStaff()) return $next($request);
                     break;
+                case 'mmbtu':
+                    if ($user->isMmbtu()) return $next($request);
+                    break;
             }
         }
 

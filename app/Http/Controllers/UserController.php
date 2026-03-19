@@ -24,9 +24,9 @@ class UserController extends Controller
             ->whereIn('role', ['admin', 'superadmin', 'keuangan', 'staff'])
             ->orderBy('role');
 
-        // Query untuk Customer/FOB (customer, fob, demo)
+        // Query untuk Customer/FOB/MMBTU (customer, fob, demo, mmbtu)
         $customerQuery = User::query()
-            ->whereIn('role', ['customer', 'fob', 'demo'])
+            ->whereIn('role', ['customer', 'fob', 'demo', 'mmbtu'])
             ->orderBy('role');
 
         // Filter berdasarkan pencarian untuk admin jika ada
@@ -1067,7 +1067,7 @@ class UserController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'role' => 'required|in:admin,keuangan,customer,fob,demo,staff',
+            'role' => 'required|in:admin,keuangan,customer,fob,demo,staff,mmbtu',
             'password' => 'nullable|string|min:3',
             'no_kontrak' => 'nullable|string|max:255',
             'alamat' => 'nullable|string',
@@ -1165,6 +1165,91 @@ class UserController extends Controller
                 return response()->json(['error' => 'Gagal menghapus user: ' . $e->getMessage()], 500);
             }
             return redirect()->route('user.index')->with('error', 'Gagal menghapus user: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update pricing untuk customer MMBTU
+     */
+    public function updateCustomerMmbtuPricing(Request $request, $customerId)
+    {
+        if (!Auth::user()->isAdmin() && !Auth::user()->isSuperAdmin()) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki izin');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'harga_per_mmbtu_usd' => 'required|numeric|min:0',
+            'pembagi_sm3_ke_mmbtu' => 'required|numeric|min:0.0001',
+            'tekanan_keluar' => 'required|numeric|min:0',
+            'suhu' => 'required|numeric',
+            'pricing_date' => 'required|date',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $customer = User::findOrFail($customerId);
+
+            $koreksiMeter = self::hitungKoreksiMeter(
+                floatval($request->input('tekanan_keluar')),
+                floatval($request->input('suhu'))
+            );
+
+            $pricingDate = Carbon::parse($request->input('pricing_date'));
+
+            $customer->addPricingHistoryMmbtu(
+                floatval($request->input('harga_per_mmbtu_usd')),
+                floatval($request->input('pembagi_sm3_ke_mmbtu')),
+                floatval($request->input('tekanan_keluar')),
+                floatval($request->input('suhu')),
+                $koreksiMeter,
+                $pricingDate
+            );
+
+            DB::commit();
+
+            return redirect()->route('data-pencatatan.customer-detail', [
+                'customer' => $customer->id,
+                'refresh' => true
+            ])->with('success', 'Harga MMBTU untuk periode ' . $pricingDate->format('F Y') . ' berhasil diperbarui');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Tambah deposit untuk customer MMBTU (dalam MMBTU dan USD)
+     */
+    public function addDepositMmbtu(Request $request, $userId)
+    {
+        if (!Auth::user()->isAdmin() && !Auth::user()->isSuperAdmin()) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki izin untuk menambah deposit');
+        }
+
+        $request->validate([
+            'mmbtu_amount' => 'required|numeric|min:0.0001',
+            'harga_satuan_usd' => 'required|numeric|min:0.0001',
+            'deposit_date' => 'required|date',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $user = User::findOrFail($userId);
+        $depositDate = Carbon::parse($request->deposit_date);
+
+        if ($user->addDepositMmbtu(
+            $request->mmbtu_amount,
+            $request->harga_satuan_usd,
+            $request->description,
+            $depositDate
+        )) {
+            return redirect()->back()->with('success', 'Deposit MMBTU berhasil ditambahkan');
+        } else {
+            return redirect()->back()->with('error', 'Gagal menambahkan deposit MMBTU');
         }
     }
 }

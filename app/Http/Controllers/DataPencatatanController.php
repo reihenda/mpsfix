@@ -341,7 +341,7 @@ class DataPencatatanController extends Controller
     public function index()
     {
         // Fetch only customers (not admin or superadmin)
-        $customers = User::where('role', User::ROLE_CUSTOMER)->get();
+        $customers = User::whereIn('role', [User::ROLE_CUSTOMER, User::ROLE_MMBTU])->get();
         // Fetch FOB users
         $fobs = User::where('role', User::ROLE_FOB)->get();
         return view('data-pencatatan.index', compact('customers', 'fobs'));
@@ -353,9 +353,10 @@ class DataPencatatanController extends Controller
         // ===== AUTO-INITIALIZE REAL-TIME SYSTEM =====
         try {
             // Cek apakah customer sudah di-initialize untuk sistem real-time
+            $monthlyBalancesCount = is_array($customer->monthly_balances) ? count($customer->monthly_balances) : 0;
             $needsInitialization = !$customer->use_realtime_calculation ||
                                  !$customer->balance_last_updated_at ||
-                                 $customer->monthlyBalances()->count() === 0;
+                                 $monthlyBalancesCount === 0;
 
             if ($needsInitialization) {
                 \Log::info('Auto-initializing real-time system for customer', [
@@ -377,8 +378,7 @@ class DataPencatatanController extends Controller
                     
                     \Log::info('Auto-initialization successful', [
                         'customer_id' => $customer->id,
-                        'monthly_balances_count' => $customer->monthlyBalances()->count(),
-                        'transaction_calculations_count' => $customer->transactionCalculations()->count()
+                        'monthly_balances_count' => is_array($customer->monthly_balances) ? count($customer->monthly_balances) : 0,
                     ]);
                 } else {
                     \Log::warning('Auto-initialization failed', [
@@ -644,6 +644,125 @@ class DataPencatatanController extends Controller
         // Ambil bulan-bulan yang belum diinput harganya
         $monthsWithoutPricing = $customer->getMonthsWithoutPricing();
 
+        // ===== MMBTU-SPECIFIC CALCULATIONS =====
+        $isMmbtu = $customer->isMmbtu();
+        $filteredVolumeMmbtu = 0;
+        $filteredTotalPurchasesUsd = 0;
+        $totalDepositMmbtu = 0;
+        $totalConsumedMmbtu = 0;
+        $filteredTotalDepositsMmbtu = 0;
+        $prevMonthBalanceMmbtu = 0;
+        $currentMonthBalanceMmbtu = 0;
+
+        if ($isMmbtu) {
+            // Hitung MMBTU consumed untuk filtered period
+            foreach ($dataPencatatan as $item) {
+                $dataInput = $this->ensureArray($item->data_input);
+                $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
+                $itemYM = $waktuAwal->format('Y-m');
+                $itemPricingInfo = $customer->getPricingForYearMonth($itemYM, $waktuAwal);
+
+                $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
+                $koreksiMeter = floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter ?? 1);
+                $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembaji_sm3_ke_mmbtu'] ?? $itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? 1);
+                $hargaPerMmbtuUsd = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? 0);
+
+                $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
+                $volumeMmbtu = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                $biayaUsd = $volumeMmbtu * $hargaPerMmbtuUsd;
+
+                $filteredVolumeMmbtu += $volumeMmbtu;
+                $filteredTotalPurchasesUsd += $biayaUsd;
+            }
+
+            // Hitung total deposit MMBTU (semua waktu)
+            $depositHistoryArr = $this->ensureArray($customer->deposit_history);
+            foreach ($depositHistoryArr as $deposit) {
+                if (isset($deposit['is_mmbtu']) && $deposit['is_mmbtu']) {
+                    $mmbtuAmt = floatval($deposit['mmbtu_amount'] ?? 0);
+                    $keterangan = $deposit['keterangan'] ?? 'penambahan';
+                    if ($keterangan === 'pengurangan') {
+                        $totalDepositMmbtu -= $mmbtuAmt;
+                    } else {
+                        $totalDepositMmbtu += $mmbtuAmt;
+                    }
+                }
+            }
+
+            // Hitung deposit MMBTU filtered (bulan ini)
+            foreach ($depositHistoryArr as $deposit) {
+                if (isset($deposit['is_mmbtu']) && $deposit['is_mmbtu'] && isset($deposit['date'])) {
+                    if (Carbon::parse($deposit['date'])->format('Y-m') === $currentYearMonth) {
+                        $mmbtuAmt = floatval($deposit['mmbtu_amount'] ?? 0);
+                        $keterangan = $deposit['keterangan'] ?? 'penambahan';
+                        if ($keterangan === 'pengurangan') {
+                            $filteredTotalDepositsMmbtu -= $mmbtuAmt;
+                        } else {
+                            $filteredTotalDepositsMmbtu += $mmbtuAmt;
+                        }
+                    }
+                }
+            }
+
+            // Hitung total MMBTU consumed (semua waktu)
+            $allDataPencatatanMmbtu = $customer->dataPencatatan()->get();
+            foreach ($allDataPencatatanMmbtu as $item) {
+                $dataInput = $this->ensureArray($item->data_input);
+                if (empty($dataInput) || empty($dataInput['pembacaan_awal']['waktu'])) continue;
+
+                $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
+                $itemYM = $waktuAwal->format('Y-m');
+                $itemPricingInfo = $customer->getPricingForYearMonth($itemYM, $waktuAwal);
+
+                $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
+                $koreksiMeter = floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter ?? 1);
+                $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembaji_sm3_ke_mmbtu'] ?? $itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? 1);
+
+                $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
+                $volumeMmbtu = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                $totalConsumedMmbtu += $volumeMmbtu;
+            }
+
+            // Hitung saldo MMBTU bulan sebelumnya
+            $totalDepositMmbtuUntilPrev = 0;
+            $totalConsumedMmbtuUntilPrev = 0;
+            foreach ($depositHistoryArr as $deposit) {
+                if (isset($deposit['is_mmbtu']) && $deposit['is_mmbtu'] && isset($deposit['date'])) {
+                    if (Carbon::parse($deposit['date'])->format('Y-m') <= $prevYearMonth) {
+                        $mmbtuAmt = floatval($deposit['mmbtu_amount'] ?? 0);
+                        $keterangan = $deposit['keterangan'] ?? 'penambahan';
+                        if ($keterangan === 'pengurangan') {
+                            $totalDepositMmbtuUntilPrev -= $mmbtuAmt;
+                        } else {
+                            $totalDepositMmbtuUntilPrev += $mmbtuAmt;
+                        }
+                    }
+                }
+            }
+            foreach ($allDataPencatatanMmbtu as $item) {
+                $dataInput = $this->ensureArray($item->data_input);
+                if (empty($dataInput) || empty($dataInput['pembacaan_awal']['waktu'])) continue;
+
+                $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
+                if ($waktuAwal->format('Y-m') > $prevYearMonth) continue;
+
+                $itemYM = $waktuAwal->format('Y-m');
+                $itemPricingInfo = $customer->getPricingForYearMonth($itemYM, $waktuAwal);
+
+                $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
+                $koreksiMeter = floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter ?? 1);
+                $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembaji_sm3_ke_mmbtu'] ?? $itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? 1);
+
+                $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
+                $volumeMmbtu = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                $totalConsumedMmbtuUntilPrev += $volumeMmbtu;
+            }
+
+            $prevMonthBalanceMmbtu = $totalDepositMmbtuUntilPrev - $totalConsumedMmbtuUntilPrev;
+            $currentMonthBalanceMmbtu = $prevMonthBalanceMmbtu + $filteredTotalDepositsMmbtu - $filteredVolumeMmbtu;
+        }
+        // ===== END MMBTU CALCULATIONS =====
+
         return view('data-pencatatan.customer-detail', [
             'customer' => $customer,
             'dataPencatatan' => $dataPencatatan,
@@ -665,7 +784,16 @@ class DataPencatatanController extends Controller
             'currentMonthBalanceDb' => $currentMonthBalanceDb, // Database comparison
             'realTimePrevMonthBalance' => $realTimePrevMonthBalance,
             'realTimeCurrentMonthBalance' => $realTimeCurrentMonthBalance, // PERBAIKAN: Tambahan untuk konsistensi
-            'monthsWithoutPricing' => $monthsWithoutPricing // Notifikasi bulan tanpa harga
+            'monthsWithoutPricing' => $monthsWithoutPricing, // Notifikasi bulan tanpa harga
+            // MMBTU-specific variables
+            'isMmbtu' => $isMmbtu,
+            'filteredVolumeMmbtu' => $filteredVolumeMmbtu,
+            'filteredTotalPurchasesUsd' => $filteredTotalPurchasesUsd,
+            'totalDepositMmbtu' => $totalDepositMmbtu,
+            'totalConsumedMmbtu' => $totalConsumedMmbtu,
+            'filteredTotalDepositsMmbtu' => $filteredTotalDepositsMmbtu,
+            'prevMonthBalanceMmbtu' => $prevMonthBalanceMmbtu,
+            'currentMonthBalanceMmbtu' => $currentMonthBalanceMmbtu,
         ]);
     }
     // Fungsi untuk menghitung informasi tahunan

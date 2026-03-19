@@ -65,7 +65,7 @@ class AuthController extends Controller
             'name' => 'required|string|max:255|unique:users',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:3',
-            'role' => 'required|string|in:admin,keuangan,customer,fob,demo,staff',
+            'role' => 'required|string|in:admin,keuangan,customer,fob,demo,staff,mmbtu',
             'no_kontrak' => 'nullable|string|max:255',
             'alamat' => 'nullable|string',
             'nomor_tlpn' => 'nullable|string|max:20',
@@ -100,6 +100,13 @@ class AuthController extends Controller
             // Tambahkan nilai default untuk field lain jika diperlukan
             if ($request->role == 'customer') {
                 $user->harga_per_meter_kubik = 0;
+                $user->koreksi_meter = 1;
+                $user->total_purchases = 0;
+                $user->deposit_history = json_encode([]);
+                $user->pricing_history = json_encode([]);
+            } elseif ($request->role == 'mmbtu') {
+                $user->harga_per_mmbtu_usd = 0;
+                $user->pembagi_sm3_ke_mmbtu = 1;
                 $user->koreksi_meter = 1;
                 $user->total_purchases = 0;
                 $user->deposit_history = json_encode([]);

@@ -38,8 +38,8 @@ $(function() {
                 "<'row'<'col-5'i><'col-7'p>>"
         };
 
-        // Initialize specific tables if they exist
-        if ($("#dataPencatatanTable").length) {
+        // Initialize specific tables if they exist and not already initialized
+        if ($("#dataPencatatanTable").length && !$.fn.DataTable.isDataTable("#dataPencatatanTable")) {
             var dataPencatatanTable = $("#dataPencatatanTable").DataTable({
                 ...responsiveDataTableConfig,
                 "order": [[1, 'desc']],
@@ -50,7 +50,7 @@ $(function() {
             });
         }
 
-        if ($("#depositHistoryTable").length) {
+        if ($("#depositHistoryTable").length && !$.fn.DataTable.isDataTable("#depositHistoryTable")) {
             var depositHistoryTable = $("#depositHistoryTable").DataTable({
                 ...responsiveDataTableConfig,
                 "order": [[1, 'desc']],
@@ -61,7 +61,7 @@ $(function() {
             });
         }
 
-        if ($("#pricingHistoryTable").length) {
+        if ($("#pricingHistoryTable").length && !$.fn.DataTable.isDataTable("#pricingHistoryTable")) {
             var pricingHistoryTable = $("#pricingHistoryTable").DataTable({
                 ...responsiveDataTableConfig,
                 "order": [[1, 'desc']],
@@ -188,67 +188,8 @@ $(function() {
             }
         });
 
-        // Form submission validation
-        $('#pricingForm').on('submit', function(e) {
-            const hargaPerM3 = parseFloat($('#modalHargaPerM3').val());
-            const tekananKeluar = parseFloat($('#modalTekananKeluar').val());
-            const suhu = parseFloat($('#modalSuhu').val());
-
-            let hasError = false;
-
-            // Validate price
-            if (isNaN(hargaPerM3) || hargaPerM3 < 0) {
-                $('#modalHargaPerM3').addClass('is-invalid');
-                if (!$('#modalHargaPerM3').next('.invalid-feedback').length) {
-                    $('#modalHargaPerM3').after('<div class="invalid-feedback">Harga harus lebih dari 0</div>');
-                }
-                hasError = true;
-            } else {
-                $('#modalHargaPerM3').removeClass('is-invalid');
-                $('#modalHargaPerM3').next('.invalid-feedback').remove();
-            }
-
-            // Validate pressure
-            if (isNaN(tekananKeluar) || tekananKeluar < 0) {
-                $('#modalTekananKeluar').addClass('is-invalid');
-                if (!$('#modalTekananKeluar').next('.invalid-feedback').length) {
-                    $('#modalTekananKeluar').after('<div class="invalid-feedback">Tekanan keluar harus valid</div>');
-                }
-                hasError = true;
-            } else {
-                $('#modalTekananKeluar').removeClass('is-invalid');
-                $('#modalTekananKeluar').next('.invalid-feedback').remove();
-            }
-
-            // Validate temperature
-            if (isNaN(suhu)) {
-                $('#modalSuhu').addClass('is-invalid');
-                if (!$('#modalSuhu').next('.invalid-feedback').length) {
-                    $('#modalSuhu').after('<div class="invalid-feedback">Suhu harus valid</div>');
-                }
-                hasError = true;
-            } else {
-                $('#modalSuhu').removeClass('is-invalid');
-                $('#modalSuhu').next('.invalid-feedback').remove();
-            }
-
-            if (hasError) {
-                e.preventDefault();
-                // Show error toast on mobile
-                if (isMobile() && typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Validasi Gagal',
-                        text: 'Mohon periksa kembali isian form',
-                        toast: true,
-                        position: 'top',
-                        showConfirmButton: false,
-                        timer: 3000
-                    });
-                }
-                return false;
-            }
-        });
+        // Form submission validation — handled by customer-detail.blade.php's own handler
+        // responsive.js does NOT add a separate pricingForm submit handler to avoid conflicts
     }
 
     // Initialize tooltips

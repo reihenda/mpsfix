@@ -42,22 +42,22 @@ class ProformaInvoiceController extends Controller
      */
     public function index(Request $request)
     {
-        // Ambil semua customer (termasuk FOB)
-        $customers = User::whereIn('role', ['customer', 'fob'])
+        // Ambil semua customer (termasuk FOB dan MMBTU)
+        $customers = User::whereIn('role', ['customer', 'fob', 'mmbtu'])
             ->orderBy('name')
             ->get();
-        
+
         // Query dasar
         $query = ProformaInvoice::with('customer')
             ->orderBy('created_at', 'desc');
-        
+
         // Filter berdasarkan pencarian customer jika ada
         if ($request->has('search') && !empty($request->search)) {
             // Dapatkan ID customer yang namanya cocok dengan pencarian
-            $customerIds = User::whereIn('role', ['customer', 'fob'])
+            $customerIds = User::whereIn('role', ['customer', 'fob', 'mmbtu'])
                 ->where('name', 'like', '%' . $request->search . '%')
                 ->pluck('id');
-            
+
             // Filter proforma invoice berdasarkan customer_id yang cocok
             $query->whereIn('customer_id', $customerIds);
         }
@@ -88,10 +88,10 @@ class ProformaInvoiceController extends Controller
      */
     public function selectCustomer()
     {
-        $customers = User::whereIn('role', ['customer', 'fob'])
+        $customers = User::whereIn('role', ['customer', 'fob', 'mmbtu'])
             ->orderBy('name')
             ->get();
-        
+
         return view('proforma-invoices.select-customer', compact('customers'));
     }
 
@@ -102,15 +102,17 @@ class ProformaInvoiceController extends Controller
     {
         // Generate a default proforma number
         $proformaNumber = ProformaInvoice::generateProformaNumber($customer);
-        
+
         // Default period: current month
         $startDate = now()->startOfMonth()->format('Y-m-d');
         $endDate = now()->endOfMonth()->format('Y-m-d');
-        
+
         // Get current balance (saldo per hari ini)
         $currentBalance = $this->getCustomerBalanceOnDate($customer, now());
-        
-        return view('proforma-invoices.create', compact('customer', 'proformaNumber', 'startDate', 'endDate', 'currentBalance'));
+
+        $isMmbtu = $customer->isMmbtu();
+
+        return view('proforma-invoices.create', compact('customer', 'proformaNumber', 'startDate', 'endDate', 'currentBalance', 'isMmbtu'));
     }
 
     /**
@@ -118,66 +120,96 @@ class ProformaInvoiceController extends Controller
      */
     public function store(Request $request, User $customer)
     {
-        $request->validate([
-            'proforma_number' => 'required|string|max:50|unique:proforma_invoices,proforma_number',
-            'proforma_date' => 'required|date',
-            'due_date' => 'required|date|after_or_equal:proforma_date',
-            'period_start_date' => 'required|date',
-            'period_end_date' => 'required|date|after_or_equal:period_start_date',
-            'validity_date' => 'nullable|date|after_or_equal:proforma_date',
-            'volume_per_day' => 'required|numeric|min:0',
-            'price_per_sm3' => 'required|numeric|min:0',
-            'no_kontrak' => 'required|string|max:50',
-            'id_pelanggan' => 'required|string|max:20',
-            'description' => 'nullable|string',
-        ]);
+        $isMmbtu = $customer->isMmbtu();
 
-        // Validasi periode maksimal 60 hari
-        $startDate = Carbon::parse($request->period_start_date);
-        $endDate = Carbon::parse($request->period_end_date);
-        $diffDays = $startDate->diffInDays($endDate); // Tanpa +1, jadi exclusive
-        
-        if ($diffDays > 60) {
-            return back()->withErrors(['period_end_date' => 'Periode maksimal adalah 60 hari.'])->withInput();
-        }
-        
-        // Minimal harus 1 hari
-        if ($diffDays < 1) {
-            return back()->withErrors(['period_end_date' => 'Periode minimal adalah 1 hari.'])->withInput();
-        }
+        if ($isMmbtu) {
+            $request->validate([
+                'proforma_number' => 'required|string|max:50|unique:proforma_invoices,proforma_number',
+                'proforma_date' => 'required|date',
+                'due_date' => 'required|date|after_or_equal:proforma_date',
+                'validity_date' => 'nullable|date|after_or_equal:proforma_date',
+                'volume_mmbtu' => 'required|numeric|min:0',
+                'price_per_mmbtu_usd' => 'required|numeric|min:0',
+                'kurs_usd' => 'required|numeric|min:0',
+                'no_kontrak' => 'required|string|max:50',
+                'id_pelanggan' => 'required|string|max:20',
+                'description' => 'nullable|string',
+            ]);
 
-        // Perhitungan berdasarkan input manual
-        $volumePerDay = (float) $request->volume_per_day;
-        $pricePerSm3 = (float) $request->price_per_sm3;
-        $totalDays = $diffDays;
-        
-        // Kalkulasi total volume dan biaya
-        $totalVolume = $volumePerDay * $totalDays;
-        $totalBiaya = $totalVolume * $pricePerSm3;
-        
-        // Bulatkan total biaya untuk konsistensi
-        $totalBiaya = round($totalBiaya);
-        
-        // Buat proforma invoice baru
-        $proformaInvoice = new ProformaInvoice();
-        $proformaInvoice->customer_id = $customer->id;
-        $proformaInvoice->proforma_number = $request->proforma_number;
-        $proformaInvoice->proforma_date = $request->proforma_date;
-        $proformaInvoice->due_date = $request->due_date;
-        $proformaInvoice->total_amount = $totalBiaya;
-        $proformaInvoice->total_volume = $totalVolume;
-        $proformaInvoice->volume_per_day = $volumePerDay;
-        $proformaInvoice->price_per_sm3 = $pricePerSm3;
-        $proformaInvoice->total_days = $totalDays;
-        $proformaInvoice->status = 'draft';
-        $proformaInvoice->description = $request->description;
-        $proformaInvoice->no_kontrak = $request->no_kontrak;
-        $proformaInvoice->id_pelanggan = $request->id_pelanggan;
-        $proformaInvoice->period_start_date = $request->period_start_date;
-        $proformaInvoice->period_end_date = $request->period_end_date;
-        $proformaInvoice->validity_date = $request->validity_date;
-        
-        $proformaInvoice->save();
+            $volumeMmbtu = (float) $request->volume_mmbtu;
+            $pricePerMmbtuUsd = (float) $request->price_per_mmbtu_usd;
+            $kursUsd = (float) $request->kurs_usd;
+            $totalUsd = $volumeMmbtu * $pricePerMmbtuUsd;
+            $totalIdr = round($totalUsd * $kursUsd);
+
+            $proformaInvoice = new ProformaInvoice();
+            $proformaInvoice->customer_id = $customer->id;
+            $proformaInvoice->proforma_number = $request->proforma_number;
+            $proformaInvoice->proforma_date = $request->proforma_date;
+            $proformaInvoice->due_date = $request->due_date;
+            $proformaInvoice->validity_date = $request->validity_date;
+            $proformaInvoice->volume_mmbtu = $volumeMmbtu;
+            $proformaInvoice->price_per_mmbtu_usd = $pricePerMmbtuUsd;
+            $proformaInvoice->kurs_usd = $kursUsd;
+            $proformaInvoice->total_usd = $totalUsd;
+            $proformaInvoice->total_amount = $totalIdr;
+            $proformaInvoice->status = 'draft';
+            $proformaInvoice->description = $request->description;
+            $proformaInvoice->no_kontrak = $request->no_kontrak;
+            $proformaInvoice->id_pelanggan = $request->id_pelanggan;
+            $proformaInvoice->save();
+        } else {
+            $request->validate([
+                'proforma_number' => 'required|string|max:50|unique:proforma_invoices,proforma_number',
+                'proforma_date' => 'required|date',
+                'due_date' => 'required|date|after_or_equal:proforma_date',
+                'period_start_date' => 'required|date',
+                'period_end_date' => 'required|date|after_or_equal:period_start_date',
+                'validity_date' => 'nullable|date|after_or_equal:proforma_date',
+                'volume_per_day' => 'required|numeric|min:0',
+                'price_per_sm3' => 'required|numeric|min:0',
+                'no_kontrak' => 'required|string|max:50',
+                'id_pelanggan' => 'required|string|max:20',
+                'description' => 'nullable|string',
+            ]);
+
+            // Validasi periode maksimal 60 hari
+            $startDate = Carbon::parse($request->period_start_date);
+            $endDate = Carbon::parse($request->period_end_date);
+            $diffDays = $startDate->diffInDays($endDate);
+
+            if ($diffDays > 60) {
+                return back()->withErrors(['period_end_date' => 'Periode maksimal adalah 60 hari.'])->withInput();
+            }
+            if ($diffDays < 1) {
+                return back()->withErrors(['period_end_date' => 'Periode minimal adalah 1 hari.'])->withInput();
+            }
+
+            $volumePerDay = (float) $request->volume_per_day;
+            $pricePerSm3 = (float) $request->price_per_sm3;
+            $totalDays = $diffDays;
+            $totalVolume = $volumePerDay * $totalDays;
+            $totalBiaya = round($totalVolume * $pricePerSm3);
+
+            $proformaInvoice = new ProformaInvoice();
+            $proformaInvoice->customer_id = $customer->id;
+            $proformaInvoice->proforma_number = $request->proforma_number;
+            $proformaInvoice->proforma_date = $request->proforma_date;
+            $proformaInvoice->due_date = $request->due_date;
+            $proformaInvoice->total_amount = $totalBiaya;
+            $proformaInvoice->total_volume = $totalVolume;
+            $proformaInvoice->volume_per_day = $volumePerDay;
+            $proformaInvoice->price_per_sm3 = $pricePerSm3;
+            $proformaInvoice->total_days = $totalDays;
+            $proformaInvoice->status = 'draft';
+            $proformaInvoice->description = $request->description;
+            $proformaInvoice->no_kontrak = $request->no_kontrak;
+            $proformaInvoice->id_pelanggan = $request->id_pelanggan;
+            $proformaInvoice->period_start_date = $request->period_start_date;
+            $proformaInvoice->period_end_date = $request->period_end_date;
+            $proformaInvoice->validity_date = $request->validity_date;
+            $proformaInvoice->save();
+        }
 
         return redirect()->route('proforma-invoices.show', $proformaInvoice)
             ->with('success', 'Proforma Invoice berhasil dibuat.');
@@ -189,39 +221,37 @@ class ProformaInvoiceController extends Controller
     public function show(ProformaInvoice $proformaInvoice)
     {
         $customer = $proformaInvoice->customer;
-        $startDate = $proformaInvoice->period_start_date;
-        $endDate = $proformaInvoice->period_end_date;
-        
-        // Ambil saldo customer pada tanggal awal periode
-        $saldoPerTanggal = $this->getCustomerBalanceOnDate($customer, $proformaInvoice->period_start_date);
-        
-        // Data untuk tampilan berdasarkan input manual
-        $pemakaianGas = [
-            [
-                'no' => 1,
-                'periode_pemakaian' => $proformaInvoice->period_formatted,
-                'volume_sm3' => $proformaInvoice->total_volume,
-                'harga_gas' => $proformaInvoice->price_per_sm3,
-                'biaya_pemakaian' => $proformaInvoice->total_amount,
-                'volume_per_day' => $proformaInvoice->volume_per_day,
-                'total_days' => $proformaInvoice->total_days,
-            ]
-        ];
-        
-        // Generate ID Pelanggan (contoh format)
+        $isMmbtu = $customer->isMmbtu();
+
+        // Ambil saldo customer
+        $balanceDate = $isMmbtu ? now() : ($proformaInvoice->period_start_date ?? now());
+        $saldoPerTanggal = $this->getCustomerBalanceOnDate($customer, $balanceDate);
+
+        // Data untuk tampilan
+        $pemakaianGas = [];
+        if (!$isMmbtu) {
+            $pemakaianGas = [
+                [
+                    'no' => 1,
+                    'periode_pemakaian' => $proformaInvoice->period_formatted,
+                    'volume_sm3' => $proformaInvoice->total_volume,
+                    'harga_gas' => $proformaInvoice->price_per_sm3,
+                    'biaya_pemakaian' => $proformaInvoice->total_amount,
+                    'volume_per_day' => $proformaInvoice->volume_per_day,
+                    'total_days' => $proformaInvoice->total_days,
+                ]
+            ];
+        }
+
         $idPelanggan = $proformaInvoice->id_pelanggan;
-        
-        // Total dari data yang sudah disimpan
         $totalVolume = $proformaInvoice->total_volume;
         $totalBiaya = $proformaInvoice->total_amount;
-        
-        // Terbilang untuk total tagihan
         $terbilang = $this->terbilang($totalBiaya);
 
-        // Setup data untuk view Proforma Invoice
         $data = [
             'proformaInvoice' => $proformaInvoice,
             'customer' => $customer,
+            'isMmbtu' => $isMmbtu,
             'periode_bulan' => $proformaInvoice->period_formatted,
             'pemakaian_gas' => $pemakaianGas,
             'total_volume' => $totalVolume,
@@ -229,7 +259,7 @@ class ProformaInvoiceController extends Controller
             'id_pelanggan' => $idPelanggan,
             'terbilang' => $terbilang,
             'saldo_per_tanggal' => $saldoPerTanggal,
-            'tanggal_saldo' => $proformaInvoice->period_start_date
+            'tanggal_saldo' => $balanceDate,
         ];
 
         return view('proforma-invoices.show', $data);
@@ -241,7 +271,8 @@ class ProformaInvoiceController extends Controller
     public function edit(ProformaInvoice $proformaInvoice)
     {
         $customer = $proformaInvoice->customer;
-        return view('proforma-invoices.edit', compact('proformaInvoice', 'customer'));
+        $isMmbtu = $customer->isMmbtu();
+        return view('proforma-invoices.edit', compact('proformaInvoice', 'customer', 'isMmbtu'));
     }
 
     /**
@@ -249,63 +280,94 @@ class ProformaInvoiceController extends Controller
      */
     public function update(Request $request, ProformaInvoice $proformaInvoice)
     {
-        $request->validate([
-            'proforma_number' => 'required|string|max:50|unique:proforma_invoices,proforma_number,' . $proformaInvoice->id,
-            'proforma_date' => 'required|date',
-            'due_date' => 'required|date|after_or_equal:proforma_date',
-            'period_start_date' => 'required|date',
-            'period_end_date' => 'required|date|after_or_equal:period_start_date',
-            'validity_date' => 'nullable|date|after_or_equal:proforma_date',
-            'volume_per_day' => 'required|numeric|min:0',
-            'price_per_sm3' => 'required|numeric|min:0',
-            'status' => 'required|in:draft,sent,expired,converted',
-            'no_kontrak' => 'required|string|max:50',
-            'id_pelanggan' => 'required|string|max:20',
-            'description' => 'nullable|string',
-        ]);
+        $customer = $proformaInvoice->customer;
+        $isMmbtu = $customer->isMmbtu();
 
-        // Validasi periode maksimal 60 hari
-        $startDate = Carbon::parse($request->period_start_date);
-        $endDate = Carbon::parse($request->period_end_date);
-        $diffDays = $startDate->diffInDays($endDate); // Tanpa +1, jadi exclusive
-        
-        if ($diffDays > 60) {
-            return back()->withErrors(['period_end_date' => 'Periode maksimal adalah 60 hari.'])->withInput();
+        if ($isMmbtu) {
+            $request->validate([
+                'proforma_number' => 'required|string|max:50|unique:proforma_invoices,proforma_number,' . $proformaInvoice->id,
+                'proforma_date' => 'required|date',
+                'due_date' => 'required|date|after_or_equal:proforma_date',
+                'validity_date' => 'nullable|date|after_or_equal:proforma_date',
+                'volume_mmbtu' => 'required|numeric|min:0',
+                'price_per_mmbtu_usd' => 'required|numeric|min:0',
+                'kurs_usd' => 'required|numeric|min:0',
+                'status' => 'required|in:draft,sent,expired,converted',
+                'no_kontrak' => 'required|string|max:50',
+                'id_pelanggan' => 'required|string|max:20',
+                'description' => 'nullable|string',
+            ]);
+
+            $volumeMmbtu = (float) $request->volume_mmbtu;
+            $pricePerMmbtuUsd = (float) $request->price_per_mmbtu_usd;
+            $kursUsd = (float) $request->kurs_usd;
+            $totalUsd = $volumeMmbtu * $pricePerMmbtuUsd;
+            $totalIdr = round($totalUsd * $kursUsd);
+
+            $proformaInvoice->proforma_number = $request->proforma_number;
+            $proformaInvoice->proforma_date = $request->proforma_date;
+            $proformaInvoice->due_date = $request->due_date;
+            $proformaInvoice->validity_date = $request->validity_date;
+            $proformaInvoice->volume_mmbtu = $volumeMmbtu;
+            $proformaInvoice->price_per_mmbtu_usd = $pricePerMmbtuUsd;
+            $proformaInvoice->kurs_usd = $kursUsd;
+            $proformaInvoice->total_usd = $totalUsd;
+            $proformaInvoice->total_amount = $totalIdr;
+            $proformaInvoice->status = $request->status;
+            $proformaInvoice->description = $request->description;
+            $proformaInvoice->no_kontrak = $request->no_kontrak;
+            $proformaInvoice->id_pelanggan = $request->id_pelanggan;
+            $proformaInvoice->save();
+        } else {
+            $request->validate([
+                'proforma_number' => 'required|string|max:50|unique:proforma_invoices,proforma_number,' . $proformaInvoice->id,
+                'proforma_date' => 'required|date',
+                'due_date' => 'required|date|after_or_equal:proforma_date',
+                'period_start_date' => 'required|date',
+                'period_end_date' => 'required|date|after_or_equal:period_start_date',
+                'validity_date' => 'nullable|date|after_or_equal:proforma_date',
+                'volume_per_day' => 'required|numeric|min:0',
+                'price_per_sm3' => 'required|numeric|min:0',
+                'status' => 'required|in:draft,sent,expired,converted',
+                'no_kontrak' => 'required|string|max:50',
+                'id_pelanggan' => 'required|string|max:20',
+                'description' => 'nullable|string',
+            ]);
+
+            $startDate = Carbon::parse($request->period_start_date);
+            $endDate = Carbon::parse($request->period_end_date);
+            $diffDays = $startDate->diffInDays($endDate);
+
+            if ($diffDays > 60) {
+                return back()->withErrors(['period_end_date' => 'Periode maksimal adalah 60 hari.'])->withInput();
+            }
+            if ($diffDays < 1) {
+                return back()->withErrors(['period_end_date' => 'Periode minimal adalah 1 hari.'])->withInput();
+            }
+
+            $volumePerDay = (float) $request->volume_per_day;
+            $pricePerSm3 = (float) $request->price_per_sm3;
+            $totalDays = $diffDays;
+            $totalVolume = $volumePerDay * $totalDays;
+            $totalBiaya = round($totalVolume * $pricePerSm3);
+
+            $proformaInvoice->proforma_number = $request->proforma_number;
+            $proformaInvoice->proforma_date = $request->proforma_date;
+            $proformaInvoice->due_date = $request->due_date;
+            $proformaInvoice->total_amount = $totalBiaya;
+            $proformaInvoice->total_volume = $totalVolume;
+            $proformaInvoice->volume_per_day = $volumePerDay;
+            $proformaInvoice->price_per_sm3 = $pricePerSm3;
+            $proformaInvoice->total_days = $totalDays;
+            $proformaInvoice->period_start_date = $request->period_start_date;
+            $proformaInvoice->period_end_date = $request->period_end_date;
+            $proformaInvoice->validity_date = $request->validity_date;
+            $proformaInvoice->status = $request->status;
+            $proformaInvoice->description = $request->description;
+            $proformaInvoice->no_kontrak = $request->no_kontrak;
+            $proformaInvoice->id_pelanggan = $request->id_pelanggan;
+            $proformaInvoice->save();
         }
-        
-        // Minimal harus 1 hari
-        if ($diffDays < 1) {
-            return back()->withErrors(['period_end_date' => 'Periode minimal adalah 1 hari.'])->withInput();
-        }
-
-        // Perhitungan berdasarkan input manual
-        $volumePerDay = (float) $request->volume_per_day;
-        $pricePerSm3 = (float) $request->price_per_sm3;
-        $totalDays = $diffDays;
-        
-        // Kalkulasi total volume dan biaya
-        $totalVolume = $volumePerDay * $totalDays;
-        $totalBiaya = $totalVolume * $pricePerSm3;
-        
-        // Bulatkan total biaya untuk konsistensi
-        $totalBiaya = round($totalBiaya);
-
-        $proformaInvoice->proforma_number = $request->proforma_number;
-        $proformaInvoice->proforma_date = $request->proforma_date;
-        $proformaInvoice->due_date = $request->due_date;
-        $proformaInvoice->total_amount = $totalBiaya;
-        $proformaInvoice->total_volume = $totalVolume;
-        $proformaInvoice->volume_per_day = $volumePerDay;
-        $proformaInvoice->price_per_sm3 = $pricePerSm3;
-        $proformaInvoice->total_days = $totalDays;
-        $proformaInvoice->period_start_date = $request->period_start_date;
-        $proformaInvoice->period_end_date = $request->period_end_date;
-        $proformaInvoice->validity_date = $request->validity_date;
-        $proformaInvoice->status = $request->status;
-        $proformaInvoice->description = $request->description;
-        $proformaInvoice->no_kontrak = $request->no_kontrak;
-        $proformaInvoice->id_pelanggan = $request->id_pelanggan;
-        $proformaInvoice->save();
 
         return redirect()->route('proforma-invoices.show', $proformaInvoice)
             ->with('success', 'Proforma Invoice berhasil diperbarui.');

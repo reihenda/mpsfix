@@ -137,6 +137,49 @@
                             <!-- Tabel Pemakaian Gas -->
                             <div class="mt-3">
                                 <div class="table-responsive">
+                                    @if($isMmbtu)
+                                    <table class="table table-bordered table-striped">
+                                        <thead style="background-color: #20B2AA !important;">
+                                            <tr>
+                                                <th style="background-color: #20B2AA; color: white;">Keterangan</th>
+                                                <th style="background-color: #20B2AA; color: white;">Volume Pemakaian (MMBTU)</th>
+                                                <th style="background-color: #20B2AA; color: white;">Harga Satuan (USD/MMBTU)</th>
+                                                <th style="background-color: #20B2AA; color: white;">Total (USD)</th>
+                                                <th style="background-color: #20B2AA; color: white;">Kurs USD</th>
+                                                <th style="background-color: #20B2AA; color: white;">Total (IDR)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>
+                                                    <i class="fas fa-gas-pump text-primary mr-2"></i>
+                                                    <strong>{{ $proformaInvoice->description ?: 'Pemakaian CNG (MMBTU)' }}</strong>
+                                                    <small class="text-warning d-block font-weight-bold">(ESTIMASI)</small>
+                                                </td>
+                                                <td class="text-right font-weight-bold">
+                                                    {{ number_format($proformaInvoice->volume_mmbtu, 4, ',', '.') }}
+                                                </td>
+                                                <td class="text-right">
+                                                    $ {{ number_format($proformaInvoice->price_per_mmbtu_usd, 4, ',', '.') }}
+                                                </td>
+                                                <td class="text-right font-weight-bold">
+                                                    $ {{ number_format($proformaInvoice->total_usd, 4, ',', '.') }}
+                                                </td>
+                                                <td class="text-right">
+                                                    Rp {{ number_format($proformaInvoice->kurs_usd, 0, ',', '.') }}
+                                                </td>
+                                                <td class="text-right bg-light font-weight-bold">
+                                                    Rp {{ number_format($total_biaya, 0, ',', '.') }}
+                                                </td>
+                                            </tr>
+                                            @for ($i = 0; $i < 2; $i++)
+                                                <tr class="table-light">
+                                                    <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td>
+                                                </tr>
+                                            @endfor
+                                        </tbody>
+                                    </table>
+                                    @else
                                     <table class="table table-bordered table-striped">
                                         <thead style="background-color: #20B2AA !important;">
                                             <tr>
@@ -181,9 +224,10 @@
                                             @endfor
                                         </tbody>
                                     </table>
+                                    @endif
                                 </div>
                             </div>
-                            
+
                             <!-- Terbilang dan Totals -->
                             <div class="mt-2">
                                 <div class="table-responsive">
@@ -194,13 +238,18 @@
                                             <td class="bg-light"><strong>Sub Total</strong></td>
                                             <td>:</td>
                                             <td class="text-right font-weight-bold">
-                                                Rp {{ number_format($total_biaya, 0, ',', '.') }}</td>
+                                                @if($isMmbtu)
+                                                $ {{ number_format($proformaInvoice->total_usd, 4, ',', '.') }} (Rp {{ number_format($total_biaya, 0, ',', '.') }})
+                                                @else
+                                                Rp {{ number_format($total_biaya, 0, ',', '.') }}
+                                                @endif
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td colspan="2" rowspan="3" class="align-middle">
                                                 <div class="alert alert-warning mb-0">
                                                     <i class="fas fa-exclamation-triangle mr-2"></i>
-                                                    <small><strong>PERHATIAN:</strong> Ini adalah <strong>PROFORMA INVOICE</strong> (invoice sementara). 
+                                                    <small><strong>PERHATIAN:</strong> Ini adalah <strong>PROFORMA INVOICE</strong> (invoice sementara).
                                                     Dokumen ini belum dapat digunakan sebagai bukti pembayaran resmi.</small>
                                                 </div>
                                             </td>

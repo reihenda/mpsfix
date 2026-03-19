@@ -38,7 +38,7 @@ Route::middleware(['auth', 'role:superadmin'])->group(function () {
 // Customer dan FOB hanya bisa akses show routes
 // Authorization check ada di controller untuk memastikan customer hanya bisa lihat data mereka sendiri
 // ============================================================================
-Route::middleware(['auth', 'role:admin,superadmin,keuangan,customer,fob'])->group(function () {
+Route::middleware(['auth', 'role:admin,superadmin,keuangan,customer,fob,mmbtu'])->group(function () {
     // Invoice & Billing Show Routes - Bisa diakses oleh semua role
     // Authorization check di controller memastikan customer hanya bisa lihat milik mereka sendiri
     // PENTING: Menggunakan where constraint agar hanya menerima ID numerik, tidak menangkap route statis seperti 'select-customer'
@@ -231,6 +231,12 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     Route::get('/sync-balance/{customer}', [UserController::class, 'syncBalance'])
         ->name('sync.balance');
 
+    // MMBTU-specific routes
+    Route::post('/user/customer/{customer}/update-pricing-mmbtu', [UserController::class, 'updateCustomerMmbtuPricing'])
+        ->name('user.update-pricing-mmbtu');
+    Route::post('/customer/{userId}/add-deposit-mmbtu', [UserController::class, 'addDepositMmbtu'])
+        ->name('customer.add-deposit-mmbtu');
+
     // ========================================================================
     // Operator GTM - CREATE/UPDATE/DELETE (HANYA Admin)
     // CRITICAL: Route STATIS harus SEBELUM route DINAMIS untuk menghindari konflik!
@@ -368,9 +374,9 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
 });
 
 // ============================================================================
-// Rute untuk Customer dan FOB
+// Rute untuk Customer, FOB, dan MMBTU
 // ============================================================================
-Route::middleware(['auth', 'role:customer,fob'])->group(function () {
+Route::middleware(['auth', 'role:customer,fob,mmbtu'])->group(function () {
     Route::get('/customer/dashboard', [DashboardController::class, 'customerDashboard'])
         ->name('customer.dashboard');
     Route::get('/customer/filter', [DashboardController::class, 'customerDashboard'])
@@ -379,7 +385,7 @@ Route::middleware(['auth', 'role:customer,fob'])->group(function () {
         ->name('customer.data');
     Route::post('/proses-pembayaran/{dataPencatatan}', [DataPencatatanController::class, 'prosesPembayaran'])
         ->name('customer.proses-pembayaran');
-    
+
     // Customer Invoice & Billing Routes
     Route::get('/customer/invoices', [InvoiceController::class, 'customerInvoices'])->name('customer.invoices');
     Route::get('/customer/billings', [BillingController::class, 'customerBillings'])->name('customer.billings');

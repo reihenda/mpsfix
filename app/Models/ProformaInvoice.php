@@ -27,6 +27,10 @@ class ProformaInvoice extends Model
         'period_start_date',
         'period_end_date',
         'validity_date',
+        'volume_mmbtu',
+        'price_per_mmbtu_usd',
+        'kurs_usd',
+        'total_usd',
     ];
 
     protected $casts = [
@@ -37,6 +41,10 @@ class ProformaInvoice extends Model
         'validity_date' => 'date',
         'total_amount' => 'decimal:2',
         'total_volume' => 'decimal:3',
+        'volume_mmbtu' => 'decimal:4',
+        'price_per_mmbtu_usd' => 'decimal:4',
+        'kurs_usd' => 'decimal:2',
+        'total_usd' => 'decimal:2',
     ];
 
     // Relasi dengan User (Customer)
@@ -85,14 +93,24 @@ class ProformaInvoice extends Model
     // Accessor untuk format tanggal periode
     public function getPeriodFormattedAttribute()
     {
+        if (!$this->period_start_date || !$this->period_end_date) {
+            return '-';
+        }
+
         $start = $this->period_start_date->format('d/m/Y');
         $end = $this->period_end_date->format('d/m/Y');
-        
+
         if ($start === $end) {
             return $start;
         }
-        
+
         return "{$start} - {$end}";
+    }
+
+    // Check if this is an MMBTU proforma (customer role mmbtu)
+    public function getIsMmbtuAttribute()
+    {
+        return $this->customer && $this->customer->isMmbtu();
     }
 
     // Check if proforma is expired

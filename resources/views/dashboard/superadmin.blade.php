@@ -232,6 +232,7 @@
                                 <option value="admin">Admin</option>
                                 <option value="customer">Customer</option>
                                 <option value="fob">FOB</option>
+                                <option value="mmbtu">Customer MMBTU</option>
                             </select>
                         </div>
                     </div>

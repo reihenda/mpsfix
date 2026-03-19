@@ -34,7 +34,12 @@
                             @foreach ($customers as $customer)
                                 <tr>
                                     <td>{{ $no++ }}</td>
-                                    <td>{{ $customer->name }}</td>
+                                    <td>
+                                        {{ $customer->name }}
+                                        @if($customer->isMmbtu())
+                                            <span class="badge badge-primary ml-1">MMBTU</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $customer->email }}</td>
                                     <td>
                                         <span class="badge badge-info">

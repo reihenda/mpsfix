@@ -121,6 +121,7 @@
                                 <option value="keuangan" {{ old('role') == 'keuangan' ? 'selected' : '' }}>Keuangan</option>
                                 <option value="customer" {{ old('role') == 'customer' ? 'selected' : '' }}>Customer</option>
                                 <option value="fob" {{ old('role') == 'fob' ? 'selected' : '' }}>FOB</option>
+                                <option value="mmbtu" {{ old('role') == 'mmbtu' ? 'selected' : '' }}>Customer MMBTU</option>
                                 <option value="demo" {{ old('role') == 'demo' ? 'selected' : '' }}>Demo</option>
                                 <option value="staff" {{ old('role') == 'staff' ? 'selected' : '' }}>Staff</option>
                             </select>
@@ -214,6 +215,7 @@
                                 <option value="keuangan">Keuangan</option>
                                 <option value="customer">Customer</option>
                                 <option value="fob">FOB</option>
+                                <option value="mmbtu">Customer MMBTU</option>
                                 <option value="demo">Demo</option>
                                 <option value="staff">Staff</option>
                             </select>

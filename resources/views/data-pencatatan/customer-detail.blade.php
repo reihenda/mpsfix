@@ -117,6 +117,9 @@
                                     <strong><i class="fas fa-tachometer-alt mr-1"></i> Total Pemakaian</strong>
                                     <p class="text-muted mb-0">
                                         {{ number_format($totalVolumeSm3, 2) }} Sm³
+                                        @if($isMmbtu)
+                                        <br><small>{{ number_format($totalConsumedMmbtu, 2) }} MMBTU</small>
+                                        @endif
                                     </p>
                                 </div>
                             </div>
@@ -124,7 +127,11 @@
                                 <div class="mobile-summary-card">
                                     <strong><i class="fas fa-money-bill-wave mr-1"></i> Total Pembelian</strong>
                                     <p class="text-muted mb-0">
-                                        Rp {{ number_format($customer->total_purchases ?? 0, 0) }}
+                                        @if($isMmbtu)
+                                            $ {{ number_format($filteredTotalPurchasesUsd, 2) }}
+                                        @else
+                                            Rp {{ number_format($customer->total_purchases ?? 0, 0) }}
+                                        @endif
                                     </p>
                                 </div>
                             </div>
@@ -132,16 +139,26 @@
                                 <div class="mobile-summary-card">
                                     <strong><i class="fas fa-wallet mr-1"></i> Total Deposit</strong>
                                     <p class="text-muted mb-0">
-                                        Rp {{ number_format($customer->total_deposit ?? 0, 0) }}
+                                        @if($isMmbtu)
+                                            {{ number_format($totalDepositMmbtu, 2) }} MMBTU
+                                        @else
+                                            Rp {{ number_format($customer->total_deposit ?? 0, 0) }}
+                                        @endif
                                     </p>
                                 </div>
                             </div>
                             <div class="col-md-3 col-sm-6">
                                 <div class="mobile-summary-card">
-                                    <strong><i class="fas fa-wallet mr-1"></i> Saldo Total</strong>
+                                    <strong><i class="fas fa-wallet mr-1"></i>
+                                        @if($isMmbtu) Saldo MMBTU @else Saldo Total @endif
+                                    </strong>
                                     <p class="text-muted mb-0">
-                                        Rp
-                                        {{ number_format(($customer->total_deposit ?? 0) - ($customer->total_purchases ?? 0), 0) }}
+                                        @if($isMmbtu)
+                                            {{ number_format($totalDepositMmbtu - $totalConsumedMmbtu, 2) }} MMBTU
+                                        @else
+                                            Rp
+                                            {{ number_format(($customer->total_deposit ?? 0) - ($customer->total_purchases ?? 0), 0) }}
+                                        @endif
                                         <span class="badge badge-info" title="Saldo total dari seluruh periode"><i
                                                 class="fas fa-info-circle"></i></span>
                                     </p>
@@ -295,11 +312,22 @@
                             </div>
                             <div class="col-md-3 col-sm-6">
                                 <div class="mobile-summary-card">
-                                    <strong><i class="fas fa-money-bill-wave mr-1"></i> Harga per Sm³</strong>
-                                    <p class="text-muted mb-0">
-                                        Rp
-                                        {{ number_format($pricingInfo['harga_per_meter_kubik'] ?? ($customer->harga_per_meter_kubik ?? 0), 2) }}
-                                    </p>
+                                    @if($isMmbtu)
+                                        <strong><i class="fas fa-money-bill-wave mr-1"></i> Harga per MMBTU</strong>
+                                        <p class="text-muted mb-0">
+                                            $ {{ number_format($pricingInfo['harga_per_mmbtu_usd'] ?? 0, 2) }}
+                                        </p>
+                                        <strong><i class="fas fa-divide mr-1"></i> Pembagi SM3 → MMBTU</strong>
+                                        <p class="text-muted mb-0">
+                                            {{ number_format($pricingInfo['pembagi_sm3_ke_mmbtu'] ?? $pricingInfo['pembaji_sm3_ke_mmbtu'] ?? 1, 2) }}
+                                        </p>
+                                    @else
+                                        <strong><i class="fas fa-money-bill-wave mr-1"></i> Harga per Sm³</strong>
+                                        <p class="text-muted mb-0">
+                                            Rp
+                                            {{ number_format($pricingInfo['harga_per_meter_kubik'] ?? ($customer->harga_per_meter_kubik ?? 0), 2) }}
+                                        </p>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -309,6 +337,9 @@
                                     <strong><i class="fas fa-gas-pump mr-1"></i> Volume Periode Ini</strong>
                                     <p class="text-muted mb-0">
                                         {{ number_format($filteredVolumeSm3, 2) }} Sm³
+                                        @if($isMmbtu)
+                                        <br><small>{{ number_format($filteredVolumeMmbtu, 2) }} MMBTU</small>
+                                        @endif
                                     </p>
                                 </div>
                             </div>
@@ -316,7 +347,11 @@
                                 <div class="mobile-summary-card">
                                     <strong><i class="fas fa-money-bill-wave mr-1"></i> Pembelian Periode Ini</strong>
                                     <p class="text-muted mb-0">
-                                        Rp {{ number_format($filteredTotalPurchases, 0) }}
+                                        @if($isMmbtu)
+                                            $ {{ number_format($filteredTotalPurchasesUsd, 2) }}
+                                        @else
+                                            Rp {{ number_format($filteredTotalPurchases, 0) }}
+                                        @endif
                                     </p>
                                 </div>
                             </div>
@@ -324,7 +359,11 @@
                                 <div class="mobile-summary-card">
                                     <strong><i class="fas fa-wallet mr-1"></i> Deposit Periode Ini</strong>
                                     <p class="text-muted mb-0">
-                                        Rp {{ number_format($filteredTotalDeposits, 0) }}
+                                        @if($isMmbtu)
+                                            {{ number_format($filteredTotalDepositsMmbtu, 2) }} MMBTU
+                                        @else
+                                            Rp {{ number_format($filteredTotalDeposits, 0) }}
+                                        @endif
                                     </p>
                                 </div>
                             </div>
@@ -332,8 +371,12 @@
                                 <div class="mobile-summary-card">
                                     <strong><i class="fas fa-balance-scale mr-1"></i> Saldo Periode Bulan Ini</strong>
                                     <p class="text-muted mb-0">
-                                        Rp
-                                        {{ number_format($realTimeCurrentMonthBalance, 0) }}
+                                        @if($isMmbtu)
+                                            {{ number_format($currentMonthBalanceMmbtu, 2) }} MMBTU
+                                        @else
+                                            Rp
+                                            {{ number_format($realTimeCurrentMonthBalance, 0) }}
+                                        @endif
                                         <span class="badge badge-success"
                                             title="Saldo real-time untuk periode bulan yang dipilih"><i
                                                 class="fas fa-sync-alt"></i> Real-time</span>
@@ -362,6 +405,20 @@
                                         </span>
                                         <div class="table-responsive mt-2">
                                             <table class="table table-sm table-bordered">
+                                                @if($isMmbtu)
+                                                <tr>
+                                                    <td width="60%">Saldo MMBTU Bulan Sebelumnya</td>
+                                                    <td>{{ number_format($prevMonthBalanceMmbtu, 2) }} MMBTU</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>+ Deposit MMBTU Bulan Ini</td>
+                                                    <td>{{ number_format($filteredTotalDepositsMmbtu, 2) }} MMBTU</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>- Pemakaian MMBTU Bulan Ini</td>
+                                                    <td>{{ number_format($filteredVolumeMmbtu, 2) }} MMBTU</td>
+                                                </tr>
+                                                @else
                                                 <tr>
                                                     <td width="60%">Saldo Bulan Sebelumnya</td>
                                                     <td>Rp {{ number_format($realTimePrevMonthBalance, 0) }}</td>
@@ -374,6 +431,8 @@
                                                     <td>- Pembelian Bulan Ini</td>
                                                     <td>Rp {{ number_format($filteredTotalPurchases, 0) }}</td>
                                                 </tr>
+                                                @endif
+                                                @if(!$isMmbtu)
                                                 @php
                                                     /*
                                                      * PERBAIKAN PERHITUNGAN SALDO:
@@ -555,9 +614,14 @@
                                                         ]);
                                                     }
                                                 @endphp
+                                                @endif
                                                 <tr class="font-weight-bold">
-                                                    <td>= Sisa Saldo Periode Bulan Ini</td>
+                                                    <td>= Sisa Saldo {{ $isMmbtu ? 'MMBTU' : '' }} Periode Bulan Ini</td>
+                                                    @if($isMmbtu)
+                                                    <td>{{ number_format($currentMonthBalanceMmbtu, 2) }} MMBTU</td>
+                                                    @else
                                                     <td>Rp {{ number_format($realTimeCurrentMonthBalance, 0) }}</td>
+                                                    @endif
                                                 </tr>
                                                 <tr>
                                                     <td colspan="2" class="text-muted"><small>* Saldo ini hanya
@@ -644,8 +708,8 @@
                                 <th>No</th>
                                 <th colspan="2">Pembacaan Awal</th>
                                 <th colspan="2">Pembacaan Akhir</th>
-                                <th colspan="2">Volume</th>
-                                <th>Rupiah</th>
+                                <th colspan="{{ $isMmbtu ? 3 : 2 }}">Volume</th>
+                                <th>{{ $isMmbtu ? 'USD' : 'Rupiah' }}</th>
                                 <th>Aksi</th>
                             </tr>
                             <tr>
@@ -656,6 +720,9 @@
                                 <th>Meter</th>
                                 <th>flowmeter</th>
                                 <th>Sm³</th>
+                                @if($isMmbtu)
+                                <th>MMBTU</th>
+                                @endif
                                 <th></th>
                                 <th></th>
                             </tr>
@@ -857,16 +924,34 @@
                                             @endphp
                                                 {{ number_format($volumeSm3, 2) }} sm³
                                             </td>
+                                            @if($isMmbtu)
                                             <td>
                                             @php
-                                                // Hitung Pembelian dengan harga sesuai periode
-                                                $hargaPerM3 = floatval(
-                                                    $itemPricingInfo['harga_per_meter_kubik'] ??
-                                                        $customer->harga_per_meter_kubik,
-                                                );
-                                                $pembelian = $volumeSm3 * $hargaPerM3;
+                                                $rowPembaji = floatval($itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $itemPricingInfo['pembaji_sm3_ke_mmbtu'] ?? 1);
+                                                if ($rowPembaji == 0) $rowPembaji = 1;
+                                                $rowVolumeMmbtu = $volumeSm3 / $rowPembaji;
                                             @endphp
+                                                {{ number_format($rowVolumeMmbtu, 2) }} MMBTU
+                                            </td>
+                                            @endif
+                                            <td>
+                                            @php
+                                                if ($isMmbtu) {
+                                                    $rowHargaMmbtu = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? 0);
+                                                    $pembelian = $rowVolumeMmbtu * $rowHargaMmbtu;
+                                                } else {
+                                                    $hargaPerM3 = floatval(
+                                                        $itemPricingInfo['harga_per_meter_kubik'] ??
+                                                            $customer->harga_per_meter_kubik,
+                                                    );
+                                                    $pembelian = $volumeSm3 * $hargaPerM3;
+                                                }
+                                            @endphp
+                                                @if($isMmbtu)
+                                                $ {{ number_format($pembelian, 4) }}
+                                                @else
                                                 Rp {{ number_format($pembelian, 2) }}
+                                                @endif
                                             </td>
                                             <td>
                                             <div class="btn-group">
@@ -906,7 +991,10 @@
                                         <td>-</td>
                                         <td>-</td>
                                         <td>-</td>
-                                        <td></td>
+                                        <td>-</td>
+                                        @if($isMmbtu)
+                                        <td>-</td>
+                                        @endif
                                         <td>-</td>
                                         <td>
                                             @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
@@ -920,7 +1008,7 @@
                                 @endif
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center">Belum ada data pencatatan dalam periode ini.
+                                    <td colspan="{{ $isMmbtu ? 10 : 9 }}" class="text-center">Belum ada data pencatatan dalam periode ini.
                                     </td>
                                 </tr>
                             @endforelse
@@ -931,42 +1019,7 @@
                                 <th>
                                     @php
                                         $totalVolumeSm3Period = 0;
-                                        foreach ($allDatesInPeriod as $date => $records) {
-                                            foreach ($records as $record) {
-                                                $dataInput = is_string($record->data_input)
-                                                    ? json_decode($record->data_input, true)
-                                                    : (is_array($record->data_input)
-                                                        ? $record->data_input
-                                                        : []);
-
-                                                $waktuAwalTimestamp = strtotime(
-                                                    $dataInput['pembacaan_awal']['waktu'] ?? '',
-                                                );
-                                                $waktuAwalYearMonth = $waktuAwalTimestamp
-                                                    ? date('Y-m', $waktuAwalTimestamp)
-                                                    : date('Y-m');
-                                                $waktuAwalDatetime = $waktuAwalTimestamp
-                                                    ? \Carbon\Carbon::createFromTimestamp($waktuAwalTimestamp)
-                                                    : null;
-
-                                                $itemPricingInfo = $customer->getPricingForYearMonth(
-                                                    $waktuAwalYearMonth,
-                                                    $waktuAwalDatetime,
-                                                );
-
-                                                $koreksiMeter = floatval(
-                                                    $itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter,
-                                                );
-                                                $volumeFlowMeter = $dataInput['volume_flow_meter'] ?? 0;
-                                                $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
-                                                $totalVolumeSm3Period += $volumeSm3;
-                                            }
-                                        }
-                                    @endphp
-                                    {{ number_format($totalVolumeSm3Period, 2) }}
-                                </th>
-                                <th>
-                                    @php
+                                        $totalVolumeMmbtuPeriod = 0;
                                         $totalPembelianPeriod = 0;
                                         foreach ($allDatesInPeriod as $date => $records) {
                                             foreach ($records as $record) {
@@ -986,26 +1039,45 @@
                                                     ? \Carbon\Carbon::createFromTimestamp($waktuAwalTimestamp)
                                                     : null;
 
-                                                $itemPricingInfo = $customer->getPricingForYearMonth(
+                                                $ftItemPricingInfo = $customer->getPricingForYearMonth(
                                                     $waktuAwalYearMonth,
                                                     $waktuAwalDatetime,
                                                 );
 
                                                 $koreksiMeter = floatval(
-                                                    $itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter,
-                                                );
-                                                $hargaPerM3 = floatval(
-                                                    $itemPricingInfo['harga_per_meter_kubik'] ??
-                                                        $customer->harga_per_meter_kubik,
+                                                    $ftItemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter,
                                                 );
                                                 $volumeFlowMeter = $dataInput['volume_flow_meter'] ?? 0;
                                                 $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
-                                                $pembelian = $volumeSm3 * $hargaPerM3;
-                                                $totalPembelianPeriod += $pembelian;
+                                                $totalVolumeSm3Period += $volumeSm3;
+
+                                                if ($isMmbtu) {
+                                                    $ftPembaji = floatval($ftItemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $ftItemPricingInfo['pembaji_sm3_ke_mmbtu'] ?? 1);
+                                                    if ($ftPembaji == 0) $ftPembaji = 1;
+                                                    $ftMmbtu = $volumeSm3 / $ftPembaji;
+                                                    $totalVolumeMmbtuPeriod += $ftMmbtu;
+                                                    $totalPembelianPeriod += $ftMmbtu * floatval($ftItemPricingInfo['harga_per_mmbtu_usd'] ?? 0);
+                                                } else {
+                                                    $hargaPerM3 = floatval(
+                                                        $ftItemPricingInfo['harga_per_meter_kubik'] ??
+                                                            $customer->harga_per_meter_kubik,
+                                                    );
+                                                    $totalPembelianPeriod += $volumeSm3 * $hargaPerM3;
+                                                }
                                             }
                                         }
                                     @endphp
+                                    {{ number_format($totalVolumeSm3Period, 2) }}
+                                </th>
+                                @if($isMmbtu)
+                                <th>{{ number_format($totalVolumeMmbtuPeriod, 4) }}</th>
+                                @endif
+                                <th>
+                                    @if($isMmbtu)
+                                    $ {{ number_format($totalPembelianPeriod, 4) }}
+                                    @else
                                     Rp {{ number_format($totalPembelianPeriod, 0) }}
+                                    @endif
                                 </th>
                                 <th></th>
                             </tr>
@@ -1032,6 +1104,11 @@
                     <div class="modal-body">
                         <div class="row mb-3">
                             <div class="col-md-6 col-sm-12 mb-3">
+                                @if($isMmbtu)
+                                <h5>Total Deposit: <span class="text-success">{{ number_format($totalDepositMmbtu, 4) }} MMBTU</span></h5>
+                                <h5>Total Pemakaian: <span class="text-danger">{{ number_format($totalConsumedMmbtu, 4) }} MMBTU</span></h5>
+                                <h5>Saldo MMBTU: <span class="text-primary">{{ number_format($totalDepositMmbtu - $totalConsumedMmbtu, 4) }} MMBTU</span></h5>
+                                @else
                                 <h5>Total Deposit: <span class="text-success">Rp
                                         {{ number_format($customer->total_deposit, 2) }}</span></h5>
                                 <h5>Total Pembelian: <span class="text-danger">Rp
@@ -1039,6 +1116,7 @@
                                 <h5>Saldo Tersisa: <span class="text-primary">Rp
                                         {{ number_format($customer->total_deposit - $customer->total_purchases, 2) }}</span>
                                 </h5>
+                                @endif
                             </div>
                             <div class="col-md-6 col-sm-12">
                                 <button class="btn btn-primary w-100 mb-2" data-toggle="modal"
@@ -1061,7 +1139,13 @@
                                         <th>No</th>
                                         <th>Tanggal</th>
                                         <th>Keterangan</th>
+                                        @if($isMmbtu)
+                                        <th>Volume (MMBTU)</th>
+                                        <th>Harga Satuan</th>
+                                        <th>Total USD</th>
+                                        @else
                                         <th>Jumlah Deposit</th>
+                                        @endif
                                         <th>Deskripsi</th>
                                         <th>Aksi</th>
                                     </tr>
@@ -1081,6 +1165,9 @@
                                                     'index' => $index,
                                                     'date' => $deposit['date'] ?? '',
                                                     'amount' => $deposit['amount'] ?? 0,
+                                                    'mmbtu_amount' => $deposit['mmbtu_amount'] ?? null,
+                                                    'harga_satuan_usd' => $deposit['harga_satuan_usd'] ?? null,
+                                                    'is_mmbtu' => $deposit['is_mmbtu'] ?? false,
                                                     'keterangan' => $deposit['keterangan'] ?? 'penambahan',
                                                     'deskripsi' =>
                                                         $deposit['deskripsi'] ?? ($deposit['description'] ?? '-'),
@@ -1107,6 +1194,16 @@
                                                     <span class="badge badge-danger">Pengurangan</span>
                                                 @endif
                                             </td>
+                                            @if($isMmbtu)
+                                            <td>{{ number_format($deposit['mmbtu_amount'] ?? 0, 4) }} MMBTU</td>
+                                            <td>$ {{ number_format($deposit['harga_satuan_usd'] ?? 0, 4) }}</td>
+                                            <td>
+                                                @php $totalUsdDeposit = ($deposit['mmbtu_amount'] ?? 0) * ($deposit['harga_satuan_usd'] ?? 0); @endphp
+                                                <span class="{{ $totalUsdDeposit >= 0 ? 'text-success' : 'text-danger' }}">
+                                                    $ {{ number_format($totalUsdDeposit, 4) }}
+                                                </span>
+                                            </td>
+                                            @else
                                             <td>
                                                 @if ($deposit['amount'] >= 0)
                                                     <span class="text-success">Rp
@@ -1116,6 +1213,7 @@
                                                         {{ number_format($deposit['amount'] ?? 0, 2) }}</span>
                                                 @endif
                                             </td>
+                                            @endif
                                             <td>{{ $deposit['deskripsi'] ?? '-' }}</td>
                                             <td>
                                             <button type="button" class="btn btn-warning btn-sm btn-edit-deposit"
@@ -1162,6 +1260,64 @@
                                 <span aria-hidden="true">&times;</span>
                             </button>
                         </div>
+                        @if($isMmbtu)
+                        <form action="{{ route('customer.add-deposit-mmbtu', $customer->id) }}" method="POST"
+                            id="tambahDepositForm">
+                            @csrf
+                            <div class="modal-body">
+                                <div class="form-group">
+                                    <label>Volume Deposit (MMBTU) <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <input type="number" step="0.0001" name="mmbtu_amount" id="depositMmbtuAmount"
+                                            class="form-control" placeholder="Jumlah MMBTU" required>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">MMBTU</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Harga Satuan (USD/MMBTU) <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">$</span>
+                                        </div>
+                                        <input type="number" step="0.0001" name="harga_satuan_usd" id="depositHargaUsd"
+                                            class="form-control" placeholder="Harga per MMBTU (USD)" required>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">/MMBTU</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Preview Total USD</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">$</span>
+                                        </div>
+                                        <input type="text" id="depositPreviewUsd" class="form-control bg-light"
+                                            placeholder="0.00" readonly>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Tanggal Deposit <span class="text-danger">*</span></label>
+                                    <input type="datetime-local" name="deposit_date" class="form-control"
+                                        value="{{ now()->format('Y-m-d\TH:i') }}" required>
+                                </div>
+                                <div class="form-group mb-0">
+                                    <label>Deskripsi (Opsional)</label>
+                                    <textarea name="description" class="form-control" placeholder="Deskripsi deposit (opsional)" rows="2"></textarea>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                    <i class="fas fa-times mr-1"></i>Batal
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save mr-1"></i>Simpan
+                                </button>
+                            </div>
+                        </form>
+                        @else
                         <form action="{{ route('customer.add-deposit', $customer->id) }}" method="POST"
                             id="tambahDepositForm">
                             @csrf
@@ -1195,6 +1351,7 @@
                                 </button>
                             </div>
                         </form>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -1386,7 +1543,7 @@
                             <i class="fas fa-calendar-alt mr-1"></i> Buat Periode Khusus
                         </button>
                     </div>
-                    <form action="{{ route('user.update-pricing', $customer->id) }}" method="POST" id="pricingForm">
+                    <form action="{{ $isMmbtu ? route('user.update-pricing-mmbtu', $customer->id) : route('user.update-pricing', $customer->id) }}" method="POST" id="pricingForm">
                         @csrf
                         <div class="modal-body">
                             <div class="alert alert-info">
@@ -1412,6 +1569,41 @@
                             </div>
 
                             <div class="row">
+                                @if($isMmbtu)
+                                <!-- Harga per MMBTU (USD) -->
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="modalHargaPerMmbtu"><strong>Harga per MMBTU (USD)</strong></label>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text">$</span>
+                                            </div>
+                                            <input type="number" step="0.0001" name="harga_per_mmbtu_usd"
+                                                id="modalHargaPerMmbtu"
+                                                class="form-control"
+                                                value="{{ old('harga_per_mmbtu_usd', $pricingInfo['harga_per_mmbtu_usd'] ?? 0) }}"
+                                                placeholder="Harga per MMBTU dalam USD" required>
+                                            <div class="input-group-append">
+                                                <span class="input-group-text">/MMBTU</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pembagi SM3 ke MMBTU -->
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="modalPembaji"><strong>Pembagi SM3 → MMBTU</strong></label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.000001" name="pembagi_sm3_ke_mmbtu"
+                                                id="modalPembaji"
+                                                class="form-control"
+                                                value="{{ old('pembagi_sm3_ke_mmbtu', $pricingInfo['pembagi_sm3_ke_mmbtu'] ?? 1) }}"
+                                                placeholder="Nilai pembagi SM3 ke MMBTU" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                @else
                                 <!-- Harga per meter kubik -->
                                 <div class="col-md-6">
                                     <div class="form-group">
@@ -1434,6 +1626,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                @endif
 
                                 <!-- Tekanan keluar -->
                                 <div class="col-md-6">
@@ -1696,7 +1889,12 @@
                                     <th>No</th>
                                     <th>Tipe</th>
                                     <th>Periode</th>
+                                    @if($isMmbtu)
+                                    <th>Harga/MMBTU (USD)</th>
+                                    <th>Pembagi SM3→MMBTU</th>
+                                    @else
                                     <th>Harga per m³</th>
+                                    @endif
                                     <th>Tekanan (Bar)</th>
                                     <th>Suhu (°C)</th>
                                     <th>Koreksi Meter</th>
@@ -1770,7 +1968,12 @@
                                                 @endif
                                             @endif
                                         </td>
+                                        @if($isMmbtu)
+                                        <td>$ {{ number_format($pricing['harga_per_mmbtu_usd'] ?? 0, 2) }}</td>
+                                        <td>{{ number_format($pricing['pembagi_sm3_ke_mmbtu'] ?? $pricing['pembaji_sm3_ke_mmbtu'] ?? 1, 2) }}</td>
+                                        @else
                                         <td>Rp {{ number_format($pricing['harga_per_meter_kubik'] ?? 0, 2) }}</td>
+                                        @endif
                                         <td>{{ number_format($pricing['tekanan_keluar'] ?? 0, 2) }} Bar</td>
                                         <td>{{ number_format($pricing['suhu'] ?? 0, 2) }} °C</td>
                                         <td>{{ number_format($pricing['koreksi_meter'] ?? 1, 8) }}</td>
@@ -2207,6 +2410,16 @@
             sessionStorage.setItem('pricingYear', year);
         }
 
+        // MMBTU deposit USD preview calculator
+        @if($isMmbtu)
+        $(document).on('input', '#depositMmbtuAmount, #depositHargaUsd', function() {
+            var mmbtu = parseFloat($('#depositMmbtuAmount').val()) || 0;
+            var harga = parseFloat($('#depositHargaUsd').val()) || 0;
+            var total = mmbtu * harga;
+            $('#depositPreviewUsd').val(total.toFixed(4));
+        });
+        @endif
+
         // JavaScript untuk Excel telah dipindahkan ke dalam $(function() {})
         $(function() {
             // Cek apakah perlu membuka modal pricing setelah navigasi
@@ -2301,97 +2514,56 @@
             // // Show loading animation
             // $('body').append('<div id="page-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center;"><div style="text-align: center;"><div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div><p style="margin-top: 10px; font-weight: bold; color: #4e73df;">Loading...</p></div></div>');
 
-            // Hide loading animation after page fully loads
+            // Page fully loaded - remove any leftover loader
             $(window).on('load', function() {
-                $('#page-loader').fadeOut(500, function() {
-                    $(this).remove();
-                    // Animate elements one by one
-                    $('.card').each(function(i) {
-                        $(this).delay(i * 150).animate({
-                            'opacity': 1
-                        }, 500);
-                    });
-                    $('.mobile-summary-card').each(function(i) {
-                        $(this).delay(i * 100).animate({
-                            'opacity': 1
-                        }, 500);
-                    });
-                });
+                $('#page-loader').remove();
             });
 
             // DataTables initialization
-            var table = $("#dataPencatatanTable").DataTable({
-                "responsive": true,
-                "lengthChange": false,
-                "autoWidth": false,
-                "ordering": true,
-                "order": [
-                    [0, 'asc'] // Order by No column (ascending - dari tanggal 1 ke akhir bulan)
-                ],
-                "language": {
-                    "emptyTable": "Tidak ada data pencatatan tersedia",
-                    "zeroRecords": "Tidak ada data yang cocok ditemukan",
-                    "info": "Menampilkan _START_ hingga _END_ dari _TOTAL_ entri",
-                    "infoEmpty": "Menampilkan 0 hingga 0 dari 0 entri",
-                    "infoFiltered": "(disaring dari _MAX_ total entri)",
-                    "search": "Cari:",
-                    "paginate": {
-                        "first": "Pertama",
-                        "last": "Terakhir",
-                        "next": "Selanjutnya",
-                        "previous": "Sebelumnya"
+            if (typeof $.fn.DataTable !== 'undefined') {
+                // Suppress DataTables warning popups
+                $.fn.DataTable.ext.errMode = 'none';
+
+                ['#dataPencatatanTable', '#depositHistoryTable', '#pricingHistoryTable'].forEach(function(id) {
+                    if ($.fn.DataTable.isDataTable(id)) {
+                        $(id).DataTable().destroy();
                     }
-                },
-                "pageLength": 31, // Menampilkan hingga 31 data (maksimal jumlah hari dalam sebulan)
-                "drawCallback": function(settings) {
-                    // Tambahkan styling untuk baris yang belum ada data
-                    $('.table-light').find('td').css('background-color', '#f8f9fa');
-                    // Tambahkan debug log
-                    console.log("DataTable redrawn. Row count: " + this.api().rows().count());
-                    console.log("Rows with data: " + $('.has-data').length);
-                    console.log("Rows without data: " + $('.no-data').length);
-                }
-            });
+                });
 
-            // Initialize DataTable for deposit history modal
-            $("#depositHistoryTable").DataTable({
-                "responsive": true,
-                "lengthChange": false,
-                "autoWidth": false,
-                "ordering": true,
-                "order": [
-                    [1, 'desc'] // Order by date column (descending)
-                ],
-                "columnDefs": [{
-                    "type": "date",
-                    "targets": 1 // Date column index
-                }],
-                "language": {
-                    "emptyTable": "Tidak ada riwayat deposit",
-                    "search": "Cari:"
-                }
-            });
+                var table = $("#dataPencatatanTable").DataTable({
+                    "responsive": true,
+                    "lengthChange": false,
+                    "autoWidth": false,
+                    "ordering": true,
+                    "order": [[0, 'asc']],
+                    "language": {
+                        "emptyTable": "Tidak ada data pencatatan tersedia",
+                        "zeroRecords": "Tidak ada data yang cocok ditemukan",
+                        "info": "Menampilkan _START_ hingga _END_ dari _TOTAL_ entri",
+                        "infoEmpty": "Menampilkan 0 hingga 0 dari 0 entri",
+                        "infoFiltered": "(disaring dari _MAX_ total entri)",
+                        "search": "Cari:",
+                        "paginate": {"first": "Pertama", "last": "Terakhir", "next": "Selanjutnya", "previous": "Sebelumnya"}
+                    },
+                    "pageLength": 31,
+                    "drawCallback": function(settings) {
+                        $('.table-light').find('td').css('background-color', '#f8f9fa');
+                    }
+                });
 
+                $("#depositHistoryTable").DataTable({
+                    "responsive": true, "lengthChange": false, "autoWidth": false,
+                    "ordering": true, "order": [[1, 'desc']],
+                    "columnDefs": [{"type": "date", "targets": 1}],
+                    "language": {"emptyTable": "Tidak ada riwayat deposit", "search": "Cari:"}
+                });
 
-
-            // Initialize DataTable for pricing history modal dengan pengecekan
-            if ($.fn.DataTable.isDataTable('#pricingHistoryTable')) {
-                $('#pricingHistoryTable').DataTable().destroy();
-            }
-
-            $("#pricingHistoryTable").DataTable({
-                "responsive": true,
-                "lengthChange": false,
-                "autoWidth": false,
-                "ordering": true,
-                "order": [
-                    [1, 'desc']
-                ],
-                "language": {
-                    "emptyTable": "Tidak ada riwayat harga",
-                    "search": "Cari:"
-                }
-            });
+                $("#pricingHistoryTable").DataTable({
+                    "responsive": true, "lengthChange": false, "autoWidth": false,
+                    "ordering": true, "order": [[1, 'desc']],
+                    "language": {"emptyTable": "Tidak ada riwayat harga", "search": "Cari:"}
+                });
+            } // end DataTable check
 
             function formatNumber(number, decimals = 2) {
                 return number.toLocaleString('id-ID', {
@@ -2443,35 +2615,61 @@
                 }
             });
             $('#pricingForm').on('submit', function(e) {
-                // Validasi dasar
-                const hargaPerM3 = parseFloat($('#modalHargaPerM3').val());
                 const tekananKeluar = parseFloat($('#modalTekananKeluar').val());
                 const suhu = parseFloat($('#modalSuhu').val());
-
                 let hasError = false;
 
-                // Validasi harga
-                if (isNaN(hargaPerM3) || hargaPerM3 < 0) {
-                    $('#modalHargaPerM3').addClass('is-invalid');
-                    hasError = true;
-                } else {
-                    $('#modalHargaPerM3').removeClass('is-invalid');
+                // Validasi harga — cek field mana yang ada
+                const $hargaM3 = $('#modalHargaPerM3');
+                const $hargaMmbtu = $('#modalHargaPerMmbtu');
+                const $pembagi = $('#modalPembaji');
+
+                if ($hargaMmbtu.length > 0) {
+                    // MMBTU customer
+                    const hargaPerMmbtu = parseFloat($hargaMmbtu.val());
+                    if (isNaN(hargaPerMmbtu) || hargaPerMmbtu < 0) {
+                        $hargaMmbtu.addClass('is-invalid');
+                        hasError = true;
+                    } else {
+                        $hargaMmbtu.removeClass('is-invalid');
+                    }
+                    if ($pembagi.length > 0) {
+                        const pembagi = parseFloat($pembagi.val());
+                        if (isNaN(pembagi) || pembagi <= 0) {
+                            $pembagi.addClass('is-invalid');
+                            hasError = true;
+                        } else {
+                            $pembagi.removeClass('is-invalid');
+                        }
+                    }
+                } else if ($hargaM3.length > 0) {
+                    // Regular customer
+                    const hargaPerM3 = parseFloat($hargaM3.val());
+                    if (isNaN(hargaPerM3) || hargaPerM3 < 0) {
+                        $hargaM3.addClass('is-invalid');
+                        hasError = true;
+                    } else {
+                        $hargaM3.removeClass('is-invalid');
+                    }
                 }
 
-                // Validasi tekanan
-                if (isNaN(tekananKeluar) || tekananKeluar < 0) {
-                    $('#modalTekananKeluar').addClass('is-invalid');
-                    hasError = true;
-                } else {
-                    $('#modalTekananKeluar').removeClass('is-invalid');
+                // Validasi tekanan & suhu — hanya untuk regular customer (bukan MMBTU)
+                if ($('#modalTekananKeluar').length > 0) {
+                    if (isNaN(tekananKeluar) || tekananKeluar < 0) {
+                        $('#modalTekananKeluar').addClass('is-invalid');
+                        hasError = true;
+                    } else {
+                        $('#modalTekananKeluar').removeClass('is-invalid');
+                    }
                 }
 
-                // Validasi suhu
-                if (isNaN(suhu)) {
-                    $('#modalSuhu').addClass('is-invalid');
-                    hasError = true;
-                } else {
-                    $('#modalSuhu').removeClass('is-invalid');
+                if ($('#modalSuhu').length > 0) {
+                    if (isNaN(suhu)) {
+                        $('#modalSuhu').addClass('is-invalid');
+                        hasError = true;
+                    } else {
+                        $('#modalSuhu').removeClass('is-invalid');
+                    }
                 }
 
                 if (hasError) {
@@ -2582,9 +2780,7 @@
                 $('#setPeriodeKhususModal').off('hidden.bs.modal');
             });
 
-            // Add animations to cards on hover
-            $('.card').css('opacity', 0); // Initially hide
-            $('.mobile-summary-card').css('opacity', 0); // Initially hide
+            // Cards visible by default (page-loader animation removed)
 
             // Set default date values untuk print deposit modal
             $('#printDepositFilterModal').on('shown.bs.modal', function() {

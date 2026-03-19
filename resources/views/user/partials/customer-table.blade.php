@@ -26,6 +26,8 @@
                                 <i class="fas fa-user-tie text-success mr-2"></i> Customer
                             @elseif($user->role == 'fob')
                                 <i class="fas fa-truck text-warning mr-2"></i> FOB
+                            @elseif($user->role == 'mmbtu')
+                                <i class="fas fa-fire text-primary mr-2"></i> Customer MMBTU
                             @else
                                 <i class="fas fa-user-graduate text-info mr-2"></i> Demo
                             @endif
@@ -39,12 +41,13 @@
                     <td>{{ $user->alamat ? Str::limit($user->alamat, 30) : '-' }}</td>
                     <td>{{ $user->nomor_tlpn ?? '-' }}</td>
                     <td>
-                        <span class="badge 
+                        <span class="badge
                             @if($user->role == 'customer') badge-success
                             @elseif($user->role == 'fob') badge-warning
+                            @elseif($user->role == 'mmbtu') badge-primary
                             @else badge-info
                             @endif">
-                            {{ ucfirst($user->role) }}
+                            @if($user->role == 'mmbtu') Customer MMBTU @else {{ ucfirst($user->role) }} @endif
                         </span>
                     </td>
                     <td>{{ $user->created_at->format('d/m/Y H:i') }}</td>
@@ -53,7 +56,7 @@
                     </td>
                     <td>
                         <div class="btn-group">
-                            @if($user->isCustomer())
+                            @if($user->isCustomer() || $user->isMmbtu())
                                 <a href="{{ route('data-pencatatan.customer-detail', $user->id) }}"
                                     class="btn btn-info btn-sm" title="Lihat Detail">
                                     <i class="fas fa-eye"></i>

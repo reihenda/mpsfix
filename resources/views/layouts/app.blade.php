@@ -20,8 +20,7 @@
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 
     <!-- DataTables -->
-    <link rel="stylesheet" href="{{ asset('vendor/datatables-bs4/css/dataTables.bootstrap4.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('vendor/datatables-responsive/css/responsive.bootstrap4.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('vendor/datatables/css/dataTables.bootstrap4.min.css') }}">
 
     <!-- AdminLTE CSS -->
     <link rel="stylesheet" href="{{ asset('vendor/adminlte/dist/css/adminlte.min.css') }}">
@@ -658,8 +657,8 @@
     <script src="{{ asset('js/content.js') }}"></script>
 
     <!-- DataTables JS -->
-    <script src="{{ asset('vendor/datatables/jquery.dataTables.min.js') }}"></script>
-    <script src="{{ asset('vendor/datatables-bs4/js/dataTables.bootstrap4.min.js') }}"></script>
+    <script src="{{ asset('vendor/datatables/js/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ asset('vendor/datatables/js/dataTables.bootstrap4.min.js') }}"></script>
 
     <!-- Stack untuk scripts custom dari child views -->
     @stack('scripts')
@@ -698,6 +697,8 @@
             setActiveMenu();
 
             const userForm = $('#tambahUserForm');
+
+            if (userForm.length > 0) {
             const submitButton = userForm.find('button[type="submit"]');
 
             // Input fields
@@ -779,10 +780,17 @@
                     });
                 }
             });
+
+            } // end if (userForm.length > 0)
+
             // Inisialisasi komponen AdminLTE
             // Only initialize DataTables that don't already have specific initialization
-            if (typeof $.fn.dataTable !== 'undefined') {
-                $('.dataTable:not(.custom-datatable)').dataTable();
+            if (typeof $.fn.DataTable !== 'undefined') {
+                $('.dataTable:not(.custom-datatable)').each(function() {
+                    if (!$.fn.DataTable.isDataTable(this)) {
+                        $(this).DataTable();
+                    }
+                });
             }
 
             // Inisialisasi lainnya yang mungkin diperlukan
