@@ -947,7 +947,7 @@ class DataPencatatanController extends Controller
     public function create(Request $request)
     {
         // Ambil daftar customer untuk dipilih
-        $customers = User::where('role', User::ROLE_CUSTOMER)->get();
+        $customers = User::whereIn('role', [User::ROLE_CUSTOMER, User::ROLE_MMBTU])->get();
 
         // Check if a customer_id was passed from the customer detail page
         $selectedCustomerId = $request->query('customer_id');
@@ -1123,7 +1123,7 @@ class DataPencatatanController extends Controller
     // Edit data
     public function edit(DataPencatatan $dataPencatatan)
     {
-        $customers = User::where('role', User::ROLE_CUSTOMER)->get();
+        $customers = User::whereIn('role', [User::ROLE_CUSTOMER, User::ROLE_MMBTU])->get();
         return view('data-pencatatan.edit', compact('dataPencatatan', 'customers'));
     }
 
@@ -1335,7 +1335,7 @@ class DataPencatatanController extends Controller
     public function createWithCustomer(Request $request, $customerId)
     {
         // Ambil daftar customer untuk dipilih
-        $customers = User::where('role', User::ROLE_CUSTOMER)->get();
+        $customers = User::whereIn('role', [User::ROLE_CUSTOMER, User::ROLE_MMBTU])->get();
 
         // Get the selected customer
         $selectedCustomer = User::findOrFail($customerId);
