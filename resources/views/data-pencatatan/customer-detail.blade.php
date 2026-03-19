@@ -1195,12 +1195,12 @@
                                                 @endif
                                             </td>
                                             @if($isMmbtu)
-                                            <td>{{ number_format($deposit['mmbtu_amount'] ?? 0, 4) }} MMBTU</td>
-                                            <td>$ {{ number_format($deposit['harga_satuan_usd'] ?? 0, 4) }}</td>
+                                            <td>{{ number_format($deposit['mmbtu_amount'] ?? 0, 2) }} MMBTU</td>
+                                            <td>$ {{ number_format($deposit['harga_satuan_usd'] ?? 0, 2) }}</td>
                                             <td>
                                                 @php $totalUsdDeposit = ($deposit['mmbtu_amount'] ?? 0) * ($deposit['harga_satuan_usd'] ?? 0); @endphp
                                                 <span class="{{ $totalUsdDeposit >= 0 ? 'text-success' : 'text-danger' }}">
-                                                    $ {{ number_format($totalUsdDeposit, 4) }}
+                                                    $ {{ number_format($totalUsdDeposit, 2) }}
                                                 </span>
                                             </td>
                                             @else
@@ -2416,7 +2416,7 @@
             var mmbtu = parseFloat($('#depositMmbtuAmount').val()) || 0;
             var harga = parseFloat($('#depositHargaUsd').val()) || 0;
             var total = mmbtu * harga;
-            $('#depositPreviewUsd').val(total.toFixed(4));
+            $('#depositPreviewUsd').val(total.toFixed(2));
         });
         @endif
 
