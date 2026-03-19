@@ -675,16 +675,20 @@ class DataPencatatanController extends Controller
                 $filteredTotalPurchasesUsd += $biayaUsd;
             }
 
-            // Hitung total deposit MMBTU (semua waktu)
+            // Hitung total deposit MMBTU & USD (semua waktu)
             $depositHistoryArr = $this->ensureArray($customer->deposit_history);
+            $totalDepositUsd = 0;
             foreach ($depositHistoryArr as $deposit) {
                 if (isset($deposit['is_mmbtu']) && $deposit['is_mmbtu']) {
                     $mmbtuAmt = floatval($deposit['mmbtu_amount'] ?? 0);
+                    $hargaSatuanUsd = floatval($deposit['harga_satuan_usd'] ?? 0);
                     $keterangan = $deposit['keterangan'] ?? 'penambahan';
                     if ($keterangan === 'pengurangan') {
                         $totalDepositMmbtu -= $mmbtuAmt;
+                        $totalDepositUsd -= $mmbtuAmt * $hargaSatuanUsd;
                     } else {
                         $totalDepositMmbtu += $mmbtuAmt;
+                        $totalDepositUsd += $mmbtuAmt * $hargaSatuanUsd;
                     }
                 }
             }
@@ -790,6 +794,7 @@ class DataPencatatanController extends Controller
             'filteredVolumeMmbtu' => $filteredVolumeMmbtu,
             'filteredTotalPurchasesUsd' => $filteredTotalPurchasesUsd,
             'totalDepositMmbtu' => $totalDepositMmbtu,
+            'totalDepositUsd' => $totalDepositUsd ?? 0,
             'totalConsumedMmbtu' => $totalConsumedMmbtu,
             'filteredTotalDepositsMmbtu' => $filteredTotalDepositsMmbtu,
             'prevMonthBalanceMmbtu' => $prevMonthBalanceMmbtu,
@@ -819,53 +824,39 @@ class DataPencatatanController extends Controller
             return $waktuAwalTahun === $tahun;
         });
 
-        // Hitung total pemakaian
+        $isMmbtu = $customer->isMmbtu();
+
+        // Hitung total pemakaian & pembelian tahunan
         $totalPemakaianTahunan = 0;
-        foreach ($yearlyData as $item) {
-            $dataInput = $this->ensureArray($item->data_input);
-            $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
-
-            // Ambil waktu untuk mendapatkan pricing yang tepat
-            $waktuAwalYearMonth = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m');
-            $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
-            $pricingInfo = $customer->getPricingForYearMonth($waktuAwalYearMonth, $waktuAwal);
-
-            // Gunakan koreksi meter yang sesuai
-            $koreksiMeter = floatval($pricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
-            $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
-
-            $totalPemakaianTahunan += $volumeSm3;
-        }
-
-        // Hitung total pembelian berdasarkan volume Sm3 dan harga per meter kubik
         $totalPembelianTahunan = 0;
+
         foreach ($yearlyData as $item) {
             $dataInput = $this->ensureArray($item->data_input);
             $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
 
-            // Ambil waktu untuk mendapatkan pricing yang tepat
             $waktuAwalYearMonth = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m');
             $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
             $pricingInfo = $customer->getPricingForYearMonth($waktuAwalYearMonth, $waktuAwal);
 
-            // Gunakan koreksi meter dan harga yang sesuai untuk periode ini
             $koreksiMeter = floatval($pricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
-            $hargaPerMeterKubik = floatval($pricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
-
             $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
-            $pembelian = $volumeSm3 * $hargaPerMeterKubik;
 
-            $totalPembelianTahunan += $pembelian;
+            if ($isMmbtu) {
+                $pembagi = floatval($pricingInfo['pembaji_sm3_ke_mmbtu'] ?? $pricingInfo['pembagi_sm3_ke_mmbtu'] ?? 1);
+                $hargaMmbtu = floatval($pricingInfo['harga_per_mmbtu_usd'] ?? 0);
+                $volumeMmbtu = $pembagi > 0 ? $volumeSm3 / $pembagi : 0;
+                $totalPemakaianTahunan += $volumeMmbtu;
+                $totalPembelianTahunan += $volumeMmbtu * $hargaMmbtu;
+            } else {
+                $hargaPerMeterKubik = floatval($pricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
+                $totalPemakaianTahunan += $volumeSm3;
+                $totalPembelianTahunan += $volumeSm3 * $hargaPerMeterKubik;
+            }
         }
-
-        // Debug untuk melihat proses perhitungan
-        \Log::info("Total data pencatatan tahun $tahun: " . $yearlyData->count());
-        \Log::info("Total pemakaian tahunan: $totalPemakaianTahunan Sm³");
-        \Log::info("Total pembelian tahunan: Rp " . number_format($totalPembelianTahunan, 0));
 
         return [
-            'totalPemakaianTahunan' => round($totalPemakaianTahunan, 2),
-            'totalPembelianTahunan' => round($totalPembelianTahunan, 0) // Bulatkan ke angka bulat untuk Rupiah
+            'totalPemakaianTahunan' => round($totalPemakaianTahunan, $isMmbtu ? 4 : 2),
+            'totalPembelianTahunan' => round($totalPembelianTahunan, $isMmbtu ? 4 : 0),
         ];
     }
 

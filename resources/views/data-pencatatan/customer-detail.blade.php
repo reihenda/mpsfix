@@ -141,6 +141,7 @@
                                     <p class="text-muted mb-0">
                                         @if($isMmbtu)
                                             {{ number_format($totalDepositMmbtu, 2) }} MMBTU
+                                            <br><small class="text-success">$ {{ number_format($totalDepositUsd, 2) }} USD</small>
                                         @else
                                             Rp {{ number_format($customer->total_deposit ?? 0, 0) }}
                                         @endif
@@ -257,7 +258,11 @@
                                 <div class="mobile-summary-card">
                                     <strong><i class="fas fa-tachometer-alt mr-1"></i> Total Pemakaian Tahunan</strong>
                                     <p class="text-muted mb-0">
-                                        {{ number_format($totalPemakaianTahunan, 2) }} Sm³
+                                        @if($isMmbtu)
+                                            {{ number_format($totalPemakaianTahunan, 4) }} MMBTU
+                                        @else
+                                            {{ number_format($totalPemakaianTahunan, 2) }} Sm³
+                                        @endif
                                     </p>
                                 </div>
                             </div>
@@ -265,7 +270,11 @@
                                 <div class="mobile-summary-card">
                                     <strong><i class="fas fa-money-bill-wave mr-1"></i> Total Pembelian Tahunan</strong>
                                     <p class="text-muted mb-0">
-                                        Rp {{ number_format($totalPembelianTahunan, 0) }}
+                                        @if($isMmbtu)
+                                            $ {{ number_format($totalPembelianTahunan, 2) }} USD
+                                        @else
+                                            Rp {{ number_format($totalPembelianTahunan, 0) }}
+                                        @endif
                                     </p>
                                 </div>
                             </div>
@@ -1105,7 +1114,7 @@
                         <div class="row mb-3">
                             <div class="col-md-6 col-sm-12 mb-3">
                                 @if($isMmbtu)
-                                <h5>Total Deposit: <span class="text-success">{{ number_format($totalDepositMmbtu, 4) }} MMBTU</span></h5>
+                                <h5>Total Deposit: <span class="text-success">{{ number_format($totalDepositMmbtu, 4) }} MMBTU <small class="text-muted">($ {{ number_format($totalDepositUsd, 2) }})</small></span></h5>
                                 <h5>Total Pemakaian: <span class="text-danger">{{ number_format($totalConsumedMmbtu, 4) }} MMBTU</span></h5>
                                 <h5>Saldo MMBTU: <span class="text-primary">{{ number_format($totalDepositMmbtu - $totalConsumedMmbtu, 4) }} MMBTU</span></h5>
                                 @else
