@@ -416,16 +416,19 @@
                                             <table class="table table-sm table-bordered">
                                                 @if($isMmbtu)
                                                 <tr>
-                                                    <td width="60%">Saldo MMBTU Bulan Sebelumnya</td>
+                                                    <td width="50%">Saldo Bulan Sebelumnya</td>
                                                     <td>{{ number_format($prevMonthBalanceMmbtu, 2) }} MMBTU</td>
+                                                    <td class="text-success">$ {{ number_format($prevMonthBalanceUsd, 2) }}</td>
                                                 </tr>
                                                 <tr>
-                                                    <td>+ Deposit MMBTU Bulan Ini</td>
+                                                    <td>+ Deposit Bulan Ini</td>
                                                     <td>{{ number_format($filteredTotalDepositsMmbtu, 2) }} MMBTU</td>
+                                                    <td class="text-success">$ {{ number_format($filteredTotalDepositsUsd, 2) }}</td>
                                                 </tr>
                                                 <tr>
-                                                    <td>- Pemakaian MMBTU Bulan Ini</td>
+                                                    <td>- Pemakaian Bulan Ini</td>
                                                     <td>{{ number_format($filteredVolumeMmbtu, 2) }} MMBTU</td>
+                                                    <td class="text-danger">$ {{ number_format($filteredTotalPurchasesUsd, 2) }}</td>
                                                 </tr>
                                                 @else
                                                 <tr>
@@ -625,11 +628,12 @@
                                                 @endphp
                                                 @endif
                                                 <tr class="font-weight-bold">
-                                                    <td>= Sisa Saldo {{ $isMmbtu ? 'MMBTU' : '' }} Periode Bulan Ini</td>
+                                                    <td>= Sisa Saldo Periode Bulan Ini</td>
                                                     @if($isMmbtu)
                                                     <td>{{ number_format($currentMonthBalanceMmbtu, 2) }} MMBTU</td>
+                                                    <td class="text-primary">$ {{ number_format($currentMonthBalanceUsd, 2) }}</td>
                                                     @else
-                                                    <td>Rp {{ number_format($realTimeCurrentMonthBalance, 0) }}</td>
+                                                    <td colspan="2">Rp {{ number_format($realTimeCurrentMonthBalance, 0) }}</td>
                                                     @endif
                                                 </tr>
                                                 <tr>
@@ -1231,6 +1235,8 @@
                                             data-amount="{{ abs($deposit['amount']) }}"
                                             data-keterangan="{{ $deposit['keterangan'] }}"
                                             data-deskripsi="{{ $deposit['deskripsi'] ?? '' }}"
+                                            data-mmbtu-amount="{{ $deposit['mmbtu_amount'] ?? '' }}"
+                                            data-harga-satuan-usd="{{ $deposit['harga_satuan_usd'] ?? '' }}"
                                             title="Edit Deposit">
                                             <i class="fas fa-edit"></i>
                                             </button>
@@ -1377,7 +1383,7 @@
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
-                    <form action="{{ route('customer.update-deposit', $customer->id) }}" method="POST" id="editDepositForm">
+                    <form action="{{ $isMmbtu ? route('customer.update-deposit-mmbtu', $customer->id) : route('customer.update-deposit', $customer->id) }}" method="POST" id="editDepositForm">
                         @csrf
                         @method('PUT')
                         <input type="hidden" name="deposit_index" id="edit_deposit_index">
@@ -1393,6 +1399,35 @@
                                     <option value="pengurangan">Pengurangan</option>
                                 </select>
                             </div>
+                            @if($isMmbtu)
+                            <div class="form-group">
+                                <label>Jumlah MMBTU <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" step="0.0001" name="mmbtu_amount" id="edit_mmbtu_amount" class="form-control" placeholder="Jumlah MMBTU" required>
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">MMBTU</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Harga Satuan (USD/MMBTU) <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">$</span>
+                                    </div>
+                                    <input type="number" step="0.0001" name="harga_satuan_usd" id="edit_harga_satuan_usd" class="form-control" placeholder="Harga per MMBTU" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Total USD (Preview)</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">$</span>
+                                    </div>
+                                    <input type="text" id="edit_preview_usd" class="form-control" readonly placeholder="0.00">
+                                </div>
+                            </div>
+                            @else
                             <div class="form-group">
                                 <label>Jumlah <span class="text-danger">*</span></label>
                                 <div class="input-group">
@@ -1402,6 +1437,7 @@
                                     <input type="number" step="0.01" name="amount" id="edit_amount" class="form-control" placeholder="Jumlah" required>
                                 </div>
                             </div>
+                            @endif
                             <div class="form-group mb-0">
                                 <label>Deskripsi (Opsional)</label>
                                 <textarea name="description" id="edit_description" class="form-control" placeholder="Deskripsi (opsional)" rows="2"></textarea>
@@ -2812,38 +2848,49 @@
             */
         });
 
-        // SIMPLE: Handle Edit Deposit - Outside $(function) to ensure it always works
+        // Handle Edit Deposit
         $(document).ready(function() {
             $(document).on('click', '.btn-edit-deposit', function() {
-                console.log('Edit button clicked!');
-                
-                var index = $(this).attr('data-index');
-                var date = $(this).attr('data-date');
-                var amount = $(this).attr('data-amount');
-                var keterangan = $(this).attr('data-keterangan');
-                var deskripsi = $(this).attr('data-deskripsi');
-                
-                console.log('Data:', index, date, amount, keterangan, deskripsi);
-                
-                // Populate fields
+                var index         = $(this).attr('data-index');
+                var date          = $(this).attr('data-date');
+                var amount        = $(this).attr('data-amount');
+                var keterangan    = $(this).attr('data-keterangan');
+                var deskripsi     = $(this).attr('data-deskripsi');
+                var mmbtuAmount   = $(this).attr('data-mmbtu-amount');
+                var hargaSatuanUsd = $(this).attr('data-harga-satuan-usd');
+
+                // Populate common fields
                 $('#edit_deposit_index').val(index);
                 $('#edit_deposit_date').val(date);
-                $('#edit_amount').val(amount);
                 $('#edit_keterangan').val(keterangan);
                 $('#edit_description').val(deskripsi);
-                
-                // Close deposit history modal first
+
+                @if($isMmbtu)
+                // MMBTU fields
+                $('#edit_mmbtu_amount').val(mmbtuAmount);
+                $('#edit_harga_satuan_usd').val(hargaSatuanUsd);
+                var previewUsd = (parseFloat(mmbtuAmount) || 0) * (parseFloat(hargaSatuanUsd) || 0);
+                $('#edit_preview_usd').val(previewUsd.toFixed(2));
+                @else
+                $('#edit_amount').val(amount);
+                @endif
+
+                // Close deposit history modal first, then show edit modal
                 $('#depositHistoryModal').modal('hide');
-                
-                // Wait for backdrop to clear, then show edit modal
                 setTimeout(function() {
                     $('#editDepositModal').modal('show');
-                    // Focus on first input after modal shown
-                    setTimeout(function() {
-                        $('#edit_deposit_date').focus();
-                    }, 500);
+                    setTimeout(function() { $('#edit_deposit_date').focus(); }, 500);
                 }, 500);
             });
+
+            @if($isMmbtu)
+            // Preview USD calculator pada edit deposit modal
+            $(document).on('input', '#edit_mmbtu_amount, #edit_harga_satuan_usd', function() {
+                var mmbtu = parseFloat($('#edit_mmbtu_amount').val()) || 0;
+                var harga = parseFloat($('#edit_harga_satuan_usd').val()) || 0;
+                $('#edit_preview_usd').val((mmbtu * harga).toFixed(2));
+            });
+            @endif
         });
     </script>
 @endsection

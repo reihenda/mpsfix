@@ -226,6 +226,8 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
         ->name('customer.remove-deposit');
     Route::put('/customers/{userId}/update-deposit', [UserController::class, 'updateDeposit'])
         ->name('customer.update-deposit');
+    Route::put('/customers/{userId}/update-deposit-mmbtu', [UserController::class, 'updateDepositMmbtu'])
+        ->name('customer.update-deposit-mmbtu');
     Route::get('/customer/{customer}/pricing-history', [UserController::class, 'getPricingHistory'])
         ->name('customer.pricing-history');
     Route::get('/sync-balance/{customer}', [UserController::class, 'syncBalance'])

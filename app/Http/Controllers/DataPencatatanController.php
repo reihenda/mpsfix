@@ -693,16 +693,20 @@ class DataPencatatanController extends Controller
                 }
             }
 
-            // Hitung deposit MMBTU filtered (bulan ini)
+            // Hitung deposit MMBTU & USD filtered (bulan ini)
+            $filteredTotalDepositsUsd = 0;
             foreach ($depositHistoryArr as $deposit) {
                 if (isset($deposit['is_mmbtu']) && $deposit['is_mmbtu'] && isset($deposit['date'])) {
                     if (Carbon::parse($deposit['date'])->format('Y-m') === $currentYearMonth) {
                         $mmbtuAmt = floatval($deposit['mmbtu_amount'] ?? 0);
+                        $hargaSatuanUsd = floatval($deposit['harga_satuan_usd'] ?? 0);
                         $keterangan = $deposit['keterangan'] ?? 'penambahan';
                         if ($keterangan === 'pengurangan') {
                             $filteredTotalDepositsMmbtu -= $mmbtuAmt;
+                            $filteredTotalDepositsUsd   -= $mmbtuAmt * $hargaSatuanUsd;
                         } else {
                             $filteredTotalDepositsMmbtu += $mmbtuAmt;
+                            $filteredTotalDepositsUsd   += $mmbtuAmt * $hargaSatuanUsd;
                         }
                     }
                 }
@@ -727,18 +731,23 @@ class DataPencatatanController extends Controller
                 $totalConsumedMmbtu += $volumeMmbtu;
             }
 
-            // Hitung saldo MMBTU bulan sebelumnya
+            // Hitung saldo MMBTU & USD bulan sebelumnya
             $totalDepositMmbtuUntilPrev = 0;
+            $totalDepositUsdUntilPrev   = 0;
             $totalConsumedMmbtuUntilPrev = 0;
+            $totalConsumedUsdUntilPrev  = 0;
             foreach ($depositHistoryArr as $deposit) {
                 if (isset($deposit['is_mmbtu']) && $deposit['is_mmbtu'] && isset($deposit['date'])) {
                     if (Carbon::parse($deposit['date'])->format('Y-m') <= $prevYearMonth) {
                         $mmbtuAmt = floatval($deposit['mmbtu_amount'] ?? 0);
+                        $hargaSatuanUsd = floatval($deposit['harga_satuan_usd'] ?? 0);
                         $keterangan = $deposit['keterangan'] ?? 'penambahan';
                         if ($keterangan === 'pengurangan') {
                             $totalDepositMmbtuUntilPrev -= $mmbtuAmt;
+                            $totalDepositUsdUntilPrev   -= $mmbtuAmt * $hargaSatuanUsd;
                         } else {
                             $totalDepositMmbtuUntilPrev += $mmbtuAmt;
+                            $totalDepositUsdUntilPrev   += $mmbtuAmt * $hargaSatuanUsd;
                         }
                     }
                 }
@@ -759,11 +768,15 @@ class DataPencatatanController extends Controller
 
                 $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
                 $volumeMmbtu = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                $hargaPerMmbtuUsdPrev = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? 0);
                 $totalConsumedMmbtuUntilPrev += $volumeMmbtu;
+                $totalConsumedUsdUntilPrev   += $volumeMmbtu * $hargaPerMmbtuUsdPrev;
             }
 
             $prevMonthBalanceMmbtu = $totalDepositMmbtuUntilPrev - $totalConsumedMmbtuUntilPrev;
+            $prevMonthBalanceUsd   = $totalDepositUsdUntilPrev - $totalConsumedUsdUntilPrev;
             $currentMonthBalanceMmbtu = $prevMonthBalanceMmbtu + $filteredTotalDepositsMmbtu - $filteredVolumeMmbtu;
+            $currentMonthBalanceUsd   = $prevMonthBalanceUsd + $filteredTotalDepositsUsd - $filteredTotalPurchasesUsd;
         }
         // ===== END MMBTU CALCULATIONS =====
 
@@ -797,8 +810,11 @@ class DataPencatatanController extends Controller
             'totalDepositUsd' => $totalDepositUsd ?? 0,
             'totalConsumedMmbtu' => $totalConsumedMmbtu,
             'filteredTotalDepositsMmbtu' => $filteredTotalDepositsMmbtu,
+            'filteredTotalDepositsUsd' => $filteredTotalDepositsUsd ?? 0,
             'prevMonthBalanceMmbtu' => $prevMonthBalanceMmbtu,
+            'prevMonthBalanceUsd' => $prevMonthBalanceUsd ?? 0,
             'currentMonthBalanceMmbtu' => $currentMonthBalanceMmbtu,
+            'currentMonthBalanceUsd' => $currentMonthBalanceUsd ?? 0,
         ]);
     }
     // Fungsi untuk menghitung informasi tahunan

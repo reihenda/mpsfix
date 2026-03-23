@@ -239,6 +239,49 @@ class UserController extends Controller
         }
     }
 
+    public function updateDepositMmbtu(Request $request, $userId)
+    {
+        if (!Auth::user()->isAdmin() && !Auth::user()->isSuperAdmin()) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki izin untuk mengedit deposit');
+        }
+
+        $request->validate([
+            'deposit_index'    => 'required|integer|min:0',
+            'mmbtu_amount'     => 'required|numeric|min:0',
+            'harga_satuan_usd' => 'required|numeric|min:0',
+            'deposit_date'     => 'required|date',
+            'keterangan'       => 'required|in:penambahan,pengurangan',
+            'description'      => 'nullable|string|max:255',
+        ]);
+
+        $user = User::findOrFail($userId);
+        $depositHistory = is_string($user->deposit_history)
+            ? json_decode($user->deposit_history, true) ?? []
+            : ($user->deposit_history ?? []);
+
+        $index = intval($request->deposit_index);
+        if (!isset($depositHistory[$index])) {
+            return redirect()->back()->with('error', 'Data deposit tidak ditemukan');
+        }
+
+        $mmbtuAmount   = floatval($request->mmbtu_amount);
+        $hargaSatuanUsd = floatval($request->harga_satuan_usd);
+        $totalUsd      = $mmbtuAmount * $hargaSatuanUsd;
+        $amount        = $request->keterangan === 'pengurangan' ? -abs($totalUsd) : abs($totalUsd);
+
+        $depositHistory[$index]['mmbtu_amount']     = $mmbtuAmount;
+        $depositHistory[$index]['harga_satuan_usd'] = $hargaSatuanUsd;
+        $depositHistory[$index]['amount']           = $amount;
+        $depositHistory[$index]['date']             = Carbon::parse($request->deposit_date)->toIso8601String();
+        $depositHistory[$index]['keterangan']       = $request->keterangan;
+        $depositHistory[$index]['deskripsi']        = $request->description ?? '';
+
+        $user->deposit_history = $depositHistory;
+        $user->save();
+
+        return redirect()->back()->with('success', 'Deposit MMBTU berhasil diperbarui');
+    }
+
     public function updateCustomerPricing(Request $request, $customerId)
     {
         // Pastikan hanya admin atau super admin yang bisa mengakses
