@@ -67,7 +67,7 @@
                             <div class="input-group-prepend">
                                 <span class="input-group-text">Rp</span>
                             </div>
-                            <input type="number" class="form-control @error('gaji_pokok') is-invalid @enderror" id="gaji_pokok" name="gaji_pokok" value="{{ old('gaji_pokok', $operatorGtm->gaji_pokok) }}" required min="0" step="1000">
+                            <input type="number" class="form-control @error('gaji_pokok') is-invalid @enderror" id="gaji_pokok" name="gaji_pokok" value="{{ old('gaji_pokok', $operatorGtm->gaji_pokok) }}" required min="0" step="1">
                             @error('gaji_pokok')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
