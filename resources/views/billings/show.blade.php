@@ -24,12 +24,12 @@
                             <button onclick="window.print();" class="btn btn-sm btn-light">
                                 <i class="fas fa-print mr-1"></i><span class="d-none d-sm-inline">Cetak</span>
                             </button>
-                            @if(!Auth::user()->isCustomer() && !Auth::user()->isFOB())
+                            @if(!Auth::user()->isCustomer() && !Auth::user()->isFOB() && !Auth::user()->isMmbtu())
                                 <a href="{{ route('billings.edit', $billing) }}" class="btn btn-sm btn-warning">
                                     <i class="fas fa-edit mr-1"></i><span class="d-none d-sm-inline">Edit</span>
                                 </a>
                             @endif
-                            @if(Auth::user()->isCustomer() || Auth::user()->isFOB())
+                            @if(Auth::user()->isCustomer() || Auth::user()->isFOB() || Auth::user()->isMmbtu())
                                 <a href="{{ route('customer.billings') }}" class="btn btn-sm btn-secondary">
                                     <i class="fas fa-arrow-left mr-1"></i><span class="d-none d-sm-inline">Kembali</span>
                                 </a>
@@ -84,9 +84,9 @@
                                                 <tr>
                                                     <th class="text-center" style="width: 25px;">No</th>
                                                     <th class="text-center" style="width: 60px;">Periode</th>
-                                                    <th class="text-center" style="width: 55px;">Volume</th>
-                                                    <th class="text-center" style="width: 60px;">Harga</th>
-                                                    <th class="text-center" style="width: 70px;">Biaya</th>
+                                                    <th class="text-center" style="width: 55px;">Volume (Sm3{{ $is_mmbtu ? ' / MMBTU' : '' }})</th>
+                                                    <th class="text-center" style="width: 60px;">Harga ({{ $is_mmbtu ? 'USD/MMBTU' : 'Rp' }})</th>
+                                                    <th class="text-center" style="width: 70px;">Biaya ({{ $is_mmbtu ? 'USD' : 'Rp' }})</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -98,11 +98,24 @@
                                                                 {{ \Carbon\Carbon::createFromFormat('d/m/Y', $item['periode_pemakaian'])->format('d-M-y') }}
                                                             </td>
                                                             <td class="text-right">
-                                                                {{ number_format($item['volume_sm3'], 2, ',', '.') }}</td>
-                                                            <td class="text-right">Rp
-                                                                {{ number_format($item['harga_gas'], 0, ',', '.') }}</td>
-                                                            <td class="text-right text-primary">Rp
-                                                                {{ number_format($item['biaya_pemakaian'], 0, ',', '.') }}
+                                                                {{ number_format($item['volume_sm3'], 2, ',', '.') }}
+                                                                @if($is_mmbtu && !is_null($item['volume_mmbtu']))
+                                                                    <br><small class="text-muted">{{ number_format($item['volume_mmbtu'], 4, ',', '.') }} MMBTU</small>
+                                                                @endif
+                                                            </td>
+                                                            <td class="text-right">
+                                                                @if($is_mmbtu)
+                                                                    {{ number_format($item['harga_gas'], 2, ',', '.') }}
+                                                                @else
+                                                                    Rp {{ number_format($item['harga_gas'], 0, ',', '.') }}
+                                                                @endif
+                                                            </td>
+                                                            <td class="text-right text-primary">
+                                                                @if($is_mmbtu)
+                                                                    USD {{ number_format($item['biaya_pemakaian'], 2, ',', '.') }}
+                                                                @else
+                                                                    Rp {{ number_format($item['biaya_pemakaian'], 0, ',', '.') }}
+                                                                @endif
                                                             </td>
                                                         </tr>
                                                     @endif
@@ -112,8 +125,13 @@
                                                     <th class="text-right">
                                                         {{ number_format($billing->total_volume, 2, ',', '.') }}</th>
                                                     <th class="text-center"></th>
-                                                    <th class="text-right text-primary">Rp
-                                                        {{ number_format($billing->total_amount, 0, ',', '.') }}</th>
+                                                    <th class="text-right text-primary">
+                                                        @if($is_mmbtu)
+                                                            USD {{ number_format($billing->total_amount, 2, ',', '.') }}
+                                                        @else
+                                                            Rp {{ number_format($billing->total_amount, 0, ',', '.') }}
+                                                        @endif
+                                                    </th>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -154,8 +172,12 @@
                                                                             {{ \Carbon\Carbon::createFromFormat('d/m/Y', $deposit['tanggal_deposit'])->format('d-M-y') }}
                                                                         </span>
                                                                     </td>
-                                                                    <td class="text-right font-weight-bold text-success">Rp
-                                                                        {{ number_format($deposit['jumlah_penerimaan'], 0, ',', '.') }}
+                                                                    <td class="text-right font-weight-bold text-success">
+                                                                        @if($is_mmbtu)
+                                                                            USD {{ number_format($deposit['jumlah_penerimaan'], 2, ',', '.') }}
+                                                                        @else
+                                                                            Rp {{ number_format($deposit['jumlah_penerimaan'], 0, ',', '.') }}
+                                                                        @endif
                                                                     </td>
                                                                 </tr>
                                                             @empty
@@ -172,8 +194,12 @@
                                                         <tfoot>
                                                             <tr class="bg-light">
                                                                 <th colspan="2" class="text-center">Total Penerimaan</th>
-                                                                <th class="text-right text-success">Rp
-                                                                    {{ number_format($billing->total_deposit, 0, ',', '.') }}
+                                                                <th class="text-right text-success">
+                                                                    @if($is_mmbtu)
+                                                                        USD {{ number_format($billing->total_deposit, 2, ',', '.') }}
+                                                                    @else
+                                                                        Rp {{ number_format($billing->total_deposit, 0, ',', '.') }}
+                                                                    @endif
                                                                 </th>
                                                             </tr>
                                                         </tfoot>
@@ -192,53 +218,51 @@
                                                 <div class="table-responsive no-scroll-text">
                                                     <table class="table table-bordered">
                                                         <tbody>
+                                                            @php
+                                                                $currPrefix = $is_mmbtu ? 'USD ' : 'Rp ';
+                                                                $decimalPlaces = $is_mmbtu ? 2 : 0;
+                                                            @endphp
                                                             <tr>
                                                                 <td class="bg-light" style="width: 45%"><strong>Saldo Bulan
                                                                         Lalu</strong></td>
                                                                 <td
                                                                     class="text-right {{ $billing->previous_balance < 0 ? 'text-danger' : 'text-success' }} font-weight-bold">
-                                                                    Rp
-                                                                    {{ number_format($billing->previous_balance, 0, ',', '.') }}
+                                                                    {{ $currPrefix }}{{ number_format($billing->previous_balance, $decimalPlaces, ',', '.') }}
                                                                 </td>
                                                             </tr>
                                                             <tr>
                                                                 <td><strong>Penerimaan Deposit</strong></td>
                                                                 <td class="text-right text-success font-weight-bold">
                                                                     <i class="fas fa-plus-circle mr-1"></i>
-                                                                    Rp
-                                                                    {{ number_format($billing->total_deposit, 0, ',', '.') }}
+                                                                    {{ $currPrefix }}{{ number_format($billing->total_deposit, $decimalPlaces, ',', '.') }}
                                                                 </td>
                                                             </tr>
                                                             <tr>
                                                                 <td><strong>Biaya Pemakaian</strong></td>
                                                                 <td class="text-right text-danger font-weight-bold">
                                                                     <i class="fas fa-minus-circle mr-1"></i>
-                                                                    Rp {{ number_format($billing->total_amount, 0, ',', '.') }}
+                                                                    {{ $currPrefix }}{{ number_format($billing->total_amount, $decimalPlaces, ',', '.') }}
                                                                 </td>
                                                             </tr>
                                                             <tr class="bg-light">
                                                                 <td class="font-weight-bold">Sisa Saldo</td>
                                                                 <td
                                                                     class="text-right {{ $billing->current_balance < 0 ? 'text-danger' : 'text-success' }} font-weight-bold">
-                                                                    Rp
-                                                                    {{ number_format($billing->current_balance, 0, ',', '.') }}
+                                                                    {{ $currPrefix }}{{ number_format($billing->current_balance, $decimalPlaces, ',', '.') }}
                                                                 </td>
                                                             </tr>
                                                             <tr class="bg-light">
-                                                                <td class="font-weight-bold">Biaya Yang Masih Harus Dibayarkan
-                                                                </td>
+                                                                <td class="font-weight-bold">Biaya Yang Masih Harus Dibayarkan</td>
                                                                 <td class="text-right text-danger font-weight-bold">
                                                                     <i class="fas fa-exclamation-circle mr-1"></i>
-                                                                    Rp
-                                                                    {{ number_format($billing->current_balance < 0 ? abs($billing->current_balance) : 0, 0, ',', '.') }}
+                                                                    {{ $currPrefix }}{{ number_format($billing->current_balance < 0 ? abs($billing->current_balance) : 0, $decimalPlaces, ',', '.') }}
                                                                 </td>
                                                             </tr>
                                                             @if ($billing->amount_to_pay > 0)
                                                                 <tr class="bg-warning">
                                                                     <td class="font-weight-bold">Jumlah Yang Harus Dibayar</td>
                                                                     <td class="text-right text-danger">
-                                                                        Rp
-                                                                        {{ number_format($billing->amount_to_pay, 0, ',', '.') }}
+                                                                        {{ $currPrefix }}{{ number_format($billing->amount_to_pay, $decimalPlaces, ',', '.') }}
                                                                     </td>
                                                                 </tr>
                                                             @endif
@@ -265,14 +289,22 @@
                                                                     <tr>
                                                                         <td class="bg-light" style="width: 50%"><strong>Total Biaya Pemakaian Gas</strong></td>
                                                                         <td class="text-right text-primary font-weight-bold">
-                                                                            Rp {{ number_format($billing->total_amount, 0, ',', '.') }}
+                                                                            @if($is_mmbtu)
+                                                                                USD {{ number_format($billing->total_amount, 2, ',', '.') }}
+                                                                            @else
+                                                                                Rp {{ number_format($billing->total_amount, 0, ',', '.') }}
+                                                                            @endif
                                                                         </td>
                                                                     </tr>
                                                                     <tr class="bg-warning">
                                                                         <td class="font-weight-bold"><strong>Biaya Yang Harus Dibayarkan</strong></td>
                                                                         <td class="text-right text-danger font-weight-bold" style="font-size: 1.2em;">
                                                                             <i class="fas fa-exclamation-circle mr-1"></i>
-                                                                            Rp {{ number_format($billing->amount_to_pay, 0, ',', '.') }}
+                                                                            @if($is_mmbtu)
+                                                                                USD {{ number_format($billing->amount_to_pay, 2, ',', '.') }}
+                                                                            @else
+                                                                                Rp {{ number_format($billing->amount_to_pay, 0, ',', '.') }}
+                                                                            @endif
                                                                         </td>
                                                                     </tr>
                                                                 </tbody>

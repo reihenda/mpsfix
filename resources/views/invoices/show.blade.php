@@ -29,12 +29,12 @@
                             <button onclick="window.print();" class="btn btn-sm btn-light">
                                 <i class="fas fa-print mr-1"></i><span class="d-none d-sm-inline">Cetak</span>
                             </button>
-                            @if(!Auth::user()->isCustomer() && !Auth::user()->isFOB())
+                            @if(!Auth::user()->isCustomer() && !Auth::user()->isFOB() && !Auth::user()->isMmbtu())
                                 <a href="{{ route('invoices.edit', $invoice) }}" class="btn btn-sm btn-warning">
                                     <i class="fas fa-edit mr-1"></i><span class="d-none d-sm-inline">Edit</span>
                                 </a>
                             @endif
-                            @if(Auth::user()->isCustomer() || Auth::user()->isFOB())
+                            @if(Auth::user()->isCustomer() || Auth::user()->isFOB() || Auth::user()->isMmbtu())
                                 <a href="{{ route('customer.invoices') }}" class="btn btn-sm btn-secondary">
                                     <i class="fas fa-arrow-left mr-1"></i><span class="d-none d-sm-inline">Kembali</span>
                                 </a>
@@ -170,15 +170,11 @@
                                         <thead class="bg-gradient-info text-white"
                                             style="background-color: #20B2AA !important;">
                                             <tr>
-                                                <th style="background-color: #20B2AA; color: white;">Keterangan
-                                                </th>
+                                                <th style="background-color: #20B2AA; color: white;">Keterangan</th>
                                                 <th style="background-color: #20B2AA; color: white;">Periode</th>
-                                                <th style="background-color: #20B2AA; color: white;">Volume
-                                                    Pemakaian (Sm3)</th>
-                                                <th style="background-color: #20B2AA; color: white;">Harga Satuan
-                                                    (Rp)</th>
-                                                <th style="background-color: #20B2AA; color: white;">Total (Rp)
-                                                </th>
+                                                <th style="background-color: #20B2AA; color: white;">Volume Pemakaian (Sm3{{ $is_mmbtu ? ' / MMBTU' : '' }})</th>
+                                                <th style="background-color: #20B2AA; color: white;">Harga Satuan ({{ $is_mmbtu ? 'USD/MMBTU' : 'Rp' }})</th>
+                                                <th style="background-color: #20B2AA; color: white;">Total ({{ $is_mmbtu ? 'USD' : 'Rp' }})</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -194,12 +190,23 @@
                                                     </td>
                                                     <td class="text-right font-weight-bold">
                                                         {{ number_format($item['volume_sm3'], 2, ',', '.') }}
+                                                        @if($is_mmbtu && !is_null($item['volume_mmbtu']))
+                                                            <br><small class="text-muted">{{ number_format($item['volume_mmbtu'], 4, ',', '.') }} MMBTU</small>
+                                                        @endif
                                                     </td>
                                                     <td class="text-right">
-                                                        {{ number_format($item['harga_gas'], 0, ',', '.') }}
+                                                        @if($is_mmbtu)
+                                                            {{ number_format($item['harga_gas'], 2, ',', '.') }}
+                                                        @else
+                                                            {{ number_format($item['harga_gas'], 0, ',', '.') }}
+                                                        @endif
                                                     </td>
                                                     <td class="text-right bg-light font-weight-bold">
-                                                        Rp {{ number_format($item['biaya_pemakaian'], 0, ',', '.') }}
+                                                        @if($is_mmbtu)
+                                                            USD {{ number_format($item['biaya_pemakaian'], 2, ',', '.') }}
+                                                        @else
+                                                            Rp {{ number_format($item['biaya_pemakaian'], 0, ',', '.') }}
+                                                        @endif
                                                     </td>
                                                 </tr>
                                             @endforeach
@@ -226,11 +233,16 @@
                                     <table class="table table-bordered">
                                         <tr>
                                             <td class="bg-light"><strong>Terbilang:</strong></td>
-                                            <td class="font-italic">{{ ucfirst($terbilang) }} rupiah</td>
+                                            <td class="font-italic">{{ ucfirst($terbilang) }} {{ $is_mmbtu ? 'US dollar' : 'rupiah' }}</td>
                                             <td class="bg-light"><strong>Sub Total</strong></td>
                                             <td>:</td>
                                             <td class="text-right font-weight-bold">
-                                                {{ number_format($total_biaya, 0, ',', '.') }}</td>
+                                                @if($is_mmbtu)
+                                                    {{ number_format($total_biaya, 2, ',', '.') }}
+                                                @else
+                                                    {{ number_format($total_biaya, 0, ',', '.') }}
+                                                @endif
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td colspan="2" rowspan="3" class="align-middle">
@@ -253,7 +265,12 @@
                                             <td class="bg-primary text-white"><strong>Total Tagihan</strong></td>
                                             <td class="bg-primary text-white">:</td>
                                             <td class="text-right bg-primary text-white font-weight-bold">
-                                                {{ number_format($total_biaya, 0, ',', '.') }}</td>
+                                                @if($is_mmbtu)
+                                                    USD {{ number_format($total_biaya, 2, ',', '.') }}
+                                                @else
+                                                    {{ number_format($total_biaya, 0, ',', '.') }}
+                                                @endif
+                                            </td>
                                         </tr>
                                     </table>
                                 </div>
@@ -313,14 +330,14 @@
                                             <h6 class="alert-heading mb-1">Dokumen Tersinkronisasi</h6>
                                             <p class="mb-0">Invoice ini terhubung dengan <strong>Billing {{ $invoice->billing->billing_number }}</strong>. 
                                             @if($invoice->billing->period_type === 'monthly')
-                                                Saldo saat ini: 
+                                                Saldo saat ini:
                                                 <span class="badge badge-{{ $invoice->billing->current_balance < 0 ? 'danger' : 'success' }} ml-1">
-                                                    Rp {{ number_format($invoice->billing->current_balance, 0, ',', '.') }}
+                                                    {{ $is_mmbtu ? 'USD ' . number_format($invoice->billing->current_balance, 2, ',', '.') : 'Rp ' . number_format($invoice->billing->current_balance, 0, ',', '.') }}
                                                 </span>
                                             @else
-                                                Total yang harus dibayar: 
+                                                Total yang harus dibayar:
                                                 <span class="badge badge-warning ml-1">
-                                                    Rp {{ number_format($invoice->billing->amount_to_pay, 0, ',', '.') }}
+                                                    {{ $is_mmbtu ? 'USD ' . number_format($invoice->billing->amount_to_pay, 2, ',', '.') : 'Rp ' . number_format($invoice->billing->amount_to_pay, 0, ',', '.') }}
                                                 </span>
                                             @endif
                                             </p>

@@ -31,6 +31,8 @@
                                     <span class="badge badge-primary">Customer</span>
                                 @elseif($customer->role == 'fob')
                                     <span class="badge badge-info">FOB</span>
+                                @elseif($customer->role == 'mmbtu')
+                                    <span class="badge badge-warning">MMBTU</span>
                                 @endif
                             </td>
                             <td>{{ $customer->email }}</td>

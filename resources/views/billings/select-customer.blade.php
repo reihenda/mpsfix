@@ -32,6 +32,8 @@
                                     <span class="badge badge-primary">Customer</span>
                                 @elseif($customer->role === 'fob')
                                     <span class="badge badge-success">FOB</span>
+                                @elseif($customer->role === 'mmbtu')
+                                    <span class="badge badge-warning">MMBTU</span>
                                 @endif
                             </td>
                             <td>

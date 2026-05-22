@@ -47,14 +47,19 @@ class BillingController extends Controller
         $regularCustomers = User::where('role', 'customer')
             ->orderBy('name')
             ->get();
-            
+
         // Ambil customer FOB
         $fobCustomers = User::where('role', 'fob')
             ->orderBy('name')
             ->get();
-            
+
+        // Ambil customer MMBTU
+        $mmbtuCustomers = User::where('role', 'mmbtu')
+            ->orderBy('name')
+            ->get();
+
         // Gabungkan dengan urutan customer reguler terlebih dahulu
-        $customers = $regularCustomers->concat($fobCustomers);
+        $customers = $regularCustomers->concat($fobCustomers)->concat($mmbtuCustomers);
         
         return view('billings.select-customer', compact('customers'));
     }
@@ -209,32 +214,41 @@ class BillingController extends Controller
         // Perhitungan untuk volume dan biaya pemakaian gas
         $totalVolume = 0;
         $totalBiaya = 0;
+        $isMmbtu = $customer->isMmbtu();
 
         foreach ($dataPencatatan as $item) {
             $dataInput = $this->ensureArray($item->data_input);
             $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
-            
+
             // PERBAIKAN: Gunakan pricing yang sesuai periode item (bukan periode billing)
             $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
             $waktuAwalYearMonth = $waktuAwal->format('Y-m');
             $itemPricingInfo = $customer->getPricingForYearMonth($waktuAwalYearMonth, $waktuAwal);
-            
-            $volumeSm3 = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
-            $hargaGas = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
-            $biayaPemakaian = $volumeSm3 * $hargaGas;
+
+            if ($isMmbtu) {
+                $koreksiMeter = floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter ?? 1);
+                $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $customer->pembagi_sm3_ke_mmbtu ?? 1);
+                $hargaPerMmbtuUsd = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? $customer->harga_per_mmbtu_usd ?? 0);
+                $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
+                $volumeMmbtu = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                $biayaPemakaian = $volumeMmbtu * $hargaPerMmbtuUsd;
+            } else {
+                $volumeSm3 = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
+                $hargaGas = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
+                $biayaPemakaian = $volumeSm3 * $hargaGas;
+            }
 
             // TETAP HITUNG SEMUA DATA untuk total (termasuk volume 0)
             // karena data volume 0 tetap valid untuk perhitungan saldo
             $totalVolume += $volumeSm3;
             $totalBiaya += $biayaPemakaian;
-            
+
             // DEBUG: Log setiap item yang diproses
             \Log::debug('Billing store - Processing item', [
                 'item_id' => $item->id,
                 'waktu_awal' => $waktuAwal->format('Y-m-d H:i:s'),
                 'volume_flow_meter' => $volumeFlowMeter,
                 'volume_sm3' => $volumeSm3,
-                'harga_gas' => $hargaGas,
                 'biaya_pemakaian' => $biayaPemakaian,
                 'included_in_calculation' => true
             ]);
@@ -254,6 +268,8 @@ class BillingController extends Controller
                     $depositDate = Carbon::parse($deposit['date']);
                     // PERBAIKAN: Gunakan format yang konsisten dengan customer detail
                     if ($depositDate->format('Y-m') === $yearMonth) {
+                        // Untuk MMBTU, hanya ambil deposit yang memiliki flag is_mmbtu
+                        if ($isMmbtu && empty($deposit['is_mmbtu'])) continue;
                         $totalDeposit += floatval($deposit['amount'] ?? 0);
                     }
                 }
@@ -401,7 +417,7 @@ class BillingController extends Controller
     public function show(Billing $billing)
     {
         // Authorization: Customer hanya bisa melihat billing milik mereka sendiri
-        if ((auth()->user()->isCustomer() || auth()->user()->isFOB()) && $billing->customer_id !== auth()->id()) {
+        if ((auth()->user()->isCustomer() || auth()->user()->isFOB() || auth()->user()->isMmbtu()) && $billing->customer_id !== auth()->id()) {
             abort(403, 'Anda tidak memiliki akses ke billing ini.');
         }
         
@@ -500,14 +516,15 @@ class BillingController extends Controller
         $pemakaianGas = [];
         $processedDates = []; // Track tanggal yang sudah diproses untuk menghindari duplikasi
         $i = 1;
-        
+        $isMmbtu = $customer->isMmbtu();
+
         foreach ($dataPencatatan as $item) {
             $dataInput = $this->ensureArray($item->data_input);
             $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
-            
+
             $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
             $tanggalKey = $waktuAwal->format('Y-m-d'); // Key untuk deteksi duplikasi
-            
+
             // PERBAIKAN: Skip jika tanggal sudah diproses (hindari duplikasi)
             if (isset($processedDates[$tanggalKey])) {
                 \Log::debug('Billing show - Skipping duplicate date', [
@@ -520,24 +537,34 @@ class BillingController extends Controller
                 ]);
                 continue;
             }
-            
+
             // Tandai tanggal ini sebagai sudah diproses
             $processedDates[$tanggalKey] = [
                 'id' => $item->id,
                 'volume' => $volumeFlowMeter
             ];
-            
+
             // PERBAIKAN: Gunakan pricing yang sesuai periode item (bukan periode billing)
             $waktuAwalYearMonth = $waktuAwal->format('Y-m');
             $itemPricingInfo = $customer->getPricingForYearMonth($waktuAwalYearMonth, $waktuAwal);
-            
-            $volumeSm3 = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
-            $hargaGas = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
-            $biayaPemakaian = $volumeSm3 * $hargaGas;
 
-            $periodePemakaian = isset($dataInput['pembacaan_awal']['waktu']) ? 
+            if ($isMmbtu) {
+                $koreksiMeter = floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter ?? 1);
+                $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $customer->pembagi_sm3_ke_mmbtu ?? 1);
+                $hargaGas = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? $customer->harga_per_mmbtu_usd ?? 0);
+                $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
+                $volumeMmbtu = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                $biayaPemakaian = $volumeMmbtu * $hargaGas;
+            } else {
+                $volumeSm3 = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
+                $hargaGas = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
+                $volumeMmbtu = null;
+                $biayaPemakaian = $volumeSm3 * $hargaGas;
+            }
+
+            $periodePemakaian = isset($dataInput['pembacaan_awal']['waktu']) ?
                             Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('d/m/Y') : '';
-            
+
             $tanggalPemakaian = isset($dataInput['pembacaan_awal']['waktu']) ?
                             Carbon::parse($dataInput['pembacaan_awal']['waktu']) : null;
 
@@ -546,10 +573,11 @@ class BillingController extends Controller
                 'periode_pemakaian' => $periodePemakaian,
                 'tanggal_pemakaian' => $tanggalPemakaian,
                 'volume_sm3' => $volumeSm3,
+                'volume_mmbtu' => $volumeMmbtu,
                 'harga_gas' => $hargaGas,
                 'biaya_pemakaian' => $biayaPemakaian
             ];
-            
+
             // DEBUG: Log setiap item yang diproses di show
             \Log::debug('Billing show - Processing unique item', [
                 'billing_id' => $billing->id,
@@ -591,6 +619,8 @@ class BillingController extends Controller
                     $depositDate = Carbon::parse($deposit['date']);
                     // PERBAIKAN: Gunakan format yang konsisten dengan customer detail
                     if ($depositDate->format('Y-m') === $yearMonth) {
+                        // Untuk MMBTU, hanya ambil deposit yang memiliki flag is_mmbtu
+                        if ($isMmbtu && empty($deposit['is_mmbtu'])) continue;
                         $jumlahDeposit = floatval($deposit['amount'] ?? 0);
                         $penerimaanDeposit[] = [
                             'no' => $j++,
@@ -622,7 +652,8 @@ class BillingController extends Controller
         $data = [
             'billing' => $billing,
             'customer' => $customer,
-            'periode_bulan' => $billing->period_type === 'custom' ? 
+            'is_mmbtu' => $isMmbtu,
+            'periode_bulan' => $billing->period_type === 'custom' ?
                 Carbon::parse($billing->custom_start_date)->format('d/m/Y') . ' - ' . Carbon::parse($billing->custom_end_date)->format('d/m/Y') :
                 Carbon::createFromDate($billing->period_year, $billing->period_month, 1)->format('F Y'),
             'pemakaian_gas' => $pemakaianGas,
@@ -728,7 +759,7 @@ class BillingController extends Controller
         // Pastikan user adalah customer yang sedang login
         $customer = auth()->user();
         
-        if (!$customer->isCustomer() && !$customer->isFOB()) {
+        if (!$customer->isCustomer() && !$customer->isFOB() && !$customer->isMmbtu()) {
             abort(403, 'Akses tidak diizinkan.');
         }
         
