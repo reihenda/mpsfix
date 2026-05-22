@@ -296,10 +296,6 @@
                                                 </tr>
                                             </table>
                                         </div>
-                                        <div class="alert alert-info mt-3 mb-0">
-                                            <i class="fas fa-info-circle mr-2"></i>
-                                            <small><strong>CATATAN:</strong> Pembayaran dapat dilakukan setelah menerima invoice resmi.</small>
-                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-12 col-md-5 text-center text-md-right">

@@ -20,7 +20,7 @@
                                 <span class="badge badge-pill badge-light mt-1">{{ $periode_bulan }}</span>
                             </small>
                         </div>
-                        <div class="btn-group">
+                        <div class="btn-group flex-wrap">
                             @if($invoice->billing)
                                 <a href="{{ route('billings.show', $invoice->billing) }}" class="btn btn-sm btn-info" title="Lihat Billing Terkait">
                                     <i class="fas fa-file-invoice-dollar mr-1"></i><span class="d-none d-sm-inline">Billing</span>
@@ -29,6 +29,9 @@
                             <button onclick="window.print();" class="btn btn-sm btn-light">
                                 <i class="fas fa-print mr-1"></i><span class="d-none d-sm-inline">Cetak</span>
                             </button>
+                            <a href="{{ route('invoices.download-materai', $invoice) }}" class="btn btn-sm btn-success" title="Download Invoice Bermaterai">
+                                <i class="fas fa-download mr-1"></i><span class="d-none d-sm-inline">Bermaterai</span>
+                            </a>
                             @if(!Auth::user()->isCustomer() && !Auth::user()->isFOB() && !Auth::user()->isMmbtu())
                                 <a href="{{ route('invoices.edit', $invoice) }}" class="btn btn-sm btn-warning">
                                     <i class="fas fa-edit mr-1"></i><span class="d-none d-sm-inline">Edit</span>
@@ -39,7 +42,7 @@
                                     <i class="fas fa-arrow-left mr-1"></i><span class="d-none d-sm-inline">Kembali</span>
                                 </a>
                             @else
-                                <a href="{{ route('invoices.index') }}" class="btn btn-sm btn-secondary">
+                                <a href="{{ route('invoices.customer-list', $invoice->customer) }}" class="btn btn-sm btn-secondary">
                                     <i class="fas fa-arrow-left mr-1"></i><span class="d-none d-sm-inline">Kembali</span>
                                 </a>
                             @endif
@@ -47,6 +50,12 @@
                     </div>
                 </div>
                 <div class="card-body p-0">
+                    @if(!$invoice->materai_file_path)
+                        <div class="alert alert-warning mb-0 rounded-0 d-print-none" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            Invoice bermaterai belum tersedia. Silakan hubungi admin untuk informasi lebih lanjut.
+                        </div>
+                    @endif
                     <div class="invoice-print p-3">
                         <!-- Kop Perusahaan -->
                         <div class="row mb-4">

@@ -4,12 +4,12 @@
             <tr>
                 <th style="width: 10px">No</th>
                 <th>No. Invoice</th>
-                <th>Customer</th>
                 <th>Tanggal</th>
                 <th>Periode</th>
                 <th>Total</th>
                 <th>Status</th>
-                <th style="width: 180px">Aksi</th>
+                <th style="width: 110px" class="text-center">Bermaterai</th>
+                <th style="width: 120px">Aksi</th>
             </tr>
         </thead>
         <tbody>
@@ -17,9 +17,14 @@
                 <tr>
                     <td>{{ $index + $invoices->firstItem() }}</td>
                     <td>{{ $invoice->invoice_number }}</td>
-                    <td>{{ $invoice->customer->name }}</td>
                     <td>{{ \Carbon\Carbon::parse($invoice->invoice_date)->format('d/m/Y') }}</td>
-                    <td>{{ \Carbon\Carbon::createFromDate($invoice->period_year, $invoice->period_month, 1)->format('F Y') }}</td>
+                    <td>
+                        @if($invoice->period_type === 'custom')
+                            {{ \Carbon\Carbon::parse($invoice->custom_start_date)->format('d/m/Y') }} - {{ \Carbon\Carbon::parse($invoice->custom_end_date)->format('d/m/Y') }}
+                        @else
+                            {{ \Carbon\Carbon::createFromDate($invoice->period_year, $invoice->period_month, 1)->format('F Y') }}
+                        @endif
+                    </td>
                     <td>Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</td>
                     <td>
                         @if($invoice->status == 'paid')
@@ -32,15 +37,31 @@
                             <span class="badge badge-secondary">Belum Lunas</span>
                         @endif
                     </td>
+                    <td class="text-center">
+                        @if($invoice->materai_file_path)
+                            <i class="fas fa-check-circle text-success fa-lg" title="Sudah bermaterai"></i>
+                        @else
+                            <i class="fas fa-times-circle text-danger fa-lg" title="Belum bermaterai"></i>
+                        @endif
+                        <div class="btn-group mt-1">
+                            <button type="button" class="btn btn-sm btn-primary" title="Upload Bermaterai"
+                                    onclick="openUploadModal('{{ route('invoices.upload-materai', $invoice) }}')">
+                                <i class="fas fa-upload"></i>
+                            </button>
+                            <a href="{{ route('invoices.download-materai', $invoice) }}" class="btn btn-sm btn-success" title="Download Bermaterai">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </div>
+                    </td>
                     <td>
                         <div class="btn-group">
-                            <a href="{{ route('invoices.show', $invoice) }}" class="btn btn-sm btn-info">
+                            <a href="{{ route('invoices.show', $invoice) }}" class="btn btn-sm btn-info" title="Lihat Detail">
                                 <i class="fas fa-eye"></i>
                             </a>
-                            <a href="{{ route('invoices.edit', $invoice) }}" class="btn btn-sm btn-warning">
+                            <a href="{{ route('invoices.edit', $invoice) }}" class="btn btn-sm btn-warning" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <button type="button" class="btn btn-sm btn-danger" 
+                            <button type="button" class="btn btn-sm btn-danger" title="Hapus"
                                     onclick="confirmDelete('{{ route('invoices.destroy', $invoice) }}')">
                                 <i class="fas fa-trash"></i>
                             </button>

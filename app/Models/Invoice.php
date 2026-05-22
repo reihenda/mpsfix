@@ -26,6 +26,7 @@ class Invoice extends Model
         'period_type',
         'custom_start_date',
         'custom_end_date',
+        'materai_file_path',
     ];
 
     protected $casts = [

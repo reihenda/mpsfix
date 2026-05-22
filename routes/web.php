@@ -43,6 +43,7 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan,customer,fob,mmbtu'])
     // Authorization check di controller memastikan customer hanya bisa lihat milik mereka sendiri
     // PENTING: Menggunakan where constraint agar hanya menerima ID numerik, tidak menangkap route statis seperti 'select-customer'
     Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show')->where('invoice', '[0-9]+');
+    Route::get('/invoices/{invoice}/download-materai', [InvoiceController::class, 'downloadMaterai'])->name('invoices.download-materai')->where('invoice', '[0-9]+');
     Route::get('/billings/{billing}', [BillingController::class, 'show'])->name('billings.show')->where('billing', '[0-9]+');
 });
 
@@ -120,9 +121,11 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
     // Invoice Routes - URUTAN PENTING!
     Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('/invoices/select-customer', [InvoiceController::class, 'selectCustomer'])->name('invoices.select-customer');
+    Route::get('/invoices/customer/{customer}', [InvoiceController::class, 'customerInvoiceList'])->name('invoices.customer-list');
     Route::get('/invoices/create/{customer}', [InvoiceController::class, 'create'])->name('invoices.create');
     Route::post('/invoices/{customer}', [InvoiceController::class, 'store'])->name('invoices.store');
     Route::post('/invoices/{customer}/generate-number', [InvoiceController::class, 'generateInvoiceNumber'])->name('invoices.generate-number');
+    Route::post('/invoices/{invoice}/upload-materai', [InvoiceController::class, 'uploadMaterai'])->name('invoices.upload-materai');
     Route::get('/invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
     Route::put('/invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
     Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');

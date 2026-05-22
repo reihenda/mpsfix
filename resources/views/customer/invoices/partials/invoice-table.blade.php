@@ -8,7 +8,7 @@
                 <th>Periode</th>
                 <th>Total Volume</th>
                 <th>Total Amount</th>
-                <th style="width: 100px">Aksi</th>
+                <th style="width: 120px">Aksi</th>
             </tr>
         </thead>
         <tbody>
@@ -31,12 +31,15 @@
                             <a href="{{ route('invoices.show', $invoice) }}" class="btn btn-sm btn-info" title="Lihat Detail">
                                 <i class="fas fa-eye"></i>
                             </a>
+                            <a href="{{ route('invoices.download-materai', $invoice) }}" class="btn btn-sm btn-success" title="Download Invoice Bermaterai">
+                                <i class="fas fa-download"></i>
+                            </a>
                         </div>
                     </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="text-center">Belum ada data invoice</td>
+                    <td colspan="7" class="text-center">Belum ada data invoice</td>
                 </tr>
             @endforelse
         </tbody>

@@ -545,6 +545,11 @@ class User extends Authenticatable
         return $this->hasMany(RekapPengambilan::class, 'customer_id');
     }
 
+    public function invoices()
+    {
+        return $this->hasMany(\App\Models\Invoice::class, 'customer_id');
+    }
+
     // REMOVED: Relationships with complex balance tables (Pure MVC approach)
     // public function monthlyBalances() - Now using JSON field in users table
     // public function transactionCalculations() - Now calculated on-the-fly

@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class InvoiceController extends Controller
 {
@@ -26,47 +27,100 @@ class InvoiceController extends Controller
         ]);
     }
     /**
-     * Display a listing of invoices.
+     * Display a listing of customers (admin invoice menu).
      */
     public function index(Request $request)
     {
-        // Ambil semua customer (termasuk FOB dan MMBTU)
-        $customers = User::whereIn('role', ['customer', 'fob', 'mmbtu'])
-            ->orderBy('name')
-            ->get();
+        $query = User::whereIn('role', ['customer', 'fob', 'mmbtu'])
+            ->withCount('invoices')
+            ->orderBy('name');
 
-        // Query dasar dengan sorting berdasarkan periode
-        $query = Invoice::with('customer')
-            ->orderBy('period_year', 'desc')
-            ->orderBy('period_month', 'desc')
-            ->orderByRaw("CASE WHEN period_type = 'monthly' THEN 0 ELSE 1 END") // monthly first, then custom
-            ->orderBy('created_at', 'desc');
-
-        // Filter berdasarkan pencarian customer jika ada
         if ($request->has('search') && !empty($request->search)) {
-            // Dapatkan ID customer yang namanya cocok dengan pencarian
-            $customerIds = User::whereIn('role', ['customer', 'fob', 'mmbtu'])
-                ->where('name', 'like', '%' . $request->search . '%')
-                ->pluck('id');
-            
-            // Filter invoice berdasarkan customer_id yang cocok
-            $query->whereIn('customer_id', $customerIds);
+            $query->where('name', 'like', '%' . $request->search . '%');
         }
-        
-        $invoices = $query->paginate(15);
-        
-        // Menyimpan parameter filter dalam pagination links
-        $invoices->appends($request->only('search'));
-        
-        // Deteksi jika request adalah AJAX untuk pencarian real-time
+
+        $customers = $query->paginate(15);
+        $customers->appends($request->only('search'));
+
         if ($request->ajax()) {
             return response()->json([
-                'html' => view('invoices.partials.invoice-table', compact('invoices'))->render(),
-                'pagination' => view('invoices.partials.pagination', compact('invoices'))->render(),
+                'html' => view('invoices.partials.customer-table', compact('customers'))->render(),
+                'pagination' => view('invoices.partials.pagination-customers', compact('customers'))->render(),
             ]);
         }
-        
-        return view('invoices.index', compact('invoices', 'customers'));
+
+        return view('invoices.index', compact('customers'));
+    }
+
+    /**
+     * Display invoice list for a specific customer (admin view).
+     */
+    public function customerInvoiceList(Request $request, User $customer)
+    {
+        $query = Invoice::where('customer_id', $customer->id)
+            ->orderBy('period_year', 'desc')
+            ->orderBy('period_month', 'desc')
+            ->orderByRaw("CASE WHEN period_type = 'monthly' THEN 0 ELSE 1 END")
+            ->orderBy('created_at', 'desc');
+
+        if ($request->has('search') && !empty($request->search)) {
+            $query->where('invoice_number', 'like', '%' . $request->search . '%');
+        }
+
+        $invoices = $query->paginate(15);
+        $invoices->appends($request->only('search'));
+
+        if ($request->ajax()) {
+            return response()->json([
+                'html' => view('invoices.partials.invoice-table', compact('invoices', 'customer'))->render(),
+                'pagination' => view('invoices.partials.pagination', compact('invoices', 'customer'))->render(),
+            ]);
+        }
+
+        return view('invoices.customer-invoices', compact('invoices', 'customer'));
+    }
+
+    /**
+     * Upload invoice bermaterai (PDF).
+     */
+    public function uploadMaterai(Request $request, Invoice $invoice)
+    {
+        $request->validate([
+            'materai_file' => 'required|file|mimes:pdf|max:10240',
+        ], [
+            'materai_file.required' => 'File invoice bermaterai wajib diupload.',
+            'materai_file.mimes' => 'File harus berformat PDF.',
+            'materai_file.max' => 'Ukuran file maksimal 10MB.',
+        ]);
+
+        if ($invoice->materai_file_path) {
+            Storage::disk('public')->delete($invoice->materai_file_path);
+        }
+
+        $path = $request->file('materai_file')->store('invoice-materai', 'public');
+
+        $invoice->update(['materai_file_path' => $path]);
+
+        return back()->with('success', 'Invoice bermaterai berhasil diupload.');
+    }
+
+    /**
+     * Download invoice bermaterai.
+     */
+    public function downloadMaterai(Invoice $invoice)
+    {
+        $user = auth()->user();
+        if (($user->isCustomer() || $user->isFOB() || $user->isMmbtu()) && $invoice->customer_id !== $user->id) {
+            abort(403);
+        }
+
+        if (!$invoice->materai_file_path || !Storage::disk('public')->exists($invoice->materai_file_path)) {
+            return back()->with('error', 'Invoice bermaterai belum tersedia.');
+        }
+
+        $filename = 'Invoice-Bermaterai-' . str_replace(['/', '\\', ' '], '-', $invoice->invoice_number) . '.pdf';
+
+        return Storage::disk('public')->download($invoice->materai_file_path, $filename);
     }
 
     /**
