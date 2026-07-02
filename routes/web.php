@@ -334,6 +334,8 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
         ->name('data-pencatatan.fob.store');
     Route::post('/fob/{fobId}/update-pricing', [UserController::class, 'updateFobPricing'])
         ->name('fob.update-pricing');
+    Route::post('/fob/{fobId}/update-pricing-khusus', [UserController::class, 'updateFobPricingKhusus'])
+        ->name('fob.update-pricing-khusus');
 
     // Route GET untuk print deposit history FOB
     Route::get('/fob/{customer}/print-deposit-history', [FobController::class, 'printDepositHistory'])

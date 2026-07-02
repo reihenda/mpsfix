@@ -784,6 +784,64 @@ class UserController extends Controller
     }
 
     /**
+     * Simpan periode khusus pricing untuk customer FOB
+     */
+    public function updateFobPricingKhusus(Request $request, $customerId)
+    {
+        if (!Auth::user()->isAdmin() && !Auth::user()->isSuperAdmin()) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki izin');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'harga_per_meter_kubik' => 'required|numeric|min:0',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+        ], [
+            'harga_per_meter_kubik.required' => 'Harga per m³ harus diisi',
+            'harga_per_meter_kubik.numeric' => 'Harga per m³ harus berupa angka',
+            'harga_per_meter_kubik.min' => 'Harga per m³ tidak boleh kurang dari 0',
+            'start_date.required' => 'Tanggal awal harus diisi',
+            'start_date.date' => 'Format tanggal awal tidak valid',
+            'end_date.required' => 'Tanggal akhir harus diisi',
+            'end_date.date' => 'Format tanggal akhir tidak valid',
+            'end_date.after_or_equal' => 'Tanggal akhir harus setelah atau sama dengan tanggal awal',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $customer = User::findOrFail($customerId);
+
+            $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
+            $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+
+            $customer->addCustomPeriodPricingFob(
+                floatval($request->input('harga_per_meter_kubik')),
+                $startDate,
+                $endDate
+            );
+
+            $this->rekalkulasiTotalPembelianFob($customer);
+
+            DB::commit();
+
+            $dateRangeString = $startDate->format('d M Y') . ' sampai ' . $endDate->format('d M Y');
+
+            return redirect()->route('data-pencatatan.fob-detail', [
+                'customer' => $customer->id,
+                'refresh' => true
+            ])->with('success', 'Harga untuk periode khusus ' . $dateRangeString . ' berhasil disimpan');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal menyimpan periode khusus: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Rekalkulasi total pembelian khusus FOB dengan algoritma presisi tinggi
      */
     public function rekalkulasiTotalPembelianFob($fob)

@@ -857,32 +857,33 @@
                                 <thead>
                                     <tr>
                                         <th>No</th>
+                                        <th>Tipe</th>
                                         <th>Periode</th>
                                         <th>Harga per m³</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @php
-                                        // Ensure pricing_history is an array before looping
                                         $pricingHistory = $customer->pricing_history;
                                         if (is_string($pricingHistory)) {
                                             $pricingHistory = json_decode($pricingHistory, true) ?? [];
                                         }
-                                        // If it's still not an array (could be null), make it an empty array
                                         if (!is_array($pricingHistory)) {
                                             $pricingHistory = [];
                                         }
 
-                                        // Urutkan dari yang paling recent ke yang paling lama
                                         usort($pricingHistory, function($a, $b) {
-                                            $dateA = $a['date'] ?? ($a['year_month'] ?? null);
-                                            $dateB = $b['date'] ?? ($b['year_month'] ?? null);
-
-                                            $timestampA = $dateA ? strtotime($dateA) : 0;
-                                            $timestampB = $dateB ? strtotime($dateB) : 0;
-
-                                            // Descending (terbaru dulu)
-                                            return $timestampB - $timestampA;
+                                            if (isset($a['type']) && $a['type'] === 'custom_period') {
+                                                $dateA = $a['start_date'] ?? ($a['date'] ?? null);
+                                            } else {
+                                                $dateA = $a['date'] ?? ($a['year_month'] ?? null);
+                                            }
+                                            if (isset($b['type']) && $b['type'] === 'custom_period') {
+                                                $dateB = $b['start_date'] ?? ($b['date'] ?? null);
+                                            } else {
+                                                $dateB = $b['date'] ?? ($b['year_month'] ?? null);
+                                            }
+                                            return strtotime($dateB ?? 0) - strtotime($dateA ?? 0);
                                         });
 
                                         $no = 1;
@@ -892,10 +893,26 @@
                                         <tr>
                                             <td>{{ $no++ }}</td>
                                             <td>
-                                                @if (isset($pricing['date']))
-                                                    {{ \Carbon\Carbon::parse($pricing['date'])->format('F Y') }}
+                                                @if (isset($pricing['type']) && $pricing['type'] === 'custom_period')
+                                                    <span class="badge badge-info">Periode Khusus</span>
                                                 @else
-                                                    Periode tidak tersedia
+                                                    <span class="badge badge-primary">Bulanan</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if (isset($pricing['type']) && $pricing['type'] === 'custom_period')
+                                                    @if (isset($pricing['start_date']) && isset($pricing['end_date']))
+                                                        {{ \Carbon\Carbon::parse($pricing['start_date'])->format('d M Y') }} -
+                                                        {{ \Carbon\Carbon::parse($pricing['end_date'])->format('d M Y') }}
+                                                    @else
+                                                        Periode khusus tidak tersedia
+                                                    @endif
+                                                @else
+                                                    @if (isset($pricing['date']))
+                                                        {{ \Carbon\Carbon::parse($pricing['date'])->format('F Y') }}
+                                                    @else
+                                                        Periode tidak tersedia
+                                                    @endif
                                                 @endif
                                             </td>
                                             <td>Rp {{ number_format($pricing['harga_per_meter_kubik'] ?? 0, 2) }}</td>
@@ -964,6 +981,12 @@
                                 <span aria-hidden="true">&times;</span>
                             </button>
                         </div>
+                        <!-- Tombol Buat Periode Khusus -->
+                        <div class="text-right p-3 bg-light">
+                            <button type="button" class="btn btn-info" id="btnBuatPeriodeKhususFob">
+                                <i class="fas fa-calendar-alt mr-1"></i> Buat Periode Khusus
+                            </button>
+                        </div>
                         <form action="{{ route('fob.update-pricing', $customer->id) }}" method="POST">
                             @csrf
                             <div class="modal-body">
@@ -1028,6 +1051,99 @@
                     </div>
                 </div>
             </div>
+        <!-- Modal untuk Setting Periode Khusus FOB -->
+        <div class="modal fade" id="setPeriodeKhususFobModal" tabindex="-1" role="dialog"
+            aria-labelledby="setPeriodeKhususFobModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title" id="setPeriodeKhususFobModalLabel">
+                            <i class="fas fa-calendar-alt mr-2"></i>Atur Harga FOB untuk Periode Khusus
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <form action="{{ route('fob.update-pricing-khusus', $customer->id) }}" method="POST"
+                        id="pricingKhususFobForm">
+                        @csrf
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                Pengaturan ini akan berlaku untuk semua pencatatan pada rentang tanggal yang dipilih
+                                dan lebih prioritas dibandingkan pengaturan periode bulanan.
+                            </div>
+
+                            <!-- Rentang Tanggal -->
+                            <div class="form-group">
+                                <label><strong>Rentang Tanggal</strong></label>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                                            </div>
+                                            <input type="date" name="start_date" id="fobStartDate"
+                                                class="form-control @error('start_date') is-invalid @enderror"
+                                                value="{{ now()->format('Y-m-d') }}" required>
+                                            @error('start_date')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <small class="text-muted">Tanggal Awal</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                                            </div>
+                                            <input type="date" name="end_date" id="fobEndDate"
+                                                class="form-control @error('end_date') is-invalid @enderror"
+                                                value="{{ now()->format('Y-m-d') }}" required>
+                                            @error('end_date')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <small class="text-muted">Tanggal Akhir</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Harga per meter kubik -->
+                            <div class="form-group">
+                                <label for="fobHargaPerM3Khusus"><strong>Harga per m³</strong></label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">Rp</span>
+                                    </div>
+                                    <input type="number" step="0.01" name="harga_per_meter_kubik"
+                                        id="fobHargaPerM3Khusus"
+                                        class="form-control @error('harga_per_meter_kubik') is-invalid @enderror"
+                                        value="{{ old('harga_per_meter_kubik', $customer->harga_per_meter_kubik ?? 0) }}"
+                                        placeholder="Masukkan harga per m³" required>
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">/m³</span>
+                                    </div>
+                                    @error('harga_per_meter_kubik')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                <i class="fas fa-times mr-1"></i>Batal
+                            </button>
+                            <button type="submit" class="btn btn-info">
+                                <i class="fas fa-save mr-1"></i>Simpan Periode Khusus
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         @endif
     </div>
 @endsection
@@ -1747,6 +1863,26 @@
                         $('#edit_deposit_date').focus();
                     }, 500);
                 }, 500);
+            });
+
+
+            // Tombol Buat Periode Khusus FOB — tutup modal harga bulanan, buka modal periode khusus
+            $('#btnBuatPeriodeKhususFob').on('click', function() {
+                $('#setPricingModal').modal('hide');
+                $('#setPricingModal').on('hidden.bs.modal.khusus', function() {
+                    $(this).off('hidden.bs.modal.khusus');
+                    $('#setPeriodeKhususFobModal').modal('show');
+                });
+            });
+
+            // Validasi end_date >= start_date pada form periode khusus FOB
+            $('#pricingKhususFobForm').on('submit', function(e) {
+                var startDate = $('#fobStartDate').val();
+                var endDate = $('#fobEndDate').val();
+                if (startDate && endDate && endDate < startDate) {
+                    e.preventDefault();
+                    alert('Tanggal akhir harus setelah atau sama dengan tanggal awal.');
+                }
             });
         });
     </script>

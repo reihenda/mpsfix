@@ -278,6 +278,60 @@ class User extends Authenticatable
     }
 
     /**
+     * Metode untuk menambah periode khusus pricing FOB (tanpa koreksi meter)
+     */
+    public function addCustomPeriodPricingFob($hargaPerMeterKubik, $startDate, $endDate)
+    {
+        try {
+            DB::beginTransaction();
+
+            $hargaPerMeterKubik = floatval(str_replace(',', '.', $hargaPerMeterKubik));
+
+            $pricingEntry = [
+                'type' => 'custom_period',
+                'start_date' => $startDate->format('Y-m-d H:i:s'),
+                'end_date' => $endDate->format('Y-m-d H:i:s'),
+                'harga_per_meter_kubik' => round($hargaPerMeterKubik, 2),
+            ];
+
+            $pricingHistory = $this->ensureArray($this->pricing_history);
+
+            $overlappingIndex = null;
+            foreach ($pricingHistory as $index => $entry) {
+                if (isset($entry['type']) && $entry['type'] === 'custom_period') {
+                    $entryStartDate = Carbon::parse($entry['start_date']);
+                    $entryEndDate = Carbon::parse($entry['end_date']);
+
+                    if (($startDate <= $entryEndDate) && ($endDate >= $entryStartDate)) {
+                        $overlappingIndex = $index;
+                        break;
+                    }
+                }
+            }
+
+            if ($overlappingIndex !== null) {
+                $pricingHistory[$overlappingIndex] = $pricingEntry;
+            } else {
+                $pricingHistory[] = $pricingEntry;
+            }
+
+            $this->setAttribute('pricing_history', $pricingHistory);
+            $result = $this->save();
+
+            DB::commit();
+
+            return $result;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error in addCustomPeriodPricingFob', [
+                'user_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * Metode untuk menambah riwayat pricing khusus FOB
      */
     public function addPricingHistoryfob($hargaPerMeterKubik, $customDate = null)
