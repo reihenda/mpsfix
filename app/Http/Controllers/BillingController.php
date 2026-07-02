@@ -189,7 +189,7 @@ class BillingController extends Controller
         foreach ($dataPencatatan as $item) {
             $dataInput = $this->ensureArray($item->data_input);
             if (!empty($dataInput['pembacaan_awal']['waktu'])) {
-                $tanggal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m-d');
+                $tanggal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m-d H:i:s');
                 $volume = floatval($dataInput['volume_flow_meter'] ?? 0);
                 $tanggalDitemukan[] = [
                     'id' => $item->id,
@@ -198,10 +198,10 @@ class BillingController extends Controller
                 ];
             }
         }
-        
+
         $tanggalCount = array_count_values(array_column($tanggalDitemukan, 'tanggal'));
         $duplicates = array_filter($tanggalCount, function($count) { return $count > 1; });
-        
+
         if (!empty($duplicates)) {
             \Log::warning('Billing store - Duplicate dates detected in source data', [
                 'customer_id' => $customer->id,
@@ -488,7 +488,7 @@ class BillingController extends Controller
         foreach ($dataPencatatan as $item) {
             $dataInput = $this->ensureArray($item->data_input);
             if (!empty($dataInput['pembacaan_awal']['waktu'])) {
-                $tanggal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m-d');
+                $tanggal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m-d H:i:s');
                 $volume = floatval($dataInput['volume_flow_meter'] ?? 0);
                 $tanggalDitemukan[] = [
                     'id' => $item->id,
@@ -498,11 +498,11 @@ class BillingController extends Controller
                 ];
             }
         }
-        
+
         // Detect duplicates
         $tanggalCount = array_count_values(array_column($tanggalDitemukan, 'tanggal'));
         $duplicates = array_filter($tanggalCount, function($count) { return $count > 1; });
-        
+
         if (!empty($duplicates)) {
             \Log::warning('Billing show - Duplicate dates detected', [
                 'billing_id' => $billing->id,
@@ -523,9 +523,11 @@ class BillingController extends Controller
             $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
 
             $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
-            $tanggalKey = $waktuAwal->format('Y-m-d'); // Key untuk deteksi duplikasi
+            // Key deteksi duplikasi harus mencakup jam, bukan hanya tanggal,
+            // karena 1 hari bisa punya lebih dari 1 shift pencatatan (mis. 07:00-15:00 dan 15:00-00:00)
+            $tanggalKey = $waktuAwal->format('Y-m-d H:i:s');
 
-            // PERBAIKAN: Skip jika tanggal sudah diproses (hindari duplikasi)
+            // Skip hanya jika timestamp pembacaan_awal persis sama (data benar-benar terduplikasi)
             if (isset($processedDates[$tanggalKey])) {
                 \Log::debug('Billing show - Skipping duplicate date', [
                     'billing_id' => $billing->id,

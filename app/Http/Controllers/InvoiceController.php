@@ -70,6 +70,13 @@ class InvoiceController extends Controller
         $invoices = $query->paginate(15);
         $invoices->appends($request->only('search'));
 
+        // Samakan sumber total dengan halaman detail invoice (show()): hitung ulang
+        // live dari data pencatatan + pricing saat ini, bukan pakai total_amount beku dari DB.
+        $dataPencatatanAll = $customer->dataPencatatan()->get();
+        foreach ($invoices as $invoice) {
+            $invoice->total_amount = $this->calculateInvoiceTotalBiaya($invoice, $customer, $dataPencatatanAll);
+        }
+
         if ($request->ajax()) {
             return response()->json([
                 'html' => view('invoices.partials.invoice-table', compact('invoices', 'customer'))->render(),
@@ -78,6 +85,121 @@ class InvoiceController extends Controller
         }
 
         return view('invoices.customer-invoices', compact('invoices', 'customer'));
+    }
+
+    /**
+     * Hitung ulang total biaya invoice secara live dari data pencatatan + pricing saat ini.
+     * Logika ini mengikuti perhitungan di show(), supaya daftar invoice (customerInvoiceList)
+     * menampilkan total yang sama dengan halaman detail invoice, bukan total_amount beku dari DB.
+     */
+    private function calculateInvoiceTotalBiaya(Invoice $invoice, User $customer, $dataPencatatanAll = null): float
+    {
+        $dataPencatatanAll = $dataPencatatanAll ?? $customer->dataPencatatan()->get();
+        $isMmbtu = $customer->isMmbtu();
+
+        if ($invoice->period_type === 'custom') {
+            $startDate = Carbon::parse($invoice->custom_start_date);
+            $endDate = Carbon::parse($invoice->custom_end_date);
+
+            $dataPencatatan = $dataPencatatanAll->filter(function ($item) use ($startDate, $endDate) {
+                $dataInput = $this->ensureArray($item->data_input);
+                if (empty($dataInput) || empty($dataInput['pembacaan_awal']['waktu'])) {
+                    return false;
+                }
+                $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->startOfDay();
+                return $waktuAwal->between($startDate->copy()->startOfDay(), $endDate->copy()->endOfDay());
+            });
+        } else {
+            $yearMonth = $invoice->period_year . '-' . str_pad($invoice->period_month, 2, '0', STR_PAD_LEFT);
+
+            $dataPencatatan = $dataPencatatanAll->filter(function ($item) use ($yearMonth) {
+                $dataInput = $this->ensureArray($item->data_input);
+                if (empty($dataInput) || empty($dataInput['pembacaan_awal']['waktu'])) {
+                    return false;
+                }
+                return Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m') === $yearMonth;
+            });
+        }
+
+        $totalBiaya = 0;
+        $totalVolume = 0;
+        $totalVolumeMmbtu = 0;
+        $processedDates = [];
+        $hargaGas = 0;
+
+        if ($invoice->period_type === 'custom') {
+            // Group by pricing period, sama seperti show()
+            $pricingPeriods = [];
+
+            foreach ($dataPencatatan as $item) {
+                $dataInput = $this->ensureArray($item->data_input);
+                $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
+
+                $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
+                $tanggalKey = $waktuAwal->format('Y-m-d H:i:s');
+
+                if (isset($processedDates[$tanggalKey])) {
+                    continue;
+                }
+                $processedDates[$tanggalKey] = true;
+
+                $waktuAwalYearMonth = $waktuAwal->format('Y-m');
+                $itemPricingInfo = $customer->getPricingForYearMonth($waktuAwalYearMonth, $waktuAwal);
+
+                if ($isMmbtu) {
+                    $koreksiMeter = floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter ?? 1);
+                    $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $customer->pembagi_sm3_ke_mmbtu ?? 1);
+                    $hargaPeriod = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? $customer->harga_per_mmbtu_usd ?? 0);
+                    $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
+                    $volumePeriod = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                } else {
+                    $volumePeriod = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
+                    $hargaPeriod = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
+                }
+
+                if (!isset($pricingPeriods[$hargaPeriod])) {
+                    $pricingPeriods[$hargaPeriod] = ['harga' => $hargaPeriod, 'volume' => 0];
+                }
+                $pricingPeriods[$hargaPeriod]['volume'] += $volumePeriod;
+            }
+
+            foreach ($pricingPeriods as $period) {
+                $totalBiaya += $period['volume'] * $period['harga'];
+            }
+        } else {
+            foreach ($dataPencatatan as $item) {
+                $dataInput = $this->ensureArray($item->data_input);
+                $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
+
+                $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
+                $tanggalKey = $waktuAwal->format('Y-m-d H:i:s');
+
+                if (isset($processedDates[$tanggalKey])) {
+                    continue;
+                }
+                $processedDates[$tanggalKey] = true;
+
+                $waktuAwalYearMonth = $waktuAwal->format('Y-m');
+                $itemPricingInfo = $customer->getPricingForYearMonth($waktuAwalYearMonth, $waktuAwal);
+
+                if ($isMmbtu) {
+                    $koreksiMeter = floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter ?? 1);
+                    $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $customer->pembagi_sm3_ke_mmbtu ?? 1);
+                    $hargaGas = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? $customer->harga_per_mmbtu_usd ?? 0);
+                    $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
+                    $totalVolumeMmbtu += $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                } else {
+                    $volumeSm3 = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
+                    $hargaGas = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
+                }
+
+                $totalVolume += $volumeSm3;
+            }
+
+            $totalBiaya = $isMmbtu ? $totalVolumeMmbtu * $hargaGas : $totalVolume * $hargaGas;
+        }
+
+        return $isMmbtu ? round($totalBiaya, 2) : round($totalBiaya);
     }
 
     /**
@@ -256,7 +378,7 @@ class InvoiceController extends Controller
         foreach ($dataPencatatan as $item) {
             $dataInput = $this->ensureArray($item->data_input);
             if (!empty($dataInput['pembacaan_awal']['waktu'])) {
-                $tanggal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m-d');
+                $tanggal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m-d H:i:s');
                 $volume = floatval($dataInput['volume_flow_meter'] ?? 0);
                 $tanggalDitemukan[] = [
                     'id' => $item->id,
@@ -265,10 +387,10 @@ class InvoiceController extends Controller
                 ];
             }
         }
-        
+
         $tanggalCount = array_count_values(array_column($tanggalDitemukan, 'tanggal'));
         $duplicates = array_filter($tanggalCount, function($count) { return $count > 1; });
-        
+
         if (!empty($duplicates)) {
             \Log::warning('Invoice store - Duplicate dates detected in source data', [
                 'customer_id' => $customer->id,
@@ -294,9 +416,10 @@ class InvoiceController extends Controller
                 $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
 
                 $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
-                $tanggalKey = $waktuAwal->format('Y-m-d');
+                // Key mencakup jam agar shift berbeda di hari yang sama (mis. 07:00-15:00 dan 15:00-00:00) tidak dianggap duplikat
+                $tanggalKey = $waktuAwal->format('Y-m-d H:i:s');
 
-                // Skip jika tanggal sudah diproses (hindari duplikasi)
+                // Skip hanya jika timestamp pembacaan_awal persis sama (data benar-benar terduplikasi)
                 if (isset($processedDates[$tanggalKey])) {
                     continue;
                 }
@@ -346,9 +469,10 @@ class InvoiceController extends Controller
                 $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
 
                 $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
-                $tanggalKey = $waktuAwal->format('Y-m-d');
+                // Key mencakup jam agar shift berbeda di hari yang sama (mis. 07:00-15:00 dan 15:00-00:00) tidak dianggap duplikat
+                $tanggalKey = $waktuAwal->format('Y-m-d H:i:s');
 
-                // PERBAIKAN: Skip jika tanggal sudah diproses (hindari duplikasi)
+                // Skip hanya jika timestamp pembacaan_awal persis sama (data benar-benar terduplikasi)
                 if (isset($processedDates[$tanggalKey])) {
                     \Log::debug('Invoice store - Skipping duplicate date', [
                         'customer_id' => $customer->id,
@@ -609,7 +733,7 @@ class InvoiceController extends Controller
         foreach ($dataPencatatan as $item) {
             $dataInput = $this->ensureArray($item->data_input);
             if (!empty($dataInput['pembacaan_awal']['waktu'])) {
-                $tanggal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m-d');
+                $tanggal = Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m-d H:i:s');
                 $volume = floatval($dataInput['volume_flow_meter'] ?? 0);
                 $tanggalDitemukan[] = [
                     'id' => $item->id,
@@ -619,11 +743,11 @@ class InvoiceController extends Controller
                 ];
             }
         }
-        
+
         // Detect duplicates
         $tanggalCount = array_count_values(array_column($tanggalDitemukan, 'tanggal'));
         $duplicates = array_filter($tanggalCount, function($count) { return $count > 1; });
-        
+
         if (!empty($duplicates)) {
             \Log::warning('Invoice show - Duplicate dates detected', [
                 'invoice_id' => $invoice->id,
@@ -649,9 +773,10 @@ class InvoiceController extends Controller
                 $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
 
                 $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
-                $tanggalKey = $waktuAwal->format('Y-m-d');
+                // Key mencakup jam agar shift berbeda di hari yang sama (mis. 07:00-15:00 dan 15:00-00:00) tidak dianggap duplikat
+                $tanggalKey = $waktuAwal->format('Y-m-d H:i:s');
 
-                // Skip jika tanggal sudah diproses (hindari duplikasi)
+                // Skip hanya jika timestamp pembacaan_awal persis sama (data benar-benar terduplikasi)
                 if (isset($processedDates[$tanggalKey])) {
                     \Log::debug('Invoice show - Skipping duplicate date', [
                         'invoice_id' => $invoice->id,
@@ -762,9 +887,10 @@ class InvoiceController extends Controller
                 $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
 
                 $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
-                $tanggalKey = $waktuAwal->format('Y-m-d');
+                // Key mencakup jam agar shift berbeda di hari yang sama (mis. 07:00-15:00 dan 15:00-00:00) tidak dianggap duplikat
+                $tanggalKey = $waktuAwal->format('Y-m-d H:i:s');
 
-                // PERBAIKAN: Skip jika tanggal sudah diproses (hindari duplikasi)
+                // Skip hanya jika timestamp pembacaan_awal persis sama (data benar-benar terduplikasi)
                 if (isset($processedDates[$tanggalKey])) {
                     \Log::debug('Invoice show - Skipping duplicate date (monthly)', [
                         'invoice_id' => $invoice->id,
