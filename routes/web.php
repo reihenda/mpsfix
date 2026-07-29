@@ -79,7 +79,8 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
     // Index untuk melihat daftar operator
     Route::get('/operator-gtm', [App\Http\Controllers\OperatorGtmController::class, 'index'])->name('operator-gtm.index');
     // Show untuk melihat detail operator dan data lembur (READ ONLY untuk Keuangan)
-    Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show');
+    // PENTING: where constraint numerik agar tidak menangkap route statis seperti 'operator-gtm/create'
+    Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show')->where('operatorGtm', '[0-9]+');
 
     // Keuangan Routes - Full Access untuk Keuangan
     Route::get('/keuangan/accounts', [FinancialAccountController::class, 'index'])->name('keuangan.accounts.index');
