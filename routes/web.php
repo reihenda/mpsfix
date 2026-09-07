@@ -267,6 +267,21 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     Route::put('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'update'])->name('operator-gtm.update');
     Route::delete('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'destroy'])->name('operator-gtm.destroy');
 
+    // ========================================================================
+    // Absen Trip: approval lokasi custom, pengelompokan trip ke sesi,
+    // review pengajuan perbaikan trip (HANYA Admin/SuperAdmin)
+    // ========================================================================
+    Route::get('/trip-lokasi', [App\Http\Controllers\TripLokasiController::class, 'index'])->name('trip-lokasi.index');
+    Route::post('/trip-lokasi/{tripLokasi}/approve', [App\Http\Controllers\TripLokasiController::class, 'approve'])->name('trip-lokasi.approve');
+    Route::post('/trip-lokasi/{tripLokasi}/reject', [App\Http\Controllers\TripLokasiController::class, 'reject'])->name('trip-lokasi.reject');
+
+    Route::get('/operator-gtm/{operatorGtm}/trip-sesi', [App\Http\Controllers\OperatorTripSesiController::class, 'index'])->name('operator-gtm.trip-sesi');
+    Route::post('/operator-gtm/{operatorGtm}/trip-sesi', [App\Http\Controllers\OperatorTripSesiController::class, 'store'])->name('operator-gtm.trip-sesi.store');
+
+    Route::get('/operator-trip-perbaikan', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'index'])->name('operator-trip-perbaikan.index');
+    Route::post('/operator-trip-perbaikan/{operatorTripPerbaikan}/approve', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'approve'])->name('operator-trip-perbaikan.approve');
+    Route::post('/operator-trip-perbaikan/{operatorTripPerbaikan}/reject', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'reject'])->name('operator-trip-perbaikan.reject');
+
     // Rekap Routes - HANYA Admin
     Route::get('/rekap-pengambilan', [RekapPengambilanController::class, 'index'])
         ->name('rekap-pengambilan.index');
@@ -406,6 +421,24 @@ Route::middleware(['auth', 'role:fob'])->group(function () {
         ->name('fob.dashboard');
     Route::get('/fob/filter', [DashboardController::class, 'fobDashboard'])
         ->name('fob.filter');
+});
+
+// ============================================================================
+// Rute untuk Operator GTM (driver)
+// ============================================================================
+Route::middleware(['auth', 'role:operator'])->group(function () {
+    Route::get('/operator/dashboard', [App\Http\Controllers\Operator\OperatorDashboardController::class, 'dashboard'])
+        ->name('operator.dashboard');
+    Route::get('/operator/trip', [App\Http\Controllers\Operator\OperatorTripController::class, 'index'])
+        ->name('operator.trip.index');
+    Route::post('/operator/trip/berangkat', [App\Http\Controllers\Operator\OperatorTripController::class, 'storeBerangkat'])
+        ->name('operator.trip.store-berangkat');
+    Route::post('/operator/trip/{trip}/sampai', [App\Http\Controllers\Operator\OperatorTripController::class, 'storeSampai'])
+        ->name('operator.trip.store-sampai');
+    Route::get('/operator/perbaikan', [App\Http\Controllers\Operator\OperatorTripPerbaikanController::class, 'index'])
+        ->name('operator.perbaikan.index');
+    Route::post('/operator/perbaikan', [App\Http\Controllers\Operator\OperatorTripPerbaikanController::class, 'store'])
+        ->name('operator.perbaikan.store');
 });
 
 

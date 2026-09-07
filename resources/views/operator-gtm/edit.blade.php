@@ -94,6 +94,37 @@
                         @enderror
                         <small class="form-text text-muted">Tanggal bergabung akan digunakan untuk perhitungan gaji pada periode pertama.</small>
                     </div>
+
+                    <hr>
+                    <h5>Akun Login Operator (Opsional)</h5>
+                    @if ($existingUser)
+                        <p class="text-muted small">Operator ini sudah punya akun login. Ubah email/password di bawah jika perlu, atau biarkan password kosong untuk tidak mengubahnya.</p>
+                    @else
+                        <p class="text-muted small">Operator ini belum punya akun login. Isi email & password di bawah untuk membuatkan akun agar bisa Absen Trip.</p>
+                    @endif
+
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" class="form-control @error('email') is-invalid @enderror" id="email" name="email" value="{{ old('email', $existingUser->email ?? '') }}">
+                        @error('email')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" class="form-control @error('password') is-invalid @enderror" id="password" name="password">
+                        @error('password')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <small class="form-text text-muted">
+                            @if ($existingUser)
+                                Kosongkan jika tidak ingin mengubah password.
+                            @else
+                                Wajib diisi jika email diisi. Minimal 6 karakter.
+                            @endif
+                        </small>
+                    </div>
                 </div>
                 <!-- /.card-body -->
 

@@ -37,6 +37,8 @@ class AuthController extends Controller
                 return redirect()->route('demo.admin'); // Redirect to demo admin dashboard
             } elseif ($user->isFob()) {
                 return redirect()->route('fob.dashboard');
+            } elseif ($user->isOperator()) {
+                return redirect()->route('operator.dashboard');
             } elseif ($user->isStaff()) {
                 return redirect()->route('data-pencatatan.index');
             } else {
@@ -65,10 +67,11 @@ class AuthController extends Controller
             'name' => 'required|string|max:255|unique:users',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:3',
-            'role' => 'required|string|in:admin,keuangan,customer,fob,demo,staff,mmbtu',
+            'role' => 'required|string|in:admin,keuangan,customer,fob,demo,staff,mmbtu,operator',
             'no_kontrak' => 'nullable|string|max:255',
             'alamat' => 'nullable|string',
             'nomor_tlpn' => 'nullable|string|max:20',
+            'operator_gtm_id' => 'required_if:role,operator|nullable|exists:operator_gtm,id|unique:users,operator_gtm_id',
         ], [
             'name.required' => 'Nama harus diisi',
             'email.required' => 'Email harus diisi',
@@ -78,6 +81,8 @@ class AuthController extends Controller
             'password.required' => 'Password harus diisi',
             'password.min' => 'Password minimal 3 karakter',
             'role.required' => 'Role harus dipilih',
+            'operator_gtm_id.required_if' => 'Profil Operator GTM harus dipilih',
+            'operator_gtm_id.unique' => 'Profil Operator GTM ini sudah punya akun login',
         ]);
 
         if ($validator->fails()) {
@@ -111,6 +116,8 @@ class AuthController extends Controller
                 $user->total_purchases = 0;
                 $user->deposit_history = json_encode([]);
                 $user->pricing_history = json_encode([]);
+            } elseif ($request->role == 'operator') {
+                $user->operator_gtm_id = $request->operator_gtm_id;
             }
 
             $user->save();

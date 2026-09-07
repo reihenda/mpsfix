@@ -22,6 +22,7 @@ class User extends Authenticatable
     const ROLE_DEMO = 'demo';
     const ROLE_STAFF = 'staff';
     const ROLE_MMBTU = 'mmbtu';
+    const ROLE_OPERATOR = 'operator';
 
     /**
      * The attributes that are mass assignable.
@@ -33,6 +34,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'operator_gtm_id',
         'no_kontrak',
         'alamat',
         'nomor_tlpn',
@@ -1334,6 +1336,22 @@ class User extends Authenticatable
     public function isMmbtu()
     {
         return $this->role === self::ROLE_MMBTU;
+    }
+
+    /**
+     * Check if user is a GTM operator/driver
+     */
+    public function isOperator()
+    {
+        return $this->role === self::ROLE_OPERATOR;
+    }
+
+    /**
+     * Get the operator GTM profile linked to this user's login account
+     */
+    public function operatorGtm()
+    {
+        return $this->belongsTo(OperatorGtm::class, 'operator_gtm_id');
     }
 
     /**

@@ -124,12 +124,27 @@
                                 <option value="mmbtu" {{ old('role') == 'mmbtu' ? 'selected' : '' }}>Customer MMBTU</option>
                                 <option value="demo" {{ old('role') == 'demo' ? 'selected' : '' }}>Demo</option>
                                 <option value="staff" {{ old('role') == 'staff' ? 'selected' : '' }}>Staff</option>
+                                <option value="operator" {{ old('role') == 'operator' ? 'selected' : '' }}>Operator GTM (Driver)</option>
                             </select>
                             @error('role')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        
+
+                        {{-- Field tambahan untuk role Operator GTM --}}
+                        <div id="operator-field" style="display: none;">
+                            <div class="form-group">
+                                <label for="operator_gtm_id">Profil Operator GTM <span class="text-danger">*</span></label>
+                                <select class="form-control @error('operator_gtm_id') is-invalid @enderror" id="operator_gtm_id" name="operator_gtm_id">
+                                    <option value="">-- Pilih Operator GTM --</option>
+                                </select>
+                                @error('operator_gtm_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="form-text text-muted">Cuma operator yang belum punya akun login yang muncul di sini.</small>
+                            </div>
+                        </div>
+
                         {{-- Fields tambahan untuk Customer/FOB/Demo --}}
                         <div id="additional-fields" style="display: none;">
                             <div class="form-group">
@@ -218,10 +233,22 @@
                                 <option value="mmbtu">Customer MMBTU</option>
                                 <option value="demo">Demo</option>
                                 <option value="staff">Staff</option>
+                                <option value="operator">Operator GTM (Driver)</option>
                             </select>
                             <div class="invalid-feedback">Role harus dipilih</div>
                         </div>
-                        
+
+                        {{-- Field tambahan untuk role Operator GTM --}}
+                        <div id="edit-operator-field" style="display: none;">
+                            <div class="form-group">
+                                <label for="edit_operator_gtm_id">Profil Operator GTM <span class="text-danger">*</span></label>
+                                <select class="form-control" id="edit_operator_gtm_id" name="operator_gtm_id">
+                                    <option value="">-- Pilih Operator GTM --</option>
+                                </select>
+                                <small class="form-text text-muted">Cuma operator yang belum punya akun login (atau yang sedang terhubung ke user ini) yang muncul di sini.</small>
+                            </div>
+                        </div>
+
                         {{-- Fields tambahan untuk Customer/FOB/Demo --}}
                         <div id="edit-additional-fields">
                             <div class="form-group">
@@ -294,7 +321,7 @@ function confirmDelete(url) {
 // Function untuk toggle additional fields berdasarkan role
 function toggleAdditionalFields(roleValue, isEdit = false) {
     const additionalFields = isEdit ? $('#edit-additional-fields') : $('#additional-fields');
-    
+
     if (roleValue === 'customer' || roleValue === 'fob' || roleValue === 'demo') {
         additionalFields.show();
     } else {
@@ -305,6 +332,38 @@ function toggleAdditionalFields(roleValue, isEdit = false) {
         } else {
             $('#edit_no_kontrak, #edit_alamat, #edit_nomor_tlpn').val('');
         }
+    }
+}
+
+// Daftar profil Operator GTM (id, label, linked_user_id) dari controller
+const operatorGtmOptions = @json($operatorGtmOptions);
+
+// Isi dropdown Operator GTM: cuma tampilkan yang belum terhubung ke user manapun,
+// kecuali profil yang sedang terhubung ke user yang sedang diedit (currentUserId).
+function populateOperatorGtmSelect(selectEl, currentUserId, selectedOperatorGtmId) {
+    selectEl.empty().append('<option value="">-- Pilih Operator GTM --</option>');
+    operatorGtmOptions.forEach(function (op) {
+        const isAvailable = !op.linked_user_id || (currentUserId && op.linked_user_id == currentUserId);
+        if (isAvailable) {
+            selectEl.append($('<option>', { value: op.id, text: op.label }));
+        }
+    });
+    if (selectedOperatorGtmId) {
+        selectEl.val(selectedOperatorGtmId);
+    }
+}
+
+// Toggle field pemilihan profil Operator GTM berdasarkan role
+function toggleOperatorField(roleValue, isEdit = false, currentUserId = null, selectedOperatorGtmId = null) {
+    const operatorField = isEdit ? $('#edit-operator-field') : $('#operator-field');
+    const operatorSelect = isEdit ? $('#edit_operator_gtm_id') : $('#operator_gtm_id');
+
+    if (roleValue === 'operator') {
+        populateOperatorGtmSelect(operatorSelect, currentUserId, selectedOperatorGtmId);
+        operatorField.show();
+    } else {
+        operatorField.hide();
+        operatorSelect.val('');
     }
 }
 
@@ -369,16 +428,19 @@ $(document).ready(function() {
     // Toggle additional fields berdasarkan role selection di form tambah
     $('#role').on('change', function() {
         toggleAdditionalFields($(this).val(), false);
+        toggleOperatorField($(this).val(), false);
     });
 
     // Toggle additional fields berdasarkan role selection di form edit
     $('#edit_role').on('change', function() {
         toggleAdditionalFields($(this).val(), true);
+        toggleOperatorField($(this).val(), true, $('#editUserForm').data('current-user-id'));
     });
 
     // Initial check untuk form tambah jika ada old value
     @if(old('role'))
         toggleAdditionalFields('{{ old('role') }}', false);
+        toggleOperatorField('{{ old('role') }}', false, null, '{{ old('operator_gtm_id') }}');
     @endif
 
     // Handler untuk tombol edit user
@@ -390,9 +452,11 @@ $(document).ready(function() {
         const userNoKontrak = $(this).data('no_kontrak');
         const userAlamat = $(this).data('alamat');
         const userNomorTlpn = $(this).data('nomor_tlpn');
+        const userOperatorGtmId = $(this).data('operator_gtm_id');
 
         // Set action URL untuk form
         $('#editUserForm').attr('action', `{{ route('user.update', '') }}/${userId}`);
+        $('#editUserForm').data('current-user-id', userId);
 
         // Isi form dengan data user
         $('#edit_name').val(userName);
@@ -405,6 +469,7 @@ $(document).ready(function() {
 
         // Toggle additional fields berdasarkan role
         toggleAdditionalFields(userRole, true);
+        toggleOperatorField(userRole, true, userId, userOperatorGtmId);
 
         // Tampilkan modal
         $('#editUserModal').modal('show');

@@ -45,6 +45,9 @@ class CheckRole
                 case 'mmbtu':
                     if ($user->isMmbtu()) return $next($request);
                     break;
+                case 'operator':
+                    if ($user->isOperator()) return $next($request);
+                    break;
             }
         }
 

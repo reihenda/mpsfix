@@ -349,6 +349,9 @@
                         </h3>
                         <div class="card-tools">
                             @if(auth()->user()->role !== 'keuangan')
+                            <a href="{{ route('operator-gtm.trip-sesi', $operatorGtm->id) }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-route mr-1"></i> Kelompokkan Trip ke Sesi
+                            </a>
                             <a href="{{ route('operator-gtm.create-lembur', $operatorGtm->id) }}" class="btn btn-success btn-sm">
                                 <i class="fas fa-plus mr-1"></i> Tambah Data Lembur
                             </a>

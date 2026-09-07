@@ -26,4 +26,12 @@ class OperatorGtm extends Model
     {
         return $this->hasMany(OperatorGtmLembur::class, 'operator_gtm_id');
     }
+
+    /**
+     * Mendapatkan akun login yang terhubung dengan operator ini
+     */
+    public function user()
+    {
+        return $this->hasOne(User::class, 'operator_gtm_id');
+    }
 }

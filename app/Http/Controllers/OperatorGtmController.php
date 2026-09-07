@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\OperatorGtm;
 use App\Models\OperatorGtmLembur;
-use App\Models\KonfigurasiLembur;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
 
 class OperatorGtmController extends Controller
@@ -42,9 +43,27 @@ class OperatorGtmController extends Controller
             'gaji_pokok' => 'required|numeric|min:0',
             'jam_kerja' => 'required|integer|in:8,10',
             'tanggal_bergabung' => 'required|date',
+            'email' => 'nullable|email|unique:users,email',
+            'password' => 'nullable|min:6|required_with:email',
         ]);
 
-        OperatorGtm::create($validatedData);
+        $operatorGtm = OperatorGtm::create([
+            'nama' => $validatedData['nama'],
+            'lokasi_kerja' => $validatedData['lokasi_kerja'],
+            'gaji_pokok' => $validatedData['gaji_pokok'],
+            'jam_kerja' => $validatedData['jam_kerja'],
+            'tanggal_bergabung' => $validatedData['tanggal_bergabung'],
+        ]);
+
+        if (!empty($validatedData['email'])) {
+            User::create([
+                'name' => $operatorGtm->nama,
+                'email' => $validatedData['email'],
+                'password' => Hash::make($validatedData['password']),
+                'role' => User::ROLE_OPERATOR,
+                'operator_gtm_id' => $operatorGtm->id,
+            ]);
+        }
 
         return redirect()->route('operator-gtm.index')
             ->with('success', 'Operator GTM berhasil ditambahkan');
@@ -151,7 +170,8 @@ class OperatorGtmController extends Controller
      */
     public function edit(OperatorGtm $operatorGtm)
     {
-        return view('operator-gtm.edit', compact('operatorGtm'));
+        $existingUser = $operatorGtm->user;
+        return view('operator-gtm.edit', compact('operatorGtm', 'existingUser'));
     }
 
     /**
@@ -159,15 +179,44 @@ class OperatorGtmController extends Controller
      */
     public function update(Request $request, OperatorGtm $operatorGtm)
     {
+        $existingUser = $operatorGtm->user;
+
         $validatedData = $request->validate([
             'nama' => 'required|string|max:255',
             'lokasi_kerja' => 'required|string|max:255',
             'gaji_pokok' => 'required|numeric|min:0',
             'jam_kerja' => 'required|integer|in:8,10',
             'tanggal_bergabung' => 'required|date',
+            'email' => 'nullable|email|unique:users,email,' . ($existingUser->id ?? 'NULL') . ',id',
+            'password' => $existingUser ? 'nullable|min:6' : 'nullable|min:6|required_with:email',
         ]);
 
-        $operatorGtm->update($validatedData);
+        $operatorGtm->update([
+            'nama' => $validatedData['nama'],
+            'lokasi_kerja' => $validatedData['lokasi_kerja'],
+            'gaji_pokok' => $validatedData['gaji_pokok'],
+            'jam_kerja' => $validatedData['jam_kerja'],
+            'tanggal_bergabung' => $validatedData['tanggal_bergabung'],
+        ]);
+
+        if (!empty($validatedData['email'])) {
+            if ($existingUser) {
+                $existingUser->name = $operatorGtm->nama;
+                $existingUser->email = $validatedData['email'];
+                if (!empty($validatedData['password'])) {
+                    $existingUser->password = Hash::make($validatedData['password']);
+                }
+                $existingUser->save();
+            } else {
+                User::create([
+                    'name' => $operatorGtm->nama,
+                    'email' => $validatedData['email'],
+                    'password' => Hash::make($validatedData['password']),
+                    'role' => User::ROLE_OPERATOR,
+                    'operator_gtm_id' => $operatorGtm->id,
+                ]);
+            }
+        }
 
         return redirect()->route('operator-gtm.show', $operatorGtm->id)
             ->with('success', 'Data operator GTM berhasil diperbarui');
@@ -215,27 +264,21 @@ class OperatorGtmController extends Controller
         ]);
 
         // Filter data untuk menghapus sesi yang kosong
-        $filteredData = $this->filterEmptySessions($validatedData);
-        
+        $filteredData = OperatorGtmLembur::filterEmptySessions($validatedData);
+
         // Hitung total jam kerja untuk semua sesi
-        $totalJamKerja = $this->calculateTotalWorkingHours($request);
-        
+        $totalJamKerja = OperatorGtmLembur::calculateTotalWorkingHours($validatedData);
         \Log::info('Total jam kerja: ' . $totalJamKerja . ' menit');
-        
-        // Hitung jam lembur berdasarkan jam kerja operator (8 jam = 480 menit, 10 jam = 600 menit)
-        $jamKerjaMenit = ($operatorGtm->jam_kerja ?? 8) * 60;
-        $jamLembur = max(0, $totalJamKerja - $jamKerjaMenit);
-        \Log::info('Jam kerja operator: ' . ($operatorGtm->jam_kerja ?? 8) . ' jam (' . $jamKerjaMenit . ' menit)');
-        \Log::info('Jam lembur: ' . $jamLembur . ' menit');
-        
-        // Ambil tarif lembur dari konfigurasi
-        $upahPerJam = KonfigurasiLembur::getTarifLembur();
-        $upahLembur = ($jamLembur / 60) * $upahPerJam;
-        
+
+        // Hitung jam & upah lembur berdasarkan jam kerja operator (8 jam = 480 menit, 10 jam = 600 menit)
+        $lemburCalc = OperatorGtmLembur::calculateUpahLembur($totalJamKerja, $operatorGtm->jam_kerja);
+        \Log::info('Jam kerja operator: ' . ($operatorGtm->jam_kerja ?? 8) . ' jam');
+        \Log::info('Jam lembur: ' . $lemburCalc['total_jam_lembur'] . ' menit');
+
         // Tambahkan data perhitungan ke validated data
         $filteredData['total_jam_kerja'] = $totalJamKerja;
-        $filteredData['total_jam_lembur'] = $jamLembur;
-        $filteredData['upah_lembur'] = $upahLembur;
+        $filteredData['total_jam_lembur'] = $lemburCalc['total_jam_lembur'];
+        $filteredData['upah_lembur'] = $lemburCalc['upah_lembur'];
         $filteredData['operator_gtm_id'] = $operatorGtm->id;
 
         OperatorGtmLembur::create($filteredData);
@@ -273,27 +316,21 @@ class OperatorGtmController extends Controller
         ]);
 
         // Filter data untuk menghapus sesi yang kosong
-        $filteredData = $this->filterEmptySessions($validatedData);
-        
+        $filteredData = OperatorGtmLembur::filterEmptySessions($validatedData);
+
         // Hitung total jam kerja untuk semua sesi
-        $totalJamKerja = $this->calculateTotalWorkingHours($request);
-        
+        $totalJamKerja = OperatorGtmLembur::calculateTotalWorkingHours($validatedData);
         \Log::info('Total jam kerja: ' . $totalJamKerja . ' menit');
-        
-        // Hitung jam lembur berdasarkan jam kerja operator (8 jam = 480 menit, 10 jam = 600 menit)
-        $jamKerjaMenit = ($lembur->operator->jam_kerja ?? 8) * 60;
-        $jamLembur = max(0, $totalJamKerja - $jamKerjaMenit);
-        \Log::info('Jam kerja operator: ' . ($lembur->operator->jam_kerja ?? 8) . ' jam (' . $jamKerjaMenit . ' menit)');
-        \Log::info('Jam lembur: ' . $jamLembur . ' menit');
-        
-        // Ambil tarif lembur dari konfigurasi
-        $upahPerJam = KonfigurasiLembur::getTarifLembur();
-        $upahLembur = ($jamLembur / 60) * $upahPerJam;
-        
+
+        // Hitung jam & upah lembur berdasarkan jam kerja operator (8 jam = 480 menit, 10 jam = 600 menit)
+        $lemburCalc = OperatorGtmLembur::calculateUpahLembur($totalJamKerja, $lembur->operator->jam_kerja);
+        \Log::info('Jam kerja operator: ' . ($lembur->operator->jam_kerja ?? 8) . ' jam');
+        \Log::info('Jam lembur: ' . $lemburCalc['total_jam_lembur'] . ' menit');
+
         // Tambahkan data perhitungan ke validated data
         $filteredData['total_jam_kerja'] = $totalJamKerja;
-        $filteredData['total_jam_lembur'] = $jamLembur;
-        $filteredData['upah_lembur'] = $upahLembur;
+        $filteredData['total_jam_lembur'] = $lemburCalc['total_jam_lembur'];
+        $filteredData['upah_lembur'] = $lemburCalc['upah_lembur'];
 
         $lembur->update($filteredData);
 
@@ -313,75 +350,4 @@ class OperatorGtmController extends Controller
             ->with('success', 'Data lembur berhasil dihapus');
     }
 
-    /**
-     * Helper method untuk menghitung total jam kerja dari semua sesi
-     */
-    private function calculateTotalWorkingHours(Request $request)
-    {
-        $totalJamKerja = 0;
-        
-        // Loop untuk semua sesi (1-5)
-        for ($sesi = 1; $sesi <= 5; $sesi++) {
-            $jamMasuk = $request->input("jam_masuk_sesi_{$sesi}");
-            $jamKeluar = $request->input("jam_keluar_sesi_{$sesi}");
-            
-            if ($jamMasuk && $jamKeluar) {
-                $durasi = $this->calculateSessionDuration($jamMasuk, $jamKeluar);
-                $totalJamKerja += $durasi;
-                \Log::info("Durasi sesi {$sesi}: {$durasi} menit");
-            }
-        }
-        
-        return $totalJamKerja;
-    }
-
-    /**
-     * Helper method untuk menghitung durasi satu sesi
-     */
-    private function calculateSessionDuration($jamMasuk, $jamKeluar)
-    {
-        // Menggunakan tanggal hari ini sebagai basis
-        $today = Carbon::today();
-        
-        // Parse input time dengan tanggal hari ini
-        $masuk = Carbon::parse($today->format('Y-m-d') . ' ' . $jamMasuk);
-        $keluar = Carbon::parse($today->format('Y-m-d') . ' ' . $jamKeluar);
-        
-        // Jika keluar lebih kecil dari masuk, artinya melewati tengah malam
-        if ($keluar->lt($masuk)) {
-            $keluar->addDay();
-        }
-        
-        // Perhitungan durasi: jam keluar - jam masuk
-        return $masuk->diffInMinutes($keluar);
-    }
-
-    /**
-     * Helper method untuk memfilter sesi yang kosong (tidak disimpan ke database)
-     */
-    private function filterEmptySessions($data)
-    {
-        $filteredData = [];
-        
-        // Copy data non-sesi
-        foreach ($data as $key => $value) {
-            if (!str_contains($key, 'jam_masuk_sesi_') && !str_contains($key, 'jam_keluar_sesi_')) {
-                $filteredData[$key] = $value;
-            }
-        }
-        
-        // Filter sesi yang memiliki kedua jam masuk dan keluar
-        for ($sesi = 1; $sesi <= 5; $sesi++) {
-            $jamMasuk = $data["jam_masuk_sesi_{$sesi}"] ?? null;
-            $jamKeluar = $data["jam_keluar_sesi_{$sesi}"] ?? null;
-            
-            // Hanya simpan jika kedua jam terisi
-            if ($jamMasuk && $jamKeluar) {
-                $filteredData["jam_masuk_sesi_{$sesi}"] = $jamMasuk;
-                $filteredData["jam_keluar_sesi_{$sesi}"] = $jamKeluar;
-            }
-        }
-        
-        return $filteredData;
-    }
 }

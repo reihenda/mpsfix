@@ -19,9 +19,9 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        // Query untuk Admin (admin, superadmin, keuangan)
+        // Query untuk Admin (admin, superadmin, keuangan, staff, operator)
         $adminQuery = User::query()
-            ->whereIn('role', ['admin', 'superadmin', 'keuangan', 'staff'])
+            ->whereIn('role', ['admin', 'superadmin', 'keuangan', 'staff', 'operator'])
             ->orderBy('role');
 
         // Query untuk Customer/FOB/MMBTU (customer, fob, demo, mmbtu)
@@ -68,7 +68,22 @@ class UserController extends Controller
             }
         }
 
-        return view('user.index', compact('adminUsers', 'customerUsers'));
+        // Daftar profil Operator GTM untuk dropdown pemilihan saat role = operator.
+        // Sertakan info user yang sudah terhubung (kalau ada) supaya JS bisa
+        // menyembunyikan opsi yang sudah dipakai user lain, tapi tetap
+        // menampilkan opsi milik user yang sedang diedit.
+        $operatorGtmOptions = \App\Models\OperatorGtm::with('user:id,operator_gtm_id')
+            ->orderBy('nama')
+            ->get(['id', 'nama', 'lokasi_kerja'])
+            ->map(function ($op) {
+                return [
+                    'id' => $op->id,
+                    'label' => $op->nama . ' - ' . $op->lokasi_kerja,
+                    'linked_user_id' => optional($op->user)->id,
+                ];
+            });
+
+        return view('user.index', compact('adminUsers', 'customerUsers', 'operatorGtmOptions'));
     }
 
     /**
@@ -1168,11 +1183,12 @@ class UserController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'role' => 'required|in:admin,keuangan,customer,fob,demo,staff,mmbtu',
+            'role' => 'required|in:admin,keuangan,customer,fob,demo,staff,mmbtu,operator',
             'password' => 'nullable|string|min:3',
             'no_kontrak' => 'nullable|string|max:255',
             'alamat' => 'nullable|string',
             'nomor_tlpn' => 'nullable|string|max:20',
+            'operator_gtm_id' => 'required_if:role,operator|nullable|exists:operator_gtm,id|unique:users,operator_gtm_id,' . $user->id,
         ], [
             'name.required' => 'Nama harus diisi',
             'email.required' => 'Email harus diisi',
@@ -1181,6 +1197,8 @@ class UserController extends Controller
             'role.required' => 'Role harus dipilih',
             'role.in' => 'Role tidak valid',
             'password.min' => 'Password minimal 3 karakter',
+            'operator_gtm_id.required_if' => 'Profil Operator GTM harus dipilih',
+            'operator_gtm_id.unique' => 'Profil Operator GTM ini sudah punya akun login',
         ]);
 
         if ($validator->fails()) {
@@ -1199,6 +1217,7 @@ class UserController extends Controller
             $user->no_kontrak = $request->no_kontrak;
             $user->alamat = $request->alamat;
             $user->nomor_tlpn = $request->nomor_tlpn;
+            $user->operator_gtm_id = $request->role === 'operator' ? $request->operator_gtm_id : null;
 
             // Update password jika diisi
             if ($request->filled('password')) {

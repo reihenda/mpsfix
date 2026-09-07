@@ -284,11 +284,34 @@
                                     <p>Rekap Pembelian</p>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a href="{{ route('operator-gtm.index') }}" class="nav-link">
+                            <li class="nav-item has-treeview">
+                                <a href="#" class="nav-link">
                                     <i class="nav-icon fas fa-user-clock"></i>
-                                    <p>Lembur Operator GTM</p>
+                                    <p>
+                                        Lembur Operator GTM
+                                        <i class="fas fa-angle-left right"></i>
+                                    </p>
                                 </a>
+                                <ul class="nav nav-treeview">
+                                    <li class="nav-item">
+                                        <a href="{{ route('operator-gtm.index') }}" class="nav-link">
+                                            <i class="fas fa-list-alt nav-icon"></i>
+                                            <p>Data Lembur</p>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a href="{{ route('trip-lokasi.index') }}" class="nav-link">
+                                            <i class="fas fa-map-marker-alt nav-icon"></i>
+                                            <p>Approval Lokasi Trip</p>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a href="{{ route('operator-trip-perbaikan.index') }}" class="nav-link">
+                                            <i class="fas fa-tools nav-icon"></i>
+                                            <p>Review Perbaikan Trip</p>
+                                        </a>
+                                    </li>
+                                </ul>
                             </li>
                             <li class="nav-item has-treeview">
                                 <a href="#" class="nav-link">
