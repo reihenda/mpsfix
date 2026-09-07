@@ -124,6 +124,7 @@
                                 <option value="mmbtu" {{ old('role') == 'mmbtu' ? 'selected' : '' }}>Customer MMBTU</option>
                                 <option value="demo" {{ old('role') == 'demo' ? 'selected' : '' }}>Demo</option>
                                 <option value="staff" {{ old('role') == 'staff' ? 'selected' : '' }}>Staff</option>
+                                <option value="staff_operasional" {{ old('role') == 'staff_operasional' ? 'selected' : '' }}>Staff Operasional (Lihat Lembur & Pencatatan)</option>
                                 <option value="operator" {{ old('role') == 'operator' ? 'selected' : '' }}>Operator GTM (Driver)</option>
                             </select>
                             @error('role')
@@ -233,6 +234,7 @@
                                 <option value="mmbtu">Customer MMBTU</option>
                                 <option value="demo">Demo</option>
                                 <option value="staff">Staff</option>
+                                <option value="staff_operasional">Staff Operasional (Lihat Lembur & Pencatatan)</option>
                                 <option value="operator">Operator GTM (Driver)</option>
                             </select>
                             <div class="invalid-feedback">Role harus dipilih</div>

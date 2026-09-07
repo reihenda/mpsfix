@@ -29,6 +29,8 @@
                                 <i class="fas fa-user-tie text-secondary mr-2"></i> Staff
                             @elseif($user->role == 'operator')
                                 <i class="fas fa-truck text-info mr-2"></i> Operator GTM
+                            @elseif($user->role == 'staff_operasional')
+                                <i class="fas fa-user-cog text-secondary mr-2"></i> Staff Operasional
                             @endif
                         </td>
                     </tr>
@@ -43,8 +45,9 @@
                             @elseif($user->role == 'keuangan') badge-success
                             @elseif($user->role == 'staff') badge-secondary
                             @elseif($user->role == 'operator') badge-info
+                            @elseif($user->role == 'staff_operasional') badge-secondary
                             @endif">
-                            {{ ucfirst($user->role) }}
+                            {{ $user->role == 'staff_operasional' ? 'Staff Operasional' : ucfirst($user->role) }}
                         </span>
                     </td>
                     <td>{{ $user->created_at->format('d/m/Y H:i') }}</td>

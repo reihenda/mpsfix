@@ -522,6 +522,21 @@
                             </li>
                         @endif
 
+                        @if (Auth::user()->isStaffOperasional())
+                            <li class="nav-item">
+                                <a href="{{ route('data-pencatatan.index') }}" class="nav-link">
+                                    <i class="nav-icon fas fa-clipboard-list"></i>
+                                    <p>Pencatatan Data Customer</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ route('operator-gtm.index') }}" class="nav-link">
+                                    <i class="nav-icon fas fa-user-clock"></i>
+                                    <p>Lembur Operator GTM</p>
+                                </a>
+                            </li>
+                        @endif
+
                         @if (Auth::user()->isCustomer() || Auth::user()->isFOB())
                             <li class="nav-item">
                                 <a href="{{ Auth::user()->isCustomer() ? route('customer.dashboard') : route('fob.dashboard') }}" class="nav-link">
@@ -652,6 +667,8 @@
                                     </option>
                                     <option value="customer" {{ old('role') == 'customer' ? 'selected' : '' }}>
                                         Customer</option>
+                                    <option value="staff_operasional" {{ old('role') == 'staff_operasional' ? 'selected' : '' }}>
+                                        Staff Operasional</option>
                                     <option value="demo" {{ old('role') == 'demo' ? 'selected' : '' }}>
                                         Demo</option>
                                 </select>

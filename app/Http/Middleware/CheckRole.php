@@ -48,6 +48,9 @@ class CheckRole
                 case 'operator':
                     if ($user->isOperator()) return $next($request);
                     break;
+                case 'staff_operasional':
+                    if ($user->isStaffOperasional()) return $next($request);
+                    break;
             }
         }
 

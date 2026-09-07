@@ -54,7 +54,7 @@
                             Informasi Operator: {{ $operatorGtm->nama }}
                         </h3>
                         <div class="card-tools">
-                            @if(auth()->user()->role !== 'keuangan')
+                            @if(auth()->user()->isAdmin() || auth()->user()->isSuperAdmin())
                             <a href="{{ route('operator-gtm.edit', $operatorGtm->id) }}" class="btn btn-warning btn-sm">
                                 <i class="fas fa-edit mr-1"></i> Edit
                             </a>
@@ -348,7 +348,7 @@
                             - {{ $startDate->format('d M Y') }} s/d {{ $endDate->format('d M Y') }}
                         </h3>
                         <div class="card-tools">
-                            @if(auth()->user()->role !== 'keuangan')
+                            @if(auth()->user()->isAdmin() || auth()->user()->isSuperAdmin())
                             <a href="{{ route('operator-gtm.trip-sesi', $operatorGtm->id) }}" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-route mr-1"></i> Kelompokkan Trip ke Sesi
                             </a>
@@ -380,7 +380,7 @@
                                     <th>Total Jam Kerja</th>
                                     <th>Jam Lembur</th>
                                     <th>Upah Lembur</th>
-                                    @if(auth()->user()->role !== 'keuangan')
+                                    @if(auth()->user()->isAdmin() || auth()->user()->isSuperAdmin())
                                     <th>Aksi</th>
                                     @endif
                                 </tr>
@@ -457,7 +457,7 @@
                                                 -
                                             @endif
                                         </td>
-                                        @if(auth()->user()->role !== 'keuangan')
+                                        @if(auth()->user()->isAdmin() || auth()->user()->isSuperAdmin())
                                         <td>
                                                 @if($record)
                                                     <div class="btn-group">
@@ -516,7 +516,7 @@
                                         @endphp
                                         Rp {{ number_format($totalUpahLembur, 0, ',', '.') }}
                                     </th>
-                                    @if(auth()->user()->role !== 'keuangan')
+                                    @if(auth()->user()->isAdmin() || auth()->user()->isSuperAdmin())
                                     <th></th>
                                     @endif
                                 </tr>

@@ -41,6 +41,8 @@ class AuthController extends Controller
                 return redirect()->route('operator.dashboard');
             } elseif ($user->isStaff()) {
                 return redirect()->route('data-pencatatan.index');
+            } elseif ($user->isStaffOperasional()) {
+                return redirect()->route('data-pencatatan.index');
             } else {
                 return redirect()->route('customer.dashboard');
             }
@@ -67,7 +69,7 @@ class AuthController extends Controller
             'name' => 'required|string|max:255|unique:users',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:3',
-            'role' => 'required|string|in:admin,keuangan,customer,fob,demo,staff,mmbtu,operator',
+            'role' => 'required|string|in:admin,keuangan,customer,fob,demo,staff,mmbtu,operator,staff_operasional',
             'no_kontrak' => 'nullable|string|max:255',
             'alamat' => 'nullable|string',
             'nomor_tlpn' => 'nullable|string|max:20',

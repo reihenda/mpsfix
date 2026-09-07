@@ -23,6 +23,7 @@ class User extends Authenticatable
     const ROLE_STAFF = 'staff';
     const ROLE_MMBTU = 'mmbtu';
     const ROLE_OPERATOR = 'operator';
+    const ROLE_STAFF_OPERASIONAL = 'staff_operasional';
 
     /**
      * The attributes that are mass assignable.
@@ -1336,6 +1337,15 @@ class User extends Authenticatable
     public function isMmbtu()
     {
         return $this->role === self::ROLE_MMBTU;
+    }
+
+    /**
+     * Check if user is Staff Operasional
+     * Role read-only: hanya bisa melihat Lembur Operator GTM & Pencatatan Data Customer
+     */
+    public function isStaffOperasional()
+    {
+        return $this->role === self::ROLE_STAFF_OPERASIONAL;
     }
 
     /**

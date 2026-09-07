@@ -48,10 +48,10 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan,customer,fob,mmbtu'])
 });
 
 // ============================================================================
-// Rute untuk Admin, SuperAdmin, Keuangan, dan Staff (READ ACCESS Data Pencatatan)
-// Staff hanya bisa melihat data pencatatan customer, tidak bisa edit
+// Rute untuk Admin, SuperAdmin, Keuangan, Staff, dan Staff Operasional (READ ACCESS Data Pencatatan)
+// Staff & Staff Operasional hanya bisa melihat data pencatatan customer, tidak bisa edit
 // ============================================================================
-Route::middleware(['auth', 'role:admin,superadmin,keuangan,staff'])->group(function () {
+Route::middleware(['auth', 'role:admin,superadmin,keuangan,staff,staff_operasional'])->group(function () {
     // Data Pencatatan - View Only untuk Keuangan dan Staff
     Route::get('/data-pencatatan', [DataPencatatanController::class, 'index'])
         ->name('data-pencatatan.index');
@@ -68,6 +68,18 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan,staff'])->group(funct
 });
 
 // ============================================================================
+// Rute untuk Admin, SuperAdmin, Keuangan, dan Staff Operasional (READ ACCESS Operator GTM)
+// Keuangan & Staff Operasional hanya bisa melihat data lembur operator, tidak bisa edit
+// ============================================================================
+Route::middleware(['auth', 'role:admin,superadmin,keuangan,staff_operasional'])->group(function () {
+    // Index untuk melihat daftar operator
+    Route::get('/operator-gtm', [App\Http\Controllers\OperatorGtmController::class, 'index'])->name('operator-gtm.index');
+    // Show untuk melihat detail operator dan data lembur (READ ONLY)
+    // PENTING: where constraint numerik agar tidak menangkap route statis seperti 'operator-gtm/create'
+    Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show')->where('operatorGtm', '[0-9]+');
+});
+
+// ============================================================================
 // Rute untuk Admin, SuperAdmin, dan Keuangan (READ ACCESS - tanpa Staff)
 // ============================================================================
 Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function () {
@@ -75,12 +87,8 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
     // Dashboard untuk Keuangan
     Route::get('/keuangan', [KeuanganController::class, 'index'])->name('keuangan.index');
 
-    // Operator GTM - View Only untuk Keuangan
-    // Index untuk melihat daftar operator
-    Route::get('/operator-gtm', [App\Http\Controllers\OperatorGtmController::class, 'index'])->name('operator-gtm.index');
-    // Show untuk melihat detail operator dan data lembur (READ ONLY untuk Keuangan)
-    // PENTING: where constraint numerik agar tidak menangkap route statis seperti 'operator-gtm/create'
-    Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show')->where('operatorGtm', '[0-9]+');
+    // Operator GTM - View Only (routes dipindah ke grup role:...,staff_operasional di atas
+    // agar bisa diakses juga oleh Staff Operasional tanpa duplikasi nama route)
 
     // Keuangan Routes - Full Access untuk Keuangan
     Route::get('/keuangan/accounts', [FinancialAccountController::class, 'index'])->name('keuangan.accounts.index');

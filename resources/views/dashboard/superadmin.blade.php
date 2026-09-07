@@ -233,6 +233,7 @@
                                 <option value="customer">Customer</option>
                                 <option value="fob">FOB</option>
                                 <option value="mmbtu">Customer MMBTU</option>
+                                <option value="staff_operasional">Staff Operasional</option>
                             </select>
                         </div>
                     </div>
