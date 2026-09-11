@@ -515,9 +515,27 @@
 
                         @if (Auth::user()->isStaff())
                             <li class="nav-item">
+                                <a href="{{ route('data-pencatatan.create') }}" class="nav-link">
+                                    <i class="nav-icon fas fa-file-medical"></i>
+                                    <p>Input Data Baru</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
                                 <a href="{{ route('data-pencatatan.index') }}" class="nav-link">
                                     <i class="nav-icon fas fa-clipboard-list"></i>
                                     <p>Pencatatan Data Customer</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ route('nomor-polisi.index') }}" class="nav-link">
+                                    <i class="nav-icon fas fa-car"></i>
+                                    <p>Kelola Mobil/NOPOL</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ route('rekap-pengambilan.index') }}" class="nav-link">
+                                    <i class="nav-icon fas fa-truck-loading"></i>
+                                    <p>Rekap Pengambilan</p>
                                 </a>
                             </li>
                         @endif

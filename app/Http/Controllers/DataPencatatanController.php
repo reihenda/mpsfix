@@ -1120,7 +1120,7 @@ class DataPencatatanController extends Controller
     {
         // Cek otorisasi
         $user = Auth::user();
-        if (!$user->isAdmin() && !$user->isSuperAdmin() && $dataPencatatan->customer_id !== $user->id) {
+        if (!$user->isAdmin() && !$user->isSuperAdmin() && !$user->isStaff() && $dataPencatatan->customer_id !== $user->id) {
             abort(403, 'Unauthorized access');
         }
 

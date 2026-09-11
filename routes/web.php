@@ -55,8 +55,10 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan,staff,staff_operasion
     // Data Pencatatan - View Only untuk Keuangan dan Staff
     Route::get('/data-pencatatan', [DataPencatatanController::class, 'index'])
         ->name('data-pencatatan.index');
+    // PENTING: where constraint numerik agar tidak menangkap route statis satu-segmen seperti
+    // 'data-pencatatan/create', 'data-pencatatan/get-latest-reading', 'data-pencatatan/template-excel'
     Route::get('/data-pencatatan/{dataPencatatan}', [DataPencatatanController::class, 'show'])
-        ->name('data-pencatatan.show');
+        ->name('data-pencatatan.show')->where('dataPencatatan', '[0-9]+');
     Route::get('/data-pencatatan/customer/{customer}', [DataPencatatanController::class, 'customerDetail'])
         ->name('data-pencatatan.customer-detail');
     Route::get('/data-pencatatan/customer/{customer}/details', [DataPencatatanController::class, 'getCustomerDetails'])
@@ -77,6 +79,61 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan,staff_operasional'])-
     // Show untuk melihat detail operator dan data lembur (READ ONLY)
     // PENTING: where constraint numerik agar tidak menangkap route statis seperti 'operator-gtm/create'
     Route::get('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'show'])->name('operator-gtm.show')->where('operatorGtm', '[0-9]+');
+});
+
+// ============================================================================
+// Rute untuk Admin, SuperAdmin, dan Staff (FULL CRUD)
+// Staff bisa full akses: Pencatatan Data Customer, Kelola Mobil/NOPOL, Rekap Pengambilan
+// ============================================================================
+Route::middleware(['auth', 'role:admin,superadmin,staff'])->group(function () {
+
+    // Kelola Mobil/NOPOL
+    Route::resource('nomor-polisi', NomorPolisiController::class);
+    Route::get('/api/nomor-polisi/get-all', [NomorPolisiController::class, 'getAll'])->name('nomor-polisi.getAll');
+    Route::get('/api/ukuran/get-all', [UkuranController::class, 'getAll'])->name('ukuran.getAll');
+    Route::post('/api/ukuran', [UkuranController::class, 'store'])->name('ukuran.store');
+
+    // Data Pencatatan - CREATE/UPDATE/DELETE
+    Route::get('/data-pencatatan/create', [DataPencatatanController::class, 'create'])
+        ->name('data-pencatatan.create');
+    Route::post('/data-pencatatan', [DataPencatatanController::class, 'store'])
+        ->name('data-pencatatan.store');
+    Route::get('/data-pencatatan/{dataPencatatan}/edit', [DataPencatatanController::class, 'edit'])
+        ->name('data-pencatatan.edit')->where('dataPencatatan', '[0-9]+');
+    Route::put('/data-pencatatan/{dataPencatatan}', [DataPencatatanController::class, 'update'])
+        ->name('data-pencatatan.update')->where('dataPencatatan', '[0-9]+');
+    Route::delete('/data-pencatatan/{dataPencatatan}', [DataPencatatanController::class, 'destroy'])
+        ->name('data-pencatatan.destroy')->where('dataPencatatan', '[0-9]+');
+    Route::get('/data-pencatatan/create/{customerId}', [DataPencatatanController::class, 'createWithCustomer'])
+        ->name('data-pencatatan.create-with-customer');
+    Route::get('/data-pencatatan/get-latest-reading', [DataPencatatanController::class, 'getLatestReading'])
+        ->name('data-pencatatan.get-latest-reading');
+    Route::post('/data-pencatatan/{customer}/import-excel', [ExcelImportController::class, 'importExcel'])
+        ->name('data-pencatatan.import-excel');
+    Route::get('/data-pencatatan/template-excel', [ExcelImportController::class, 'downloadTemplateExcel'])
+        ->name('data-pencatatan.template-excel');
+
+    // Rekap Pengambilan
+    Route::get('/rekap-pengambilan', [RekapPengambilanController::class, 'index'])
+        ->name('rekap-pengambilan.index');
+    Route::get('/rekap-pengambilan/create', [RekapPengambilanController::class, 'create'])
+        ->name('rekap-pengambilan.create');
+    Route::get('/rekap-pengambilan/create-with-customer/{customer}', [RekapPengambilanController::class, 'createWithCustomer'])
+        ->name('rekap-pengambilan.create-with-customer');
+    Route::post('/rekap-pengambilan', [RekapPengambilanController::class, 'store'])
+        ->name('rekap-pengambilan.store');
+    Route::get('/rekap-pengambilan/{rekapPengambilan}', [RekapPengambilanController::class, 'show'])
+        ->name('rekap-pengambilan.show');
+    Route::get('/rekap-pengambilan/{rekapPengambilan}/edit', [RekapPengambilanController::class, 'edit'])
+        ->name('rekap-pengambilan.edit');
+    Route::put('/rekap-pengambilan/{rekapPengambilan}', [RekapPengambilanController::class, 'update'])
+        ->name('rekap-pengambilan.update');
+    Route::delete('/rekap-pengambilan/{rekapPengambilan}', [RekapPengambilanController::class, 'destroy'])
+        ->name('rekap-pengambilan.destroy');
+    Route::get('/rekap-pengambilan/find-by-date/{customer}/{date}', [RekapPengambilanController::class, 'findByDate'])
+        ->name('rekap-pengambilan.find-by-date');
+    Route::get('/rekap-pengambilan/find-by-date-volume/{customer}/{date}/{volume}', [RekapPengambilanController::class, 'findByDateAndVolume'])
+        ->name('rekap-pengambilan.find-by-date-volume');
 });
 
 // ============================================================================
@@ -197,31 +254,7 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     Route::put('/update-user/{user}', [UserController::class, 'update'])->name('user.update');
     Route::delete('/delete-user/{user}', [UserController::class, 'destroy'])->name('user.destroy');
 
-    // Kelola Mobil/NOPOL - HANYA Admin
-    Route::resource('nomor-polisi', NomorPolisiController::class);
-    Route::get('/api/nomor-polisi/get-all', [NomorPolisiController::class, 'getAll'])->name('nomor-polisi.getAll');
-    Route::get('/api/ukuran/get-all', [UkuranController::class, 'getAll'])->name('ukuran.getAll');
-    Route::post('/api/ukuran', [UkuranController::class, 'store'])->name('ukuran.store');
-
-    // Data Pencatatan - CREATE/UPDATE/DELETE (HANYA Admin)
-    Route::get('/data-pencatatan/create', [DataPencatatanController::class, 'create'])
-        ->name('data-pencatatan.create');
-    Route::post('/data-pencatatan', [DataPencatatanController::class, 'store'])
-        ->name('data-pencatatan.store');
-    Route::get('/data-pencatatan/{dataPencatatan}/edit', [DataPencatatanController::class, 'edit'])
-        ->name('data-pencatatan.edit');
-    Route::put('/data-pencatatan/{dataPencatatan}', [DataPencatatanController::class, 'update'])
-        ->name('data-pencatatan.update');
-    Route::delete('/data-pencatatan/{dataPencatatan}', [DataPencatatanController::class, 'destroy'])
-        ->name('data-pencatatan.destroy');
-    Route::get('/data-pencatatan/create/{customerId}', [DataPencatatanController::class, 'createWithCustomer'])
-        ->name('data-pencatatan.create-with-customer');
-    Route::get('/data-pencatatan/get-latest-reading', [DataPencatatanController::class, 'getLatestReading'])
-        ->name('data-pencatatan.get-latest-reading');
-    Route::post('/data-pencatatan/{customer}/import-excel', [ExcelImportController::class, 'importExcel'])
-        ->name('data-pencatatan.import-excel');
-    Route::get('/data-pencatatan/template-excel', [ExcelImportController::class, 'downloadTemplateExcel'])
-        ->name('data-pencatatan.template-excel');
+    // Kelola Mobil/NOPOL & Data Pencatatan CRUD - dipindah ke grup role:admin,superadmin,staff di atas
 
     // Pricing & Deposit Management - HANYA Admin
     Route::post('/user/customer/{customer}/update-pricing', [UserController::class, 'updateCustomerPricing'])
@@ -290,27 +323,7 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     Route::post('/operator-trip-perbaikan/{operatorTripPerbaikan}/approve', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'approve'])->name('operator-trip-perbaikan.approve');
     Route::post('/operator-trip-perbaikan/{operatorTripPerbaikan}/reject', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'reject'])->name('operator-trip-perbaikan.reject');
 
-    // Rekap Routes - HANYA Admin
-    Route::get('/rekap-pengambilan', [RekapPengambilanController::class, 'index'])
-        ->name('rekap-pengambilan.index');
-    Route::get('/rekap-pengambilan/create', [RekapPengambilanController::class, 'create'])
-        ->name('rekap-pengambilan.create');
-    Route::get('/rekap-pengambilan/create-with-customer/{customer}', [RekapPengambilanController::class, 'createWithCustomer'])
-        ->name('rekap-pengambilan.create-with-customer');
-    Route::post('/rekap-pengambilan', [RekapPengambilanController::class, 'store'])
-        ->name('rekap-pengambilan.store');
-    Route::get('/rekap-pengambilan/{rekapPengambilan}', [RekapPengambilanController::class, 'show'])
-        ->name('rekap-pengambilan.show');
-    Route::get('/rekap-pengambilan/{rekapPengambilan}/edit', [RekapPengambilanController::class, 'edit'])
-        ->name('rekap-pengambilan.edit');
-    Route::put('/rekap-pengambilan/{rekapPengambilan}', [RekapPengambilanController::class, 'update'])
-        ->name('rekap-pengambilan.update');
-    Route::delete('/rekap-pengambilan/{rekapPengambilan}', [RekapPengambilanController::class, 'destroy'])
-        ->name('rekap-pengambilan.destroy');
-    Route::get('/rekap-pengambilan/find-by-date/{customer}/{date}', [RekapPengambilanController::class, 'findByDate'])
-        ->name('rekap-pengambilan.find-by-date');
-    Route::get('/rekap-pengambilan/find-by-date-volume/{customer}/{date}/{volume}', [RekapPengambilanController::class, 'findByDateAndVolume'])
-        ->name('rekap-pengambilan.find-by-date-volume');
+    // Rekap Pengambilan - dipindah ke grup role:admin,superadmin,staff di atas
 
     Route::get('/rekap-penjualan', [App\Http\Controllers\Rekap\RekapPenjualanController::class, 'index'])
         ->name('rekap.penjualan.index');

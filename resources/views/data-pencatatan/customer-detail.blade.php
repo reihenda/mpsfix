@@ -94,7 +94,7 @@
                             Informasi Customer: {{ $customer->name }}
                         </h3>
                         <div class="card-tools">
-                            @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+                            @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                                 <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#setPricingModal">
                                     <i class="fas fa-cog mr-1"></i> Atur Harga & Koreksi
                                 </button>
@@ -602,7 +602,7 @@
 
                                                     // Log untuk debugging (hanya untuk admin)
                                                     if (
-                                                        (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin()) &&
+                                                        (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff()) &&
                                                         abs($realTimePrevMonthBalance - $prevMonthBalance) > 0.01
                                                     ) {
                                                         \Log::info('Perbedaan saldo bulan sebelumnya ditemukan', [
@@ -642,7 +642,7 @@
                                                             {{ \Carbon\Carbon::createFromDate($selectedTahun, $selectedBulan, 1)->format('F Y') }}
                                                             saja (Perhitungan Real-time)</small></td>
                                                 </tr>
-                                                {{-- @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+                                                {{-- @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                                                 <tr class="text-info" style="font-size: 0.8em;">
                                                     <td colspan="2">
                                                         <strong>Debug Info (Real-time vs Database):</strong><br>
@@ -674,7 +674,7 @@
                             Riwayat Pencatatan
                         </h3>
                         <div class="card-tools">
-                            @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+                            @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-success" data-toggle="modal" data-target="#uploadExcelModal">
                                         <i class="fas fa-file-excel mr-1"></i> Upload Excel
@@ -972,7 +972,7 @@
                                                     class="btn btn-info btn-sm">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+                                                @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                                                     <a href="{{ route('data-pencatatan.edit', $record->id) }}"
                                                         class="btn btn-warning btn-sm">
                                                         <i class="fas fa-edit"></i>
@@ -1010,7 +1010,7 @@
                                         @endif
                                         <td>-</td>
                                         <td>
-                                            @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+                                            @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                                                 <a href="{{ route('data-pencatatan.create-with-customer', ['customerId' => $customer->id, 'tanggal' => $date]) }}"
                                                     class="btn btn-success btn-sm">
                                                     <i class="fas fa-plus"></i> Input Data
@@ -1102,7 +1102,7 @@
     </div>
 
     {{-- Deposit History Modal --}}
-    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
         <div class="modal fade" id="depositHistoryModal" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-lg" role="document">
                 <div class="modal-content">
@@ -1263,7 +1263,7 @@
         </div>
 
         {{-- Tambah Deposit Modal --}}
-        @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+        @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
             <div class="modal fade" id="tambahDepositModal" tabindex="-1" role="dialog">
                 <div class="modal-dialog" role="document">
                     <div class="modal-content">
@@ -1458,7 +1458,7 @@
         @endif
 
         {{-- Pengurangan Saldo Modal --}}
-        @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+        @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
             <div class="modal fade" id="penguranganSaldoModal" tabindex="-1" role="dialog">
                 <div class="modal-dialog" role="document">
                     <div class="modal-content">
@@ -1519,7 +1519,7 @@
         @endif
 
         {{-- Nol-kan Saldo Modal --}}
-        @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+        @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
             <div class="modal fade" id="nolkanSaldoModal" tabindex="-1" role="dialog">
                 <div class="modal-dialog" role="document">
                     <div class="modal-content">
@@ -1569,7 +1569,7 @@
     @endif
 
     <!-- Modal untuk Setting Pricing and Correction yang diperbarui -->
-    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
         <div class="modal fade" id="setPricingModal" tabindex="-1" role="dialog"
             aria-labelledby="setPricingModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
@@ -1914,7 +1914,7 @@
     @endif
 
     {{-- History Pricing Modal --}}
-    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
         <div class="modal fade" id="pricingHistoryModal" tabindex="-1" role="dialog"
             aria-labelledby="pricingHistoryModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
@@ -2034,7 +2034,7 @@
 
 
     {{-- Upload Excel Modal --}}
-    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
         <div class="modal fade" id="uploadExcelModal" tabindex="-1" role="dialog"
             aria-labelledby="uploadExcelModalLabel" aria-hidden="true">
             <div class="modal-dialog" role="document">

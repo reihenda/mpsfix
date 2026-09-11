@@ -98,7 +98,7 @@
                     {{-- Action Buttons --}}
                     <div class="row mt-3">
                         <div class="col-md-12">
-                            @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+                            @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                                 <a href="{{ route('data-pencatatan.edit', $dataPencatatan->id) }}"
                                     class="btn btn-primary mr-2">
                                     <i class="fas fa-edit"></i> Edit

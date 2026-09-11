@@ -10,7 +10,7 @@
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">Daftar Customer</h3>
-                    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+                    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                         <div class="card-tools">
                             <a href="{{ route('data-pencatatan.create') }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-plus"></i> Tambah Data Pencatatan
@@ -67,7 +67,7 @@
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">Daftar FOB</h3>
-                    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin())
+                    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                         <div class="card-tools">
                             <a href="{{ route('data-pencatatan.fob.create') }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-plus"></i> Tambah Data FOB
