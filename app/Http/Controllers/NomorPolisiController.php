@@ -68,6 +68,7 @@ class NomorPolisiController extends Controller
                 'jenis' => 'nullable|string|max:100',
                 'ukuran_id' => 'nullable|exists:ukuran,id',
                 'area_operasi' => 'nullable|string|max:100',
+                'no_gtm' => 'nullable|string|max:50|unique:nomor_polisi,no_gtm',
                 'status' => 'nullable|in:milik,sewa,disewakan,FOB',
                 'iso' => 'nullable|in:ISO - 11439,ISO - 11119',
                 'coi' => 'nullable|in:sudah,belum',
@@ -88,9 +89,14 @@ class NomorPolisiController extends Controller
                 }
             }
 
-            // Generate No GTM jika status milik atau disewakan
+            // No GTM hanya berlaku untuk status milik/disewakan.
+            // Jika user mengisi manual, gunakan nilai itu; jika kosong, generate otomatis.
             if (in_array($validated['status'] ?? '', ['milik', 'disewakan'])) {
-                $validated['no_gtm'] = $this->generateNoGTM($validated['status']);
+                if (empty($validated['no_gtm'])) {
+                    $validated['no_gtm'] = $this->generateNoGTM($validated['status']);
+                }
+            } else {
+                $validated['no_gtm'] = null;
             }
 
             NomorPolisi::create($validated);
@@ -130,6 +136,7 @@ class NomorPolisiController extends Controller
                 'jenis' => 'nullable|string|max:100',
                 'ukuran_id' => 'nullable|exists:ukuran,id',
                 'area_operasi' => 'nullable|string|max:100',
+                'no_gtm' => 'nullable|string|max:50|unique:nomor_polisi,no_gtm,'.$nomorPolisi->id,
                 'status' => 'nullable|in:milik,sewa,disewakan,FOB',
                 'iso' => 'nullable|in:ISO - 11439,ISO - 11119',
                 'coi' => 'nullable|in:sudah,belum',
@@ -150,11 +157,13 @@ class NomorPolisiController extends Controller
                 }
             }
             
-            // Generate No GTM jika status berubah menjadi milik atau disewakan
-            if (in_array($validated['status'] ?? '', ['milik', 'disewakan']) && 
-                ($nomorPolisi->status != $validated['status'] || empty($nomorPolisi->no_gtm))) {
-                $validated['no_gtm'] = $this->generateNoGTM($validated['status']);
-            } elseif ($validated['status'] == 'sewa') {
+            // No GTM hanya berlaku untuk status milik/disewakan.
+            // Jika user mengisi manual, gunakan nilai itu; jika kosong, generate otomatis.
+            if (in_array($validated['status'] ?? '', ['milik', 'disewakan'])) {
+                if (empty($validated['no_gtm'])) {
+                    $validated['no_gtm'] = $this->generateNoGTM($validated['status']);
+                }
+            } else {
                 $validated['no_gtm'] = null;
             }
             

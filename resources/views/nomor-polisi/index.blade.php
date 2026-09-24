@@ -244,8 +244,8 @@
                                     <div class="card-body">
                                         <div class="form-group mb-0">
                                             <label for="no_gtm">No GTM</label>
-                                            <input type="text" name="no_gtm" id="no_gtm" class="form-control form-control-border border-width-2" placeholder="No GTM" readonly>
-                                            <small class="form-text text-muted">No GTM akan terisi otomatis jika status Milik atau Disewakan</small>
+                                            <input type="text" name="no_gtm" id="no_gtm" class="form-control form-control-border border-width-2" placeholder="Tidak berlaku untuk status ini" maxlength="50" disabled>
+                                            <small class="form-text text-muted">Hanya berlaku untuk status Milik/Disewakan. Kosongkan untuk generate otomatis (format MPS001), atau isi manual.</small>
                                         </div>
                                     </div>
                                 </div>
@@ -380,8 +380,8 @@
                                     <div class="card-body">
                                         <div class="form-group mb-0">
                                             <label for="edit_no_gtm">No GTM</label>
-                                            <input type="text" name="no_gtm" id="edit_no_gtm" class="form-control form-control-border border-width-2" placeholder="No GTM" readonly>
-                                            <small class="form-text text-muted">No GTM akan terisi otomatis jika status Milik atau Disewakan</small>
+                                            <input type="text" name="no_gtm" id="edit_no_gtm" class="form-control form-control-border border-width-2" placeholder="Tidak berlaku untuk status ini" maxlength="50">
+                                            <small class="form-text text-muted">Hanya berlaku untuk status Milik/Disewakan. Kosongkan untuk generate otomatis (format MPS001), atau isi/ubah manual.</small>
                                         </div>
                                     </div>
                                 </div>

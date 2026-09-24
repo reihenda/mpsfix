@@ -60,25 +60,29 @@ $(document).ready(function() {
     // Terapkan untuk form edit
     handleUkuranDropdown('#edit_ukuran_id', '.edit-ukuran-baru-container');
     
-    // Fungsi untuk menangani perubahan status
+    // Fungsi untuk menangani perubahan status terhadap field No GTM
+    // No GTM hanya berlaku untuk status milik/disewakan. Field boleh diisi manual;
+    // jika dikosongkan saat status milik/disewakan, backend akan generate otomatis (MPS001, dst).
+    function applyGtmFieldState(noGtmId, status) {
+        if (status === 'milik' || status === 'disewakan') {
+            $(noGtmId).prop('disabled', false);
+            $(noGtmId).attr('placeholder', 'Kosongkan untuk generate otomatis, atau isi manual');
+        } else {
+            $(noGtmId).val('');
+            $(noGtmId).prop('disabled', true);
+            $(noGtmId).attr('placeholder', 'Tidak berlaku untuk status ini');
+        }
+    }
+
     function handleStatusChange(statusId, noGtmId) {
         $(statusId).on('change', function() {
-            var status = $(this).val() || '';
-            // Reset No GTM saat status berubah
-            $(noGtmId).val('');
-            
-            // Jika status milik atau disewakan, tampilkan info bahwa No GTM akan otomatis terisi
-            if (status === 'milik' || status === 'disewakan') {
-                $(noGtmId).attr('placeholder', 'Akan terisi otomatis saat disimpan');
-            } else {
-                $(noGtmId).attr('placeholder', 'No GTM');
-            }
+            applyGtmFieldState(noGtmId, $(this).val() || '');
         });
     }
-    
+
     // Terapkan untuk form tambah
     handleStatusChange('#status', '#no_gtm');
-    
+
     // Terapkan untuk form edit
     handleStatusChange('#edit_status', '#edit_no_gtm');
     
@@ -219,10 +223,13 @@ $(document).ready(function() {
             $('#edit_jenis').val(jenis);
             $('#edit_ukuran_id').val(ukuranId);
             $('#edit_area_operasi').val(areaOperasi);
-            $('#edit_no_gtm').val(noGtm);
             $('#edit_status').val(status);
             $('#edit_iso').val(iso);
             $('#edit_coi').val(coi);
+
+            // Set state field No GTM (enabled/disabled) sesuai status, baru isi nilainya
+            applyGtmFieldState('#edit_no_gtm', status);
+            $('#edit_no_gtm').val(noGtm);
             
             // Sembunyikan input ukuran baru
             $('.edit-ukuran-baru-container').hide();
