@@ -61,16 +61,13 @@ $(document).ready(function() {
     handleUkuranDropdown('#edit_ukuran_id', '.edit-ukuran-baru-container');
     
     // Fungsi untuk menangani perubahan status terhadap field No GTM
-    // No GTM hanya berlaku untuk status milik/disewakan. Field boleh diisi manual;
-    // jika dikosongkan saat status milik/disewakan, backend akan generate otomatis (MPS001, dst).
+    // No GTM boleh diisi manual untuk semua status. Untuk status milik/disewakan,
+    // mengosongkan field akan membuat backend generate otomatis (MPS001, dst).
     function applyGtmFieldState(noGtmId, status) {
         if (status === 'milik' || status === 'disewakan') {
-            $(noGtmId).prop('disabled', false);
             $(noGtmId).attr('placeholder', 'Kosongkan untuk generate otomatis, atau isi manual');
         } else {
-            $(noGtmId).val('');
-            $(noGtmId).prop('disabled', true);
-            $(noGtmId).attr('placeholder', 'Tidak berlaku untuk status ini');
+            $(noGtmId).attr('placeholder', 'Isi manual jika perlu');
         }
     }
 

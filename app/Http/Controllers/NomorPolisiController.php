@@ -89,14 +89,10 @@ class NomorPolisiController extends Controller
                 }
             }
 
-            // No GTM hanya berlaku untuk status milik/disewakan.
-            // Jika user mengisi manual, gunakan nilai itu; jika kosong, generate otomatis.
-            if (in_array($validated['status'] ?? '', ['milik', 'disewakan'])) {
-                if (empty($validated['no_gtm'])) {
-                    $validated['no_gtm'] = $this->generateNoGTM($validated['status']);
-                }
-            } else {
-                $validated['no_gtm'] = null;
+            // No GTM boleh diisi manual untuk semua status.
+            // Generate otomatis hanya sebagai default saat status milik/disewakan dan field dikosongkan.
+            if (in_array($validated['status'] ?? '', ['milik', 'disewakan']) && empty($validated['no_gtm'])) {
+                $validated['no_gtm'] = $this->generateNoGTM($validated['status']);
             }
 
             NomorPolisi::create($validated);
@@ -157,14 +153,10 @@ class NomorPolisiController extends Controller
                 }
             }
             
-            // No GTM hanya berlaku untuk status milik/disewakan.
-            // Jika user mengisi manual, gunakan nilai itu; jika kosong, generate otomatis.
-            if (in_array($validated['status'] ?? '', ['milik', 'disewakan'])) {
-                if (empty($validated['no_gtm'])) {
-                    $validated['no_gtm'] = $this->generateNoGTM($validated['status']);
-                }
-            } else {
-                $validated['no_gtm'] = null;
+            // No GTM boleh diisi manual untuk semua status.
+            // Generate otomatis hanya sebagai default saat status milik/disewakan dan field dikosongkan.
+            if (in_array($validated['status'] ?? '', ['milik', 'disewakan']) && empty($validated['no_gtm'])) {
+                $validated['no_gtm'] = $this->generateNoGTM($validated['status']);
             }
             
             // Trim nopol value to remove whitespaces

@@ -244,8 +244,8 @@
                                     <div class="card-body">
                                         <div class="form-group mb-0">
                                             <label for="no_gtm">No GTM</label>
-                                            <input type="text" name="no_gtm" id="no_gtm" class="form-control form-control-border border-width-2" placeholder="Tidak berlaku untuk status ini" maxlength="50" disabled>
-                                            <small class="form-text text-muted">Hanya berlaku untuk status Milik/Disewakan. Kosongkan untuk generate otomatis (format MPS001), atau isi manual.</small>
+                                            <input type="text" name="no_gtm" id="no_gtm" class="form-control form-control-border border-width-2" placeholder="Kosongkan untuk generate otomatis, atau isi manual" maxlength="50">
+                                            <small class="form-text text-muted">Untuk status Milik/Disewakan, kosongkan untuk generate otomatis (format MPS001). Untuk status lain, isi manual jika perlu.</small>
                                         </div>
                                     </div>
                                 </div>
@@ -380,8 +380,8 @@
                                     <div class="card-body">
                                         <div class="form-group mb-0">
                                             <label for="edit_no_gtm">No GTM</label>
-                                            <input type="text" name="no_gtm" id="edit_no_gtm" class="form-control form-control-border border-width-2" placeholder="Tidak berlaku untuk status ini" maxlength="50">
-                                            <small class="form-text text-muted">Hanya berlaku untuk status Milik/Disewakan. Kosongkan untuk generate otomatis (format MPS001), atau isi/ubah manual.</small>
+                                            <input type="text" name="no_gtm" id="edit_no_gtm" class="form-control form-control-border border-width-2" placeholder="Kosongkan untuk generate otomatis, atau isi manual" maxlength="50">
+                                            <small class="form-text text-muted">Untuk status Milik/Disewakan, kosongkan untuk generate otomatis (format MPS001). Untuk status lain, isi/ubah manual jika perlu.</small>
                                         </div>
                                     </div>
                                 </div>
