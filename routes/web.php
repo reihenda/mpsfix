@@ -116,6 +116,8 @@ Route::middleware(['auth', 'role:admin,superadmin,staff'])->group(function () {
     // Rekap Pengambilan
     Route::get('/rekap-pengambilan', [RekapPengambilanController::class, 'index'])
         ->name('rekap-pengambilan.index');
+    Route::get('/rekap-pengambilan/export-excel', [RekapPengambilanController::class, 'exportExcel'])
+        ->name('rekap-pengambilan.export-excel');
     Route::get('/rekap-pengambilan/create', [RekapPengambilanController::class, 'create'])
         ->name('rekap-pengambilan.create');
     Route::get('/rekap-pengambilan/create-with-customer/{customer}', [RekapPengambilanController::class, 'createWithCustomer'])

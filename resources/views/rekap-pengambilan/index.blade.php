@@ -33,6 +33,9 @@
                 <a href="{{ route('rekap-pengambilan.create') }}" class="btn btn-primary">
                     <i class="fas fa-plus-circle mr-1"></i> Tambah Data
                 </a>
+                <button type="button" id="exportExcelBtn" class="btn btn-success">
+                    <i class="fas fa-file-excel mr-1"></i> Export Excel
+                </button>
             </div>
         </div>
 
@@ -61,6 +64,8 @@
                                 </div>
                                 <input type="hidden" name="tanggal_mulai" id="tanggal_mulai" value="{{ $tanggalMulai }}">
                                 <input type="hidden" name="tanggal_akhir" id="tanggal_akhir" value="{{ $tanggalAkhir }}">
+                                <input type="hidden" name="sort" id="sortInput" value="{{ $sort }}">
+                                <input type="hidden" name="dir" id="dirInput" value="{{ $dir }}">
                             </div>
 
                             <div class="mb-2">
@@ -120,7 +125,7 @@
                         </div>
                     </div>
                     <div class="card-body" id="rekap-table-container">
-                        @include('rekap-pengambilan.partials.table', ['rekapPengambilan' => $rekapPengambilan])
+                        @include('rekap-pengambilan.partials.table', ['rekapPengambilan' => $rekapPengambilan, 'sort' => $sort, 'dir' => $dir])
                     </div>
                     <div class="card-footer clearfix">
                     </div>
@@ -231,40 +236,68 @@
         // Hitung total volume saat pertama kali load
         calculateTotalVolume();
 
+        // State urutan tabel (ascending/descending per kolom)
+        let currentSort = '{{ $sort }}';
+        let currentDir = '{{ $dir }}';
+
+        function currentParams() {
+            return {
+                search: $('#searchData').val(),
+                tanggal_mulai: $('#tanggal_mulai').val(),
+                tanggal_akhir: $('#tanggal_akhir').val(),
+                sort: currentSort,
+                dir: currentDir
+            };
+        }
+
+        function loadTable() {
+            $('#rekap-table-container').html(
+                '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>'
+            );
+
+            $.ajax({
+                url: '{{ route('rekap-pengambilan.index') }}',
+                type: 'GET',
+                data: currentParams(),
+                dataType: 'json',
+                success: function(response) {
+                    $('#rekap-table-container').html(response.html);
+                    // Hitung ulang total volume setelah data baru dimuat
+                    calculateTotalVolume();
+                },
+                error: function() {
+                    $('#rekap-table-container').html(
+                        '<div class="alert alert-danger">Terjadi kesalahan saat mengambil data</div>'
+                    );
+                }
+            });
+        }
+
         // Search functionality
         let searchTimer;
         $('#searchData').on('input', function() {
-            const searchTerm = $(this).val();
-            const tanggalMulai = $('#tanggal_mulai').val();
-            const tanggalAkhir = $('#tanggal_akhir').val();
-            
             clearTimeout(searchTimer);
-            searchTimer = setTimeout(function() {
-                $('#rekap-table-container').html(
-                    '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>'
-                );
+            searchTimer = setTimeout(loadTable, 300);
+        });
 
-                $.ajax({
-                    url: '{{ route('rekap-pengambilan.index') }}',
-                    type: 'GET',
-                    data: { 
-                        search: searchTerm,
-                        tanggal_mulai: tanggalMulai,
-                        tanggal_akhir: tanggalAkhir
-                    },
-                    dataType: 'json',
-                    success: function(response) {
-                        $('#rekap-table-container').html(response.html);
-                        // Hitung ulang total volume setelah data baru dimuat
-                        calculateTotalVolume();
-                    },
-                    error: function() {
-                        $('#rekap-table-container').html(
-                            '<div class="alert alert-danger">Terjadi kesalahan saat mengambil data</div>'
-                        );
-                    }
-                });
-            }, 300);
+        // Klik header kolom: toggle ascending/descending
+        $('#rekap-table-container').on('click', 'th.sortable-th', function() {
+            const column = $(this).data('sort');
+            if (column === currentSort) {
+                currentDir = currentDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort = column;
+                currentDir = 'asc';
+            }
+            // Sinkronkan ke form filter tanggal supaya urutan tetap saat rentang tanggal diganti
+            $('#sortInput').val(currentSort);
+            $('#dirInput').val(currentDir);
+            loadTable();
+        });
+
+        // Export Excel sesuai filter tanggal, pencarian, dan urutan yang sedang aktif
+        $('#exportExcelBtn').on('click', function() {
+            window.location.href = '{{ route('rekap-pengambilan.export-excel') }}?' + $.param(currentParams());
         });
     });
 </script>

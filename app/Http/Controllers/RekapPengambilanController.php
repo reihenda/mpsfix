@@ -10,6 +10,13 @@ use App\Models\DataPencatatan;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class RekapPengambilanController extends Controller
 {
@@ -39,7 +46,60 @@ class RekapPengambilanController extends Controller
                 ->with('error', 'Tanggal akhir tidak boleh lebih kecil dari tanggal awal');
         }
 
-        // Start with base query berdasarkan rentang tanggal
+        [$sort, $dir] = $this->resolveSort($request);
+
+        // Get data dengan filter + urutan
+        $rekapPengambilan = $this->getFilteredRekap($request, $tanggalMulai, $tanggalAkhir, $sort, $dir);
+
+        // Hitung total volume dalam rentang tanggal terpilih (tanpa filter search untuk konsistensi)
+        $totalVolumeRentang = RekapPengambilan::whereDate('tanggal', '>=', $tanggalMulai)
+            ->whereDate('tanggal', '<=', $tanggalAkhir)
+            ->sum('volume');
+
+        // Deteksi jika request adalah AJAX untuk pencarian/sorting real-time
+        if ($request->ajax() && ($request->has('search') || $request->has('sort'))) {
+            $html = view('rekap-pengambilan.partials.table', [
+                'rekapPengambilan' => $rekapPengambilan,
+                'sort' => $sort,
+                'dir' => $dir,
+            ])->render();
+            return response()->json([
+                'html' => $html
+            ]);
+        }
+
+        // Get list customer untuk dropdown
+        $customers = User::where('role', 'customer')->orWhere('role', 'fob')->get();
+
+        return view('rekap-pengambilan.index', compact(
+            'rekapPengambilan',
+            'customers',
+            'tanggalMulai',
+            'tanggalAkhir',
+            'totalVolumeRentang',
+            'sort',
+            'dir'
+        ));
+    }
+
+    /**
+     * Ambil kolom & arah urutan dari request (whitelist). Default: customer ascending.
+     */
+    private function resolveSort(Request $request): array
+    {
+        $sort = in_array($request->input('sort'), ['customer', 'tanggal', 'nopol', 'volume', 'alamat'], true)
+            ? $request->input('sort')
+            : 'customer';
+        $dir = $request->input('dir') === 'desc' ? 'desc' : 'asc';
+
+        return [$sort, $dir];
+    }
+
+    /**
+     * Data rekap sesuai rentang tanggal + pencarian, sudah terurut. Dipakai tabel dan export Excel.
+     */
+    private function getFilteredRekap(Request $request, string $tanggalMulai, string $tanggalAkhir, string $sort, string $dir)
+    {
         // Gunakan whereDate untuk memastikan comparison hanya berdasarkan tanggal, bukan datetime
         $query = RekapPengambilan::whereDate('tanggal', '>=', $tanggalMulai)
             ->whereDate('tanggal', '<=', $tanggalAkhir)
@@ -62,32 +122,109 @@ class RekapPengambilanController extends Controller
             });
         }
 
-        // Get data dengan filter
-        $rekapPengambilan = $query->get()->sortBy('customer.name');
+        $sortKey = [
+            'customer' => fn($r) => mb_strtolower($r->customer->name ?? ''),
+            'tanggal' => fn($r) => $r->tanggal ? $r->tanggal->timestamp : 0,
+            'nopol' => fn($r) => mb_strtolower((string) $r->nopol),
+            'volume' => fn($r) => (float) $r->volume,
+            'alamat' => fn($r) => mb_strtolower((string) $r->alamat_pengambilan),
+        ][$sort];
 
-        // Hitung total volume dalam rentang tanggal terpilih (tanpa filter search untuk konsistensi)
-        $totalVolumeRentang = RekapPengambilan::whereDate('tanggal', '>=', $tanggalMulai)
-            ->whereDate('tanggal', '<=', $tanggalAkhir)
-            ->sum('volume');
+        return $query->get()->sortBy($sortKey, SORT_REGULAR, $dir === 'desc')->values();
+    }
 
-        // Deteksi jika request adalah AJAX untuk pencarian real-time
-        if ($request->ajax() && $request->has('search')) {
-            $html = view('rekap-pengambilan.partials.table', ['rekapPengambilan' => $rekapPengambilan])->render();
-            return response()->json([
-                'html' => $html
-            ]);
+    /**
+     * Export data rekap pengambilan (sesuai filter tanggal, pencarian, dan urutan yang aktif) ke Excel.
+     */
+    public function exportExcel(Request $request)
+    {
+        $tanggalMulai = $request->input('tanggal_mulai', now()->startOfMonth()->format('Y-m-d'));
+        $tanggalAkhir = $request->input('tanggal_akhir', now()->endOfMonth()->format('Y-m-d'));
+
+        try {
+            $startDate = Carbon::parse($tanggalMulai);
+            $endDate = Carbon::parse($tanggalAkhir);
+        } catch (\Exception $e) {
+            return redirect()->route('rekap-pengambilan.index')->with('error', 'Format tanggal tidak valid');
         }
 
-        // Get list customer untuk dropdown
-        $customers = User::where('role', 'customer')->orWhere('role', 'fob')->get();
+        if ($endDate->lt($startDate)) {
+            return redirect()->route('rekap-pengambilan.index')
+                ->with('error', 'Tanggal akhir tidak boleh lebih kecil dari tanggal awal');
+        }
 
-        return view('rekap-pengambilan.index', compact(
-            'rekapPengambilan',
-            'customers',
-            'tanggalMulai',
-            'tanggalAkhir',
-            'totalVolumeRentang'
-        ));
+        if ($startDate->diffInDays($endDate) > 90) {
+            return redirect()->route('rekap-pengambilan.index')
+                ->with('error', 'Rentang tanggal maksimal adalah 90 hari');
+        }
+
+        [$sort, $dir] = $this->resolveSort($request);
+        $data = $this->getFilteredRekap($request, $startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $sort, $dir);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Rekap Pengambilan');
+
+        $sheet->setCellValue('A1', 'REKAP PENGAMBILAN');
+        $sheet->mergeCells('A1:F1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+
+        $sheet->setCellValue('A2', 'Periode: ' . $startDate->format('d M Y') . ' - ' . $endDate->format('d M Y'));
+        $sheet->mergeCells('A2:F2');
+        if ($request->filled('search')) {
+            $sheet->setCellValue('A3', 'Pencarian: ' . $request->search);
+            $sheet->mergeCells('A3:F3');
+        }
+
+        $headerRow = 5;
+        foreach (['No', 'Customer', 'Tanggal', 'NOPOL', 'Volume (SM³)', 'Alamat Pengambilan'] as $i => $label) {
+            $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1) . $headerRow, $label);
+        }
+        $sheet->getStyle("A{$headerRow}:F{$headerRow}")->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+
+        $row = $headerRow + 1;
+        foreach ($data as $index => $rekap) {
+            $sheet->setCellValue("A{$row}", $index + 1);
+            $sheet->setCellValue("B{$row}", $rekap->customer->name ?? '-');
+            $sheet->setCellValue("C{$row}", $rekap->tanggal ? ExcelDate::PHPToExcel($rekap->tanggal) : '');
+            $sheet->setCellValue("D{$row}", $rekap->nopol);
+            $sheet->setCellValue("E{$row}", (float) $rekap->volume);
+            $sheet->setCellValue("F{$row}", $rekap->alamat_pengambilan ?: '-');
+            $row++;
+        }
+        $lastDataRow = $row - 1;
+
+        $sheet->getStyle("C" . ($headerRow + 1) . ":C{$lastDataRow}")
+            ->getNumberFormat()->setFormatCode('dd mmm yyyy hh:mm');
+        $sheet->getStyle("E" . ($headerRow + 1) . ":E{$row}")
+            ->getNumberFormat()->setFormatCode('#,##0.00');
+
+        $sheet->setCellValue("A{$row}", 'Total Volume');
+        $sheet->mergeCells("A{$row}:D{$row}");
+        $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->setCellValue("E{$row}", $data->count() > 0 ? "=SUM(E" . ($headerRow + 1) . ":E{$lastDataRow})" : 0);
+        $sheet->getStyle("A{$row}:F{$row}")->getFont()->setBold(true);
+
+        $sheet->getStyle("A{$headerRow}:F{$row}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle("A" . ($headerRow + 1) . ":A{$lastDataRow}")
+            ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        foreach (['A' => 6, 'B' => 32, 'C' => 20, 'D' => 16, 'E' => 18, 'F' => 40] as $col => $width) {
+            $sheet->getColumnDimension($col)->setWidth($width);
+        }
+        $sheet->freezePane('A' . ($headerRow + 1));
+
+        $filename = 'rekap-pengambilan_' . $startDate->format('Ymd') . '-' . $endDate->format('Ymd') . '.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            (new Xlsx($spreadsheet))->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 
     /**

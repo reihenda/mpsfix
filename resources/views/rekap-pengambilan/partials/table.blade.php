@@ -1,13 +1,29 @@
 <div class="table-responsive">
     <table class="table table-bordered table-striped">
         <thead>
+            @php
+                $sort = $sort ?? 'customer';
+                $dir = $dir ?? 'asc';
+                $sortColumns = [
+                    'customer' => 'Customer',
+                    'tanggal' => 'Tanggal',
+                    'nopol' => 'NOPOL',
+                    'volume' => 'Volume (SM³)',
+                    'alamat' => 'Alamat Pengambilan',
+                ];
+            @endphp
             <tr>
                 <th>No</th>
-                <th>Customer</th>
-                <th>Tanggal</th>
-                <th>NOPOL</th>
-                <th>Volume (SM³)</th>
-                <th>Alamat Pengambilan</th>
+                @foreach ($sortColumns as $key => $label)
+                    <th class="sortable-th" data-sort="{{ $key }}" style="cursor: pointer; user-select: none; white-space: nowrap;">
+                        {{ $label }}
+                        @if ($sort === $key)
+                            <i class="fas fa-sort-{{ $dir === 'asc' ? 'up' : 'down' }} ml-1"></i>
+                        @else
+                            <i class="fas fa-sort ml-1 text-muted"></i>
+                        @endif
+                    </th>
+                @endforeach
                 <th>Aksi</th>
             </tr>
         </thead>
