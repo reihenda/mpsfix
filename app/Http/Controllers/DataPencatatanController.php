@@ -451,11 +451,18 @@ class DataPencatatanController extends Controller
         // Format filter untuk query
         $yearMonth = $tahun . '-' . str_pad($bulan, 2, '0', STR_PAD_LEFT);
 
-        // Base query
-        $query = $customer->dataPencatatan();
-
-        // Ambil semua data dulu
-        $dataPencatatan = $query->get();
+        // Pra-filter di database: hanya ambil baris bulan terpilih. Baris yang formatnya tidak
+        // biasa (bukan objek JSON, waktu kosong, atau tidak diawali YYYY-MM) tetap ikut diambil
+        // supaya filter PHP di bawah yang menentukan, sama seperti sebelumnya.
+        $waktuAwalSql = "JSON_UNQUOTE(JSON_EXTRACT(data_input, '$.pembacaan_awal.waktu'))";
+        $dataPencatatan = $customer->dataPencatatan()
+            ->where(function ($q) use ($waktuAwalSql, $yearMonth) {
+                $q->whereRaw("JSON_TYPE(data_input) <> 'OBJECT'")
+                    ->orWhereRaw("{$waktuAwalSql} IS NULL")
+                    ->orWhereRaw("{$waktuAwalSql} LIKE ?", [$yearMonth . '%'])
+                    ->orWhereRaw("{$waktuAwalSql} NOT REGEXP '^[0-9]{4}-[0-9]{2}'");
+            })
+            ->get();
 
         // Filter data berdasarkan bulan dan tahun dari pembacaan awal
         $dataPencatatan = $dataPencatatan->filter(function ($item) use ($yearMonth) {

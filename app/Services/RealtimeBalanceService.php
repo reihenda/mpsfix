@@ -60,7 +60,8 @@ class RealtimeBalanceService
             $this->updateMonthlyBalances($customerId, $startYearMonth);
 
             // Update timestamp di user
-            $customer->update(['balance_last_updated_at' => now()]);
+            // forceFill: kolom ini tidak ada di $fillable User, update() akan membuangnya diam-diam
+            $customer->forceFill(['balance_last_updated_at' => now()])->save();
 
             DB::commit();
 
@@ -316,7 +317,7 @@ class RealtimeBalanceService
         }
 
         // Set flag untuk menggunakan real-time calculation
-        $customer->update(['use_realtime_calculation' => true]);
+        $customer->forceFill(['use_realtime_calculation' => true])->save();
 
         // Update semua data
         return $this->updateCustomerBalance($customerId);
