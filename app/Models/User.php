@@ -550,6 +550,12 @@ class User extends Authenticatable
 
         // Cek setiap bulan apakah sudah ada harganya
         foreach ($monthsWithData as $yearMonth) {
+            // Lewati bulan dengan tahun tidak masuk akal (mis. 0001) - itu salah input tanggal,
+            // bukan bulan yang perlu diberi harga. Lihat getRecordsWithInvalidDate().
+            if (!self::isValidRecordYear((int) substr($yearMonth, 0, 4))) {
+                continue;
+            }
+
             $pricingInfo = $this->getPricingForYearMonth($yearMonth);
 
             // Jika is_price_set = false, berarti bulan ini belum diinput harganya
@@ -584,6 +590,53 @@ class User extends Authenticatable
     public function countMonthsWithoutPricing()
     {
         return count($this->getMonthsWithoutPricing());
+    }
+
+    /**
+     * Batas tahun yang dianggap wajar untuk data pencatatan.
+     */
+    public static function isValidRecordYear(int $year): bool
+    {
+        return $year >= 2000 && $year <= 2100;
+    }
+
+    /**
+     * Mendapatkan data pencatatan yang tanggalnya salah input (tahun di luar 2000-2100, mis. 0001).
+     *
+     * @return array Setiap item: id, waktu (raw), is_fob
+     */
+    public function getRecordsWithInvalidDate()
+    {
+        $invalid = [];
+
+        if ($this->isFOB()) {
+            foreach ($this->rekapPengambilan()->get() as $rekap) {
+                if (empty($rekap->tanggal_pengambilan)) {
+                    continue;
+                }
+                $waktu = Carbon::parse($rekap->tanggal_pengambilan);
+                if (!self::isValidRecordYear($waktu->year)) {
+                    $invalid[] = ['id' => $rekap->id, 'waktu' => $waktu->format('Y-m-d H:i'), 'is_fob' => true];
+                }
+            }
+            return $invalid;
+        }
+
+        foreach ($this->dataPencatatan()->get() as $data) {
+            $dataInput = is_string($data->data_input)
+                ? json_decode($data->data_input, true)
+                : $data->data_input;
+
+            if (empty($dataInput['pembacaan_awal']['waktu'])) {
+                continue;
+            }
+            $waktu = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
+            if (!self::isValidRecordYear($waktu->year)) {
+                $invalid[] = ['id' => $data->id, 'waktu' => $waktu->format('Y-m-d H:i'), 'is_fob' => false];
+            }
+        }
+
+        return $invalid;
     }
 
     /**

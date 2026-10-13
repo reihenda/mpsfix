@@ -650,6 +650,7 @@ class DataPencatatanController extends Controller
 
         // Ambil bulan-bulan yang belum diinput harganya
         $monthsWithoutPricing = $customer->getMonthsWithoutPricing();
+        $recordsWithInvalidDate = $customer->getRecordsWithInvalidDate();
 
         // ===== MMBTU-SPECIFIC CALCULATIONS =====
         $isMmbtu = $customer->isMmbtu();
@@ -809,6 +810,7 @@ class DataPencatatanController extends Controller
             'realTimePrevMonthBalance' => $realTimePrevMonthBalance,
             'realTimeCurrentMonthBalance' => $realTimeCurrentMonthBalance, // PERBAIKAN: Tambahan untuk konsistensi
             'monthsWithoutPricing' => $monthsWithoutPricing, // Notifikasi bulan tanpa harga
+            'recordsWithInvalidDate' => $recordsWithInvalidDate, // Data dengan tanggal salah input
             // MMBTU-specific variables
             'isMmbtu' => $isMmbtu,
             'filteredVolumeMmbtu' => $filteredVolumeMmbtu,
@@ -1466,6 +1468,10 @@ class DataPencatatanController extends Controller
         // Validasi waktu
         $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
         $waktuAkhir = Carbon::parse($dataInput['pembacaan_akhir']['waktu']);
+
+        if (!User::isValidRecordYear($waktuAwal->year) || !User::isValidRecordYear($waktuAkhir->year)) {
+            throw new \InvalidArgumentException('Tahun pada waktu pembacaan tidak valid (harus antara 2000-2100). Periksa kembali tanggal yang diinput');
+        }
 
         if ($waktuAkhir <= $waktuAwal) {
             throw new \InvalidArgumentException('Waktu pembacaan akhir harus lebih besar dari waktu pembacaan awal');

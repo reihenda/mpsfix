@@ -44,6 +44,25 @@
                     </div>
                 @endif
 
+                {{-- Notifikasi Data dengan Tanggal Tidak Valid --}}
+                @if (!empty($recordsWithInvalidDate))
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <strong><i class="fas fa-calendar-times mr-1"></i> Ada {{ count($recordsWithInvalidDate) }} data dengan tanggal tidak valid</strong>
+                        <p class="mb-2 mt-1">
+                            Tahun pada data berikut di luar rentang 2000-2100 (kemungkinan salah ketik), sehingga tidak bisa dimasukkan ke bulan manapun. Buka detailnya untuk dihapus atau diperbaiki tanggalnya.
+                        </p>
+                        @foreach ($recordsWithInvalidDate as $invalidRecord)
+                            <a href="{{ $invalidRecord['is_fob'] ? route('rekap-pengambilan.show', $invalidRecord['id']) : route('data-pencatatan.show', $invalidRecord['id']) }}"
+                               class="btn btn-outline-danger btn-sm mr-1 mb-1">
+                                <i class="fas fa-eye mr-1"></i> #{{ $invalidRecord['id'] }} ({{ $invalidRecord['waktu'] }})
+                            </a>
+                        @endforeach
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                @endif
+
                 {{-- Notifikasi Bulan Tanpa Harga --}}
                 @if (isset($monthsWithoutPricing) && count($monthsWithoutPricing) > 0)
                     <div class="alert alert-warning alert-dismissible fade show" role="alert">
@@ -64,7 +83,7 @@
                                                 'tahun' => $monthData['year']
                                             ]) }}"
                                                class="btn btn-outline-warning btn-sm btn-block text-left"
-                                               onclick="event.preventDefault(); navigateAndOpenPricing('{{ $monthData['month'] }}', '{{ $monthData['year'] }}');">
+                                               onclick="event.preventDefault(); navigateAndOpenPricing(this.href, '{{ $monthData['month'] }}', '{{ $monthData['year'] }}');">
                                                 <i class="fas fa-calendar-alt mr-1"></i>
                                                 {{ $monthData['display'] }}
                                                 <i class="fas fa-arrow-right float-right mt-1"></i>
@@ -267,7 +286,7 @@
                                     <div class="form-group">
                                         <label>Tahun:</label>
                                         <select class="form-control" name="tahun" id="tahun">
-                                            @for ($year = date('Y'); $year >= 2020; $year--)
+                                            @for ($year = max((int) date('Y'), (int) $selectedTahun); $year >= min(2020, (int) $selectedTahun); $year--)
                                                 <option value="{{ $year }}"
                                                     {{ $selectedTahun == $year ? 'selected' : '' }}>
                                                     {{ $year }}
@@ -1545,22 +1564,15 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
         // Function untuk navigasi ke bulan tertentu dan membuka modal pricing
-        function navigateAndOpenPricing(month, year) {
-            // Set value di form filter
-            $('#bulan').val(month);
-            $('#tahun').val(year);
-
-            // Set value di modal pricing
-            var yearMonth = year + '-' + month.toString().padStart(2, '0');
-            $('#pricingDate').val(yearMonth);
-
-            // Setelah halaman reload, modal akan dibuka via sessionStorage
+        function navigateAndOpenPricing(url, month, year) {
+            // Simpan penanda agar modal harga terbuka otomatis setelah halaman bulan tersebut dimuat
             sessionStorage.setItem('openPricingModal', 'true');
             sessionStorage.setItem('pricingMonth', month);
             sessionStorage.setItem('pricingYear', year);
 
-            // Submit form filter
-            $('#filter-form').submit();
+            // Langsung pindah ke URL bulan/tahun target (tidak lewat dropdown filter,
+            // karena dropdown tahun hanya punya opsi terbatas)
+            window.location.href = url;
         }
 
         // Set up CSRF token for AJAX requests

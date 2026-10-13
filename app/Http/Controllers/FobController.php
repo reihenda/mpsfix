@@ -1117,6 +1117,7 @@ class FobController extends Controller
 
         // Ambil bulan-bulan yang belum diinput harganya
         $monthsWithoutPricing = $customer->getMonthsWithoutPricing();
+        $recordsWithInvalidDate = $customer->getRecordsWithInvalidDate();
 
         return view('data-pencatatan.fob.fob-detail', [
             'customer' => $customer,
@@ -1139,7 +1140,8 @@ class FobController extends Controller
             'totalPembelianTahunan' => $totalPembelianTahunan,
             // PERBAIKAN: Tambahkan info sinkronisasi untuk debugging
             'syncInfo' => $syncResult,
-            'monthsWithoutPricing' => $monthsWithoutPricing // Notifikasi bulan tanpa harga
+            'monthsWithoutPricing' => $monthsWithoutPricing, // Notifikasi bulan tanpa harga
+            'recordsWithInvalidDate' => $recordsWithInvalidDate // Data dengan tanggal salah input
         ]);
     }
 
