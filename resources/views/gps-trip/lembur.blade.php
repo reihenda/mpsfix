@@ -182,6 +182,7 @@
             var timpa = document.querySelectorAll('.js-pilih[data-status="berbeda"]:checked').length;
             if (timpa > 0 && !confirm(timpa + ' hari akan MENGGANTI sesi lembur yang sudah ada dengan data GPS. Lanjutkan?')) {
                 e.preventDefault();
+                e.stopImmediatePropagation(); // jangan biarkan handler global mengubah tombol jadi "Memproses..."
             }
         });
     }

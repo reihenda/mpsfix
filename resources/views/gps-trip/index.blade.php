@@ -267,10 +267,13 @@
                                 <option value="{{ $op->id }}">{{ $op->nama }}</option>
                             @endforeach
                         </select>
-                        <button type="submit" name="aksi" value="driver" class="btn btn-primary btn-sm mr-3"><i class="fas fa-user-check mr-1"></i> Set Driver</button>
-                        <button type="submit" name="aksi" value="hitung" class="btn btn-outline-success btn-sm mr-1">Hitung</button>
-                        <button type="submit" name="aksi" value="abaikan" class="btn btn-outline-secondary btn-sm mr-1">Jangan hitung</button>
-                        <button type="submit" name="aksi" value="hapus" class="btn btn-outline-danger btn-sm js-hapus"><i class="fas fa-trash mr-1"></i> Hapus</button>
+                        {{-- Nilai aksi dibawa lewat input hidden, BUKAN name/value pada tombol: script global
+                             (js/responsive.js) menonaktifkan tombol submit saat submit, sehingga nilainya tidak terkirim. --}}
+                        <input type="hidden" name="aksi" id="aksi-nilai" value="">
+                        <button type="submit" data-aksi="driver" class="btn btn-primary btn-sm mr-3"><i class="fas fa-user-check mr-1"></i> Set Driver</button>
+                        <button type="submit" data-aksi="hitung" class="btn btn-outline-success btn-sm mr-1">Hitung</button>
+                        <button type="submit" data-aksi="abaikan" class="btn btn-outline-secondary btn-sm mr-1">Jangan hitung</button>
+                        <button type="submit" data-aksi="hapus" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash mr-1"></i> Hapus</button>
                     </div>
                 </div>
             </form>
@@ -527,16 +530,31 @@
 
     var formAksi = document.getElementById('form-aksi');
     if (formAksi) {
+        var aksiNilai = document.getElementById('aksi-nilai');
+        // Klik tombol terjadi sebelum submit: catat aksinya di input hidden
+        formAksi.querySelectorAll('button[data-aksi]').forEach(function (btn) {
+            btn.addEventListener('click', function () { aksiNilai.value = btn.dataset.aksi; });
+        });
+
         formAksi.addEventListener('submit', function (e) {
-            var aksi = e.submitter ? e.submitter.value : '';
+            var aksi = aksiNilai.value;
             var n = document.querySelectorAll('.js-pilih-trip:checked').length;
+            // stopImmediatePropagation: batalkan juga handler global responsive.js yang akan
+            // mengubah tombol jadi "Memproses..." walau submit dibatalkan
+            if (!aksi) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return;
+            }
             if (n === 0) {
                 e.preventDefault();
+                e.stopImmediatePropagation();
                 alert('Pilih minimal satu trip terlebih dahulu.');
                 return;
             }
             if (aksi === 'hapus' && !confirm('Hapus ' + n + ' trip terpilih? Trip yang terhapus akan muncul lagi bila file laporan di-upload ulang.')) {
                 e.preventDefault();
+                e.stopImmediatePropagation();
             }
         });
     }
@@ -563,7 +581,7 @@
             var pesan = hapus === 0
                 ? 'Tidak ada yang dicentang. Semua ' + sisa + ' trip noise akan DIPERTAHANKAN sebagai trip biasa dan tidak ditanyakan lagi. Lanjutkan?'
                 : 'Hapus ' + hapus + ' trip noise' + (sisa ? ' dan pertahankan ' + sisa + ' lainnya sebagai trip biasa' : '') + '?';
-            if (!confirm(pesan)) { e.preventDefault(); }
+            if (!confirm(pesan)) { e.preventDefault(); e.stopImmediatePropagation(); }
         });
     }
 
