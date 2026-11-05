@@ -4,9 +4,11 @@ namespace App\Services\GpsTrip;
 
 use App\Models\GpsGeofence;
 use App\Models\GpsTrip;
+use App\Models\GpsTripDibuang;
 use App\Models\GpsTripImport;
 use App\Models\OperatorGtm;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -37,7 +39,7 @@ class GpsTripImporter
         };
 
         $operators = OperatorGtm::select('id', 'nama')->get();
-        $stat = ['baru' => 0, 'diperbarui' => 0, 'dilewati' => 0, 'dihapus' => 0, 'total' => 0, 'kendaraan' => 0];
+        $stat = ['baru' => 0, 'diperbarui' => 0, 'dilewati' => 0, 'dihapus' => 0, 'dibuang' => 0, 'total' => 0, 'kendaraan' => 0];
 
         DB::transaction(function () use ($parsed, $namaFile, $userId, $batasTrip, $operators, &$stat) {
             $import = GpsTripImport::create([
@@ -59,9 +61,21 @@ class GpsTripImporter
                     ->get()
                     ->keyBy(fn ($t) => $t->waktu_mulai->format('Y-m-d H:i:s'));
 
+                // Trip noise yang pernah dihapus admin tidak dibuat lagi
+                $dibuang = GpsTripDibuang::where('nopol', $nopol)
+                    ->whereBetween('waktu_mulai', [$batasAwal, $batasAkhir])
+                    ->pluck('waktu_mulai')
+                    ->map(fn ($w) => Carbon::parse($w)->format('Y-m-d H:i:s'))
+                    ->flip();
+
                 $terdeteksi = [];
 
                 foreach ($trips as $trip) {
+                    if (isset($dibuang[$trip['waktu_mulai']])) {
+                        $stat['dibuang']++;
+                        continue;
+                    }
+
                     $terdeteksi[$trip['waktu_mulai']] = true;
                     $stat['total']++;
                     $operatorId = $this->cocokkanDriver($trip['driver_gps'], $operators);

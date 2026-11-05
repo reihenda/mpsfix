@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\GpsGeofence;
 use App\Models\GpsTrip;
+use App\Models\GpsTripDibuang;
 use App\Models\GpsTripImport;
 use App\Models\NomorPolisi;
 use App\Models\OperatorGtm;
@@ -13,6 +14,7 @@ use App\Services\GpsTrip\GpsTripLemburService;
 use App\Services\GpsTrip\GpsTripParser;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -115,9 +117,17 @@ class GpsTripController extends Controller
 
         $importTerakhir = GpsTripImport::with('user:id,name')->latest()->first();
 
+        // Trip noise (< 5 menit) di bulan ini, terlepas dari filter di atas
+        $noise = GpsTrip::noise()
+            ->with('operator:id,nama')
+            ->whereBetween('waktu_mulai', [$awal, $akhir])
+            ->orderBy('nopol')
+            ->orderBy('waktu_mulai')
+            ->get();
+
         return view('gps-trip.index', compact(
             'bulan', 'perKendaraan', 'nomorTrip', 'rekapDriver', 'ringkasan', 'daftarNopol',
-            'operators', 'kunciTerdaftar', 'geofenceCustomer', 'importTerakhir', 'tampil', 'driver'
+            'operators', 'kunciTerdaftar', 'geofenceCustomer', 'importTerakhir', 'tampil', 'driver', 'noise'
         ) + ['nopolDipilih' => $request->query('nopol')]);
     }
 
@@ -160,9 +170,7 @@ class GpsTripController extends Controller
         if (empty($baru)) {
             $stat = $this->importer->import($parsed, $namaFile, $request->user()->id);
 
-            return redirect()
-                ->route('gps-trip.index', ['bulan' => $this->bulanDari($parsed)])
-                ->with('success', $this->pesanHasil($stat));
+            return $this->redirectSetelahImport($parsed, $stat);
         }
 
         // Ada geofence baru -> simpan sementara & minta admin mengklasifikasi dulu
@@ -241,9 +249,7 @@ class GpsTripController extends Controller
         $stat = $this->importer->import($data['parsed'], $data['nama_file'], $request->user()->id);
         Storage::disk('local')->delete(self::DIR_UPLOAD . "/{$token}.json");
 
-        return redirect()
-            ->route('gps-trip.index', ['bulan' => $this->bulanDari($data['parsed'])])
-            ->with('success', $this->pesanHasil($stat));
+        return $this->redirectSetelahImport($data['parsed'], $stat);
     }
 
     // ------------------------------------------------------------------
@@ -353,6 +359,53 @@ class GpsTripController extends Controller
         return back()->with('success', $pesan);
     }
 
+    /**
+     * Hapus trip noise yang dicentang. Noise yang TIDAK dicentang dipertahankan (ditandai "bukan noise",
+     * ikut dihitung bila trip selesai) dan tidak ditanyakan lagi. Noise yang dihapus dicatat agar tidak
+     * dibuat lagi saat file yang sama di-upload ulang.
+     */
+    public function hapusNoise(Request $request)
+    {
+        $validated = $request->validate([
+            'semua' => 'required|array|min:1',
+            'semua.*' => 'integer',
+            'hapus' => 'nullable|array',
+            'hapus.*' => 'integer',
+        ]);
+
+        $hapus = array_flip($validated['hapus'] ?? []);
+        $dihapus = 0;
+        $dipertahankan = 0;
+
+        DB::transaction(function () use ($validated, $hapus, &$dihapus, &$dipertahankan) {
+            // Cek ulang di server: hanya trip yang memang masih tergolong noise yang disentuh
+            foreach (GpsTrip::noise()->whereIn('id', $validated['semua'])->get() as $trip) {
+                if (isset($hapus[$trip->id])) {
+                    GpsTripDibuang::firstOrCreate([
+                        'nopol' => $trip->nopol,
+                        'waktu_mulai' => $trip->waktu_mulai->format('Y-m-d H:i:s'),
+                    ]);
+                    $trip->delete();
+                    $dihapus++;
+                } else {
+                    $trip->update([
+                        'bukan_noise' => true,
+                        'dihitung' => $trip->status === 'selesai',
+                        'diedit' => true,
+                    ]);
+                    $dipertahankan++;
+                }
+            }
+        });
+
+        $pesan = "{$dihapus} trip noise dihapus";
+        if ($dipertahankan) {
+            $pesan .= ", {$dipertahankan} dipertahankan sebagai trip";
+        }
+
+        return back()->with('success', $pesan . '.');
+    }
+
     // ------------------------------------------------------------------
     // Terapkan ke data lembur operator
     // ------------------------------------------------------------------
@@ -423,6 +476,24 @@ class GpsTripController extends Controller
         return $parsed['periode'][0] ? substr($parsed['periode'][0], 0, 7) : now()->format('Y-m');
     }
 
+    /**
+     * Setelah import: arahkan ke daftar trip bulan file, loncat ke panel noise bila ada trip < 5 menit.
+     */
+    private function redirectSetelahImport(array $parsed, array $stat)
+    {
+        $bulan = $this->bulanDari($parsed);
+        $awal = Carbon::createFromFormat('Y-m-d', $bulan . '-01')->startOfMonth();
+        $jumlahNoise = GpsTrip::noise()->whereBetween('waktu_mulai', [$awal, $awal->copy()->endOfMonth()])->count();
+
+        $pesan = $this->pesanHasil($stat);
+        if ($jumlahNoise > 0) {
+            $pesan .= " Terdeteksi {$jumlahNoise} trip noise (kurang dari 5 menit), silakan tinjau di panel noise.";
+        }
+
+        return redirect(route('gps-trip.index', ['bulan' => $bulan]) . ($jumlahNoise > 0 ? '#panel-noise' : ''))
+            ->with('success', $pesan);
+    }
+
     private function pesanHasil(array $stat): string
     {
         $pesan = "Import selesai: {$stat['total']} trip dari {$stat['kendaraan']} kendaraan ({$stat['baru']} baru, {$stat['diperbarui']} diperbarui";
@@ -431,6 +502,9 @@ class GpsTripController extends Controller
         }
         if ($stat['dihapus']) {
             $pesan .= ", {$stat['dihapus']} dihapus karena tidak terdeteksi lagi";
+        }
+        if ($stat['dibuang']) {
+            $pesan .= ", {$stat['dibuang']} noise yang sudah pernah dihapus tidak dibuat lagi";
         }
 
         return $pesan . ').';

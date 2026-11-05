@@ -26,6 +26,7 @@ class GpsTrip extends Model
         'operator_gtm_lembur_id',
         'status',
         'dihitung',
+        'bukan_noise',
         'diedit',
         'catatan',
     ];
@@ -36,11 +37,25 @@ class GpsTrip extends Model
         'jarak_km' => 'float',
         'segmen' => 'array',
         'dihitung' => 'boolean',
+        'bukan_noise' => 'boolean',
         'diedit' => 'boolean',
     ];
 
     /** Jeda antar segmen di atas ini (detik) ditandai "perlu dicek". */
     public const AMBANG_JEDA_DETIK = 6 * 3600;
+
+    /** Trip yang lamanya di bawah ini (detik) dianggap noise dari sistem GPS. */
+    public const AMBANG_NOISE_DETIK = 5 * 60;
+
+    /**
+     * Trip noise: durasi (mulai -> selesai) kurang dari 5 menit dan belum ditinjau admin.
+     */
+    public function scopeNoise($query)
+    {
+        return $query->whereNotNull('waktu_selesai')
+            ->where('bukan_noise', false)
+            ->whereRaw('TIMESTAMPDIFF(SECOND, waktu_mulai, waktu_selesai) < ?', [self::AMBANG_NOISE_DETIK]);
+    }
 
     public function operator()
     {
@@ -92,6 +107,16 @@ class GpsTrip extends Model
         }
 
         return $hasil;
+    }
+
+    /** Format menit:detik untuk durasi pendek (trip noise), mis. 0:10 atau 4:32. */
+    public static function formatMenitDetik(?int $detik): string
+    {
+        if ($detik === null) {
+            return '-';
+        }
+
+        return sprintf('%d:%02d', intdiv($detik, 60), $detik % 60);
     }
 
     public static function formatDurasi(?int $detik): string

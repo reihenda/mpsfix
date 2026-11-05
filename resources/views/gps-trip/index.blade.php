@@ -145,6 +145,73 @@
             </div>
         </div>
 
+        {{-- Panel noise: trip < 5 menit dari sistem GPS --}}
+        @if ($noise->isNotEmpty())
+            <form id="form-noise" action="{{ route('gps-trip.noise') }}" method="POST">
+                @csrf
+                <div class="card card-warning card-outline" id="panel-noise">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-broom mr-1"></i>
+                            <strong class="mr-1">{{ $noise->count() }}</strong>trip noise terdeteksi
+                            <small class="header-sekunder ml-1">durasi kurang dari 5 menit</small>
+                        </h3>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="px-3 py-2 small border-bottom">
+                            Trip sependek ini biasanya hanya pembacaan sistem GPS (mis. PT → PT yang sama selama beberapa detik).
+                            Semua sudah <strong>dicentang untuk dihapus</strong>. Hilangkan centang pada trip yang ingin dipertahankan.
+                            Trip yang tidak dicentang akan tetap menjadi trip biasa dan tidak ditanyakan lagi.
+                        </div>
+                        <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+                            <table class="table table-sm table-hover mb-0" style="min-width: 760px;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 32px;"><input type="checkbox" id="noise-pilih-semua" checked title="Pilih / hilangkan semua"></th>
+                                        <th>Kendaraan</th>
+                                        <th>Waktu</th>
+                                        <th class="text-right">Durasi</th>
+                                        <th>Rute</th>
+                                        <th class="text-right">Jarak (km)</th>
+                                        <th>Keterangan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($noise as $n)
+                                        <tr>
+                                            <td>
+                                                <input type="hidden" name="semua[]" value="{{ $n->id }}">
+                                                <input type="checkbox" name="hapus[]" value="{{ $n->id }}" class="js-noise-hapus" checked>
+                                            </td>
+                                            <td class="text-nowrap">{{ $n->nopol }}</td>
+                                            <td class="text-nowrap">
+                                                {{ $n->waktu_mulai->format('d/m H:i:s') }} – {{ $n->waktu_selesai->format('H:i:s') }}
+                                            </td>
+                                            <td class="text-right text-nowrap" title="menit:detik">{{ GpsTrip::formatMenitDetik($n->durasi_trip_detik) }}</td>
+                                            <td>{{ $n->geofence_mulai ?? '(tidak terbaca)' }} <i class="fas fa-long-arrow-alt-right text-muted mx-1"></i> {{ $n->geofence_selesai ?? '(tidak terbaca)' }}</td>
+                                            <td class="text-right text-nowrap">{{ number_format($n->jarak_km, 1, ',', '.') }}</td>
+                                            <td>
+                                                @if ($n->operator)
+                                                    <span class="badge badge-info" title="Trip ini sudah diberi driver">driver: {{ $n->operator->nama }}</span>
+                                                @endif
+                                                @if ($n->operator_gtm_lembur_id)
+                                                    <span class="badge badge-warning" title="Sudah dipakai di data lembur; menghapusnya tidak mengubah data lembur itu">sudah di lembur</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex align-items-center">
+                        <button type="submit" class="btn btn-danger" id="btn-hapus-noise"><i class="fas fa-trash mr-1"></i> Hapus yang dicentang (<span id="jumlah-noise-hapus">{{ $noise->count() }}</span>)</button>
+                        <small class="text-muted ml-3">Trip noise yang dihapus tidak akan muncul lagi walau file yang sama di-upload ulang.</small>
+                    </div>
+                </div>
+            </form>
+        @endif
+
         @if ($perKendaraan->isEmpty())
             <div class="card">
                 <div class="card-body text-center text-muted py-5">
@@ -471,6 +538,32 @@
             if (aksi === 'hapus' && !confirm('Hapus ' + n + ' trip terpilih? Trip yang terhapus akan muncul lagi bila file laporan di-upload ulang.')) {
                 e.preventDefault();
             }
+        });
+    }
+
+    // --- Panel noise
+    var formNoise = document.getElementById('form-noise');
+    if (formNoise) {
+        var cekNoise = formNoise.querySelectorAll('.js-noise-hapus');
+        var jumlahNoiseEl = document.getElementById('jumlah-noise-hapus');
+        var semuaNoise = document.getElementById('noise-pilih-semua');
+        function hitungNoise() {
+            var n = formNoise.querySelectorAll('.js-noise-hapus:checked').length;
+            jumlahNoiseEl.textContent = n;
+            semuaNoise.checked = n === cekNoise.length;
+        }
+        cekNoise.forEach(function (cb) { cb.addEventListener('change', hitungNoise); });
+        semuaNoise.addEventListener('change', function () {
+            cekNoise.forEach(function (cb) { cb.checked = semuaNoise.checked; });
+            hitungNoise();
+        });
+        formNoise.addEventListener('submit', function (e) {
+            var hapus = formNoise.querySelectorAll('.js-noise-hapus:checked').length;
+            var sisa = cekNoise.length - hapus;
+            var pesan = hapus === 0
+                ? 'Tidak ada yang dicentang. Semua ' + sisa + ' trip noise akan DIPERTAHANKAN sebagai trip biasa dan tidak ditanyakan lagi. Lanjutkan?'
+                : 'Hapus ' + hapus + ' trip noise' + (sisa ? ' dan pertahankan ' + sisa + ' lainnya sebagai trip biasa' : '') + '?';
+            if (!confirm(pesan)) { e.preventDefault(); }
         });
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\GpsTrip;
 
+use App\Models\GpsTrip;
 use Carbon\Carbon;
 
 /**
@@ -97,6 +98,11 @@ class GpsTripBuilder
             && $pertama['geofence_mulai'] !== ''
             && $pertama['geofence_selesai'] !== '';
 
+        // Trip yang lamanya < 5 menit = noise dari sistem GPS: tidak dihitung dan akan
+        // muncul di panel noise untuk dihapus (admin bisa mempertahankannya).
+        $noise = (Carbon::parse($terakhir['selesai'])->getTimestamp() - Carbon::parse($pertama['mulai'])->getTimestamp())
+            < GpsTrip::AMBANG_NOISE_DETIK;
+
         return [
             'waktu_mulai' => $pertama['mulai'],
             'waktu_selesai' => $terakhir['selesai'],
@@ -117,7 +123,7 @@ class GpsTripBuilder
             ], $segmen),
             'driver_gps' => $driver ? implode(', ', $driver) : null,
             'status' => $status,
-            'dihitung' => $status === 'selesai' && !$mikro,
+            'dihitung' => $status === 'selesai' && !$mikro && !$noise,
         ];
     }
 }
