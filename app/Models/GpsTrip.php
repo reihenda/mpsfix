@@ -13,6 +13,7 @@ class GpsTrip extends Model
         'nopol',
         'model_kendaraan',
         'waktu_mulai',
+        'kunci_waktu_mulai',
         'waktu_selesai',
         'geofence_mulai',
         'geofence_selesai',
@@ -33,6 +34,7 @@ class GpsTrip extends Model
 
     protected $casts = [
         'waktu_mulai' => 'datetime',
+        'kunci_waktu_mulai' => 'datetime',
         'waktu_selesai' => 'datetime',
         'jarak_km' => 'float',
         'segmen' => 'array',

@@ -383,7 +383,8 @@ class GpsTripController extends Controller
                 if (isset($hapus[$trip->id])) {
                     GpsTripDibuang::firstOrCreate([
                         'nopol' => $trip->nopol,
-                        'waktu_mulai' => $trip->waktu_mulai->format('Y-m-d H:i:s'),
+                        // waktu mulai asli GPS, agar cocok dengan hasil deteksi saat upload ulang
+                        'waktu_mulai' => ($trip->kunci_waktu_mulai ?? $trip->waktu_mulai)->format('Y-m-d H:i:s'),
                     ]);
                     $trip->delete();
                     $dihapus++;
@@ -502,6 +503,9 @@ class GpsTripController extends Controller
         }
         if ($stat['dihapus']) {
             $pesan .= ", {$stat['dihapus']} dihapus karena tidak terdeteksi lagi";
+        }
+        if ($stat['dipertahankan']) {
+            $pesan .= ", {$stat['dipertahankan']} trip lengkap dipertahankan karena file ini berakhir sebelum trip selesai";
         }
         if ($stat['dibuang']) {
             $pesan .= ", {$stat['dibuang']} noise yang sudah pernah dihapus tidak dibuat lagi";

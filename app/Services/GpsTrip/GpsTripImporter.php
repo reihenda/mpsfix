@@ -27,6 +27,9 @@ class GpsTripImporter
      *  - belum ada            -> dibuat
      *  - ada, belum diedit    -> dihitung ulang, driver yang sudah dipilih dipertahankan
      *  - ada, sudah diedit    -> dibiarkan apa adanya
+     *  - ada & lengkap, tapi di file ini terbaca belum selesai (file berakhir lebih awal) -> dibiarkan
+     *  Pencocokan memakai kunci_waktu_mulai (waktu mulai asli GPS), jadi trip yang jam mulainya diedit
+     *  tetap dikenali.
      *  - ada di DB tapi tidak lagi terdeteksi, belum diedit & belum ada driver -> dihapus
      */
     public function import(array $parsed, string $namaFile, ?int $userId): array
@@ -39,7 +42,7 @@ class GpsTripImporter
         };
 
         $operators = OperatorGtm::select('id', 'nama')->get();
-        $stat = ['baru' => 0, 'diperbarui' => 0, 'dilewati' => 0, 'dihapus' => 0, 'dibuang' => 0, 'total' => 0, 'kendaraan' => 0];
+        $stat = ['baru' => 0, 'diperbarui' => 0, 'dilewati' => 0, 'dihapus' => 0, 'dibuang' => 0, 'dipertahankan' => 0, 'total' => 0, 'kendaraan' => 0];
 
         DB::transaction(function () use ($parsed, $namaFile, $userId, $batasTrip, $operators, &$stat) {
             $import = GpsTripImport::create([
@@ -56,10 +59,12 @@ class GpsTripImporter
                 $batasAwal = min(array_column($kendaraan['segmen'], 'mulai'));
                 $batasAkhir = max(array_column($kendaraan['segmen'], 'selesai'));
 
+                // Cocokkan dengan waktu mulai ASLI dari GPS (kunci_waktu_mulai), bukan waktu_mulai yang
+                // bisa sudah diedit admin, supaya trip yang diedit tidak dibuat ganda.
                 $ada = GpsTrip::where('nopol', $nopol)
-                    ->whereBetween('waktu_mulai', [$batasAwal, $batasAkhir])
+                    ->whereBetween('kunci_waktu_mulai', [$batasAwal, $batasAkhir])
                     ->get()
-                    ->keyBy(fn ($t) => $t->waktu_mulai->format('Y-m-d H:i:s'));
+                    ->keyBy(fn ($t) => ($t->kunci_waktu_mulai ?? $t->waktu_mulai)->format('Y-m-d H:i:s'));
 
                 // Trip noise yang pernah dihapus admin tidak dibuat lagi
                 $dibuang = GpsTripDibuang::where('nopol', $nopol)
@@ -89,15 +94,30 @@ class GpsTripImporter
                     $lama = $ada->get($trip['waktu_mulai']);
 
                     if (!$lama) {
-                        GpsTrip::create($data + ['operator_gtm_id' => $operatorId]);
+                        // Hindari bentrok unique (nopol + waktu_mulai) bila trip lain yang sudah diedit
+                        // kebetulan memakai waktu mulai ini
+                        $bentrok = GpsTrip::where('nopol', $nopol)->where('waktu_mulai', $trip['waktu_mulai'])->exists();
+                        if ($bentrok) {
+                            $stat['dilewati']++;
+                            continue;
+                        }
+
+                        GpsTrip::create($data + [
+                            'kunci_waktu_mulai' => $trip['waktu_mulai'],
+                            'operator_gtm_id' => $operatorId,
+                        ]);
                         $stat['baru']++;
                     } elseif ($lama->diedit) {
                         $stat['dilewati']++;
+                    } elseif ($lama->status === 'selesai' && $trip['status'] === 'tidak_lengkap') {
+                        // File ini berakhir sebelum trip selesai (periode lebih pendek dari upload sebelumnya):
+                        // jangan turunkan trip yang sudah lengkap menjadi "tidak lengkap".
+                        $stat['dipertahankan']++;
                     } else {
                         if ($lama->operator_gtm_id === null && $operatorId) {
                             $data['operator_gtm_id'] = $operatorId;
                         }
-                        $lama->update($data);
+                        $lama->update($data + ['kunci_waktu_mulai' => $trip['waktu_mulai']]);
                         $stat['diperbarui']++;
                     }
                 }
