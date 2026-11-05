@@ -300,6 +300,12 @@
                                         </a>
                                     </li>
                                     <li class="nav-item">
+                                        <a href="{{ route('gps-trip.index') }}" class="nav-link">
+                                            <i class="fas fa-satellite-dish nav-icon"></i>
+                                            <p>Trip GPS (Import Excel)</p>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
                                         <a href="{{ route('trip-lokasi.index') }}" class="nav-link">
                                             <i class="fas fa-map-marker-alt nav-icon"></i>
                                             <p>Approval Lokasi Trip</p>

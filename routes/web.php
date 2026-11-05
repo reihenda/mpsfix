@@ -325,6 +325,27 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     Route::post('/operator-trip-perbaikan/{operatorTripPerbaikan}/approve', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'approve'])->name('operator-trip-perbaikan.approve');
     Route::post('/operator-trip-perbaikan/{operatorTripPerbaikan}/reject', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'reject'])->name('operator-trip-perbaikan.reject');
 
+    // ========================================================================
+    // GPS Trip: import laporan "Summary Trip Report" GPS -> trip per kendaraan,
+    // penyesuaian driver (HANYA Admin/SuperAdmin)
+    // ========================================================================
+    Route::prefix('gps-trip')->name('gps-trip.')->group(function () {
+        $c = App\Http\Controllers\GpsTripController::class;
+
+        // Route statis dulu, dinamis belakangan
+        Route::get('/', [$c, 'index'])->name('index');
+        Route::get('/upload', [$c, 'upload'])->name('upload');
+        Route::post('/upload', [$c, 'prosesUpload'])->name('upload.proses');
+        Route::get('/review/{token}', [$c, 'review'])->name('review');
+        Route::post('/review/{token}', [$c, 'konfirmasiImport'])->name('review.konfirmasi');
+        Route::get('/geofence', [$c, 'geofence'])->name('geofence');
+        Route::put('/geofence/{geofence}', [$c, 'updateGeofence'])->name('geofence.update')->where('geofence', '[0-9]+');
+        Route::post('/aksi', [$c, 'aksiMassal'])->name('aksi');
+        Route::get('/lembur', [$c, 'lembur'])->name('lembur');
+        Route::post('/lembur', [$c, 'terapkanLembur'])->name('lembur.terapkan');
+        Route::put('/{gpsTrip}', [$c, 'update'])->name('update')->where('gpsTrip', '[0-9]+');
+    });
+
     // Rekap Pengambilan - dipindah ke grup role:admin,superadmin,staff di atas
 
     Route::get('/rekap-penjualan', [App\Http\Controllers\Rekap\RekapPenjualanController::class, 'index'])
