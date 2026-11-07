@@ -306,6 +306,18 @@
                                         </a>
                                     </li>
                                     <li class="nav-item">
+                                        <a href="{{ route('jadwal-perjalanan.index') }}" class="nav-link">
+                                            <i class="fas fa-route nav-icon"></i>
+                                            <p>Jadwal Perjalanan</p>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a href="{{ route('pemetaan-cartrack.index') }}" class="nav-link">
+                                            <i class="fas fa-link nav-icon"></i>
+                                            <p>Pemetaan Cartrack</p>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
                                         <a href="{{ route('trip-lokasi.index') }}" class="nav-link">
                                             <i class="fas fa-map-marker-alt nav-icon"></i>
                                             <p>Approval Lokasi Trip</p>
@@ -557,6 +569,18 @@
                                 <a href="{{ route('operator-gtm.index') }}" class="nav-link">
                                     <i class="nav-icon fas fa-user-clock"></i>
                                     <p>Lembur Operator GTM</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ route('jadwal-perjalanan.index') }}" class="nav-link">
+                                    <i class="nav-icon fas fa-route"></i>
+                                    <p>Jadwal Perjalanan</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ route('pemetaan-cartrack.index') }}" class="nav-link">
+                                    <i class="nav-icon fas fa-link"></i>
+                                    <p>Pemetaan Cartrack</p>
                                 </a>
                             </li>
                         @endif

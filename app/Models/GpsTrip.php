@@ -11,6 +11,11 @@ class GpsTrip extends Model
     protected $fillable = [
         'gps_trip_import_id',
         'nopol',
+        'sumber',
+        'jadwal_perjalanan_id',
+        'divalidasi',
+        'divalidasi_oleh',
+        'divalidasi_pada',
         'model_kendaraan',
         'waktu_mulai',
         'kunci_waktu_mulai',
@@ -41,7 +46,12 @@ class GpsTrip extends Model
         'dihitung' => 'boolean',
         'bukan_noise' => 'boolean',
         'diedit' => 'boolean',
+        'divalidasi' => 'boolean',
+        'divalidasi_pada' => 'datetime',
     ];
+
+    public const SUMBER_EXCEL = 'excel';
+    public const SUMBER_CARTRACK = 'cartrack';
 
     /** Jeda antar segmen di atas ini (detik) ditandai "perlu dicek". */
     public const AMBANG_JEDA_DETIK = 6 * 3600;
@@ -62,6 +72,16 @@ class GpsTrip extends Model
     public function operator()
     {
         return $this->belongsTo(OperatorGtm::class, 'operator_gtm_id');
+    }
+
+    public function jadwal()
+    {
+        return $this->belongsTo(JadwalPerjalanan::class, 'jadwal_perjalanan_id');
+    }
+
+    public function pengvalidasi()
+    {
+        return $this->belongsTo(User::class, 'divalidasi_oleh');
     }
 
     public function lembur()

@@ -13,6 +13,7 @@ class OperatorGtm extends Model
     
     protected $fillable = [
         'nama',
+        'cartrack_driver_id',
         'lokasi_kerja',
         'gaji_pokok',
         'jam_kerja',

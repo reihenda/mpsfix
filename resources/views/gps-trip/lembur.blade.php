@@ -60,6 +60,14 @@
             Jam kerja normal dan tarif lembur mengikuti pengaturan operator.
         </div>
 
+        @if (($belumValidasi ?? 0) > 0)
+            <div class="alert alert-info py-2">
+                <i class="fas fa-clipboard-check mr-1"></i>
+                <strong>{{ $belumValidasi }} trip</strong> dari Cartrack di bulan ini belum divalidasi, jadi belum masuk hitungan.
+                <a href="{{ route('jadwal-perjalanan.index', ['perlu_validasi' => 1]) }}">Buka validasi perjalanan</a>
+            </div>
+        @endif
+
         @if ($tanpaDriver > 0)
             <div class="alert alert-warning py-2">
                 <i class="fas fa-user-slash mr-1"></i>

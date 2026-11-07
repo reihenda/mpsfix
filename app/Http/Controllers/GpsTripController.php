@@ -426,6 +426,7 @@ class GpsTripController extends Controller
             'bulan' => $bulan,
             'baris' => $hasil['baris'],
             'tanpaDriver' => $hasil['tanpa_driver'],
+            'belumValidasi' => $hasil['belum_validasi'],
             'ringkasan' => $ringkasan,
         ]);
     }

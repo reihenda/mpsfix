@@ -32,7 +32,10 @@ class GpsTripImporter
      *  tetap dikenali.
      *  - ada di DB tapi tidak lagi terdeteksi, belum diedit & belum ada driver -> dihapus
      */
-    public function import(array $parsed, string $namaFile, ?int $userId): array
+    /**
+     * @param array $atributBaru atribut tambahan HANYA untuk trip yang baru dibuat (mis. sumber, divalidasi)
+     */
+    public function import(array $parsed, string $namaFile, ?int $userId, array $atributBaru = []): array
     {
         $geofence = GpsGeofence::all()->keyBy(fn ($g) => GpsTripParser::normalisasiNama($g->nama));
         $batasTrip = function (string $nama) use ($geofence): bool {
@@ -44,7 +47,7 @@ class GpsTripImporter
         $operators = OperatorGtm::select('id', 'nama')->get();
         $stat = ['baru' => 0, 'diperbarui' => 0, 'dilewati' => 0, 'dihapus' => 0, 'dibuang' => 0, 'dipertahankan' => 0, 'total' => 0, 'kendaraan' => 0];
 
-        DB::transaction(function () use ($parsed, $namaFile, $userId, $batasTrip, $operators, &$stat) {
+        DB::transaction(function () use ($parsed, $namaFile, $userId, $batasTrip, $operators, $atributBaru, &$stat) {
             $import = GpsTripImport::create([
                 'nama_file' => $namaFile,
                 'periode_mulai' => $parsed['periode'][0],
@@ -102,7 +105,7 @@ class GpsTripImporter
                             continue;
                         }
 
-                        GpsTrip::create($data + [
+                        GpsTrip::create($atributBaru + $data + [
                             'kunci_waktu_mulai' => $trip['waktu_mulai'],
                             'operator_gtm_id' => $operatorId,
                         ]);

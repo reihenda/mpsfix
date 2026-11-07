@@ -24,16 +24,25 @@ class GpsTripLemburService
     public const MAKS_SESI = 5;
 
     /**
-     * @return array{baris: array<int, array>, tanpa_driver: int}
+     * @return array{baris: array<int, array>, tanpa_driver: int, belum_validasi: int}
      */
     public function susun(Carbon $awal, Carbon $akhir): array
     {
+        // Hanya trip yang sudah divalidasi yang ikut hitungan lembur. Trip Excel lama otomatis
+        // berstatus tervalidasi; trip dari Cartrack baru masuk setelah divalidasi staff operasional/admin.
         $trips = GpsTrip::with('operator')
             ->where('dihitung', true)
+            ->where('divalidasi', true)
             ->whereNotNull('waktu_selesai')
             ->whereBetween('waktu_mulai', [$awal, $akhir])
             ->orderBy('waktu_mulai')
             ->get();
+
+        $belumValidasi = GpsTrip::where('dihitung', true)
+            ->where('divalidasi', false)
+            ->whereNotNull('waktu_selesai')
+            ->whereBetween('waktu_mulai', [$awal, $akhir])
+            ->count();
 
         $tanpaDriver = $trips->whereNull('operator_gtm_id')->count();
         $baris = [];
@@ -90,7 +99,7 @@ class GpsTripLemburService
 
         usort($baris, fn ($a, $b) => [$a['operator'], $a['tanggal']] <=> [$b['operator'], $b['tanggal']]);
 
-        return ['baris' => $baris, 'tanpa_driver' => $tanpaDriver];
+        return ['baris' => $baris, 'tanpa_driver' => $tanpaDriver, 'belum_validasi' => $belumValidasi];
     }
 
     /**

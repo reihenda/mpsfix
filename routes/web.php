@@ -82,6 +82,33 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan,staff_operasional'])-
 });
 
 // ============================================================================
+// Jadwal Perjalanan & integrasi Cartrack (Admin, SuperAdmin, Staff Operasional)
+// Penjadwalan kendaraan + driver + rute -> driver di-link ke Cartrack saat mulai ->
+// trip ditarik setelah selesai -> divalidasi -> baru masuk hitungan lembur.
+// Route statis di atas route dinamis.
+// ============================================================================
+Route::middleware(['auth', 'role:admin,superadmin,staff_operasional'])->group(function () {
+    $jp = App\Http\Controllers\JadwalPerjalananController::class;
+    Route::prefix('jadwal-perjalanan')->name('jadwal-perjalanan.')->group(function () use ($jp) {
+        Route::get('/', [$jp, 'index'])->name('index');
+        Route::get('/buat', [$jp, 'create'])->name('create');
+        Route::post('/', [$jp, 'store'])->name('store');
+        Route::post('/validasi', [$jp, 'validasi'])->name('validasi');
+        Route::get('/{jadwalPerjalanan}', [$jp, 'show'])->name('show')->where('jadwalPerjalanan', '[0-9]+');
+        Route::get('/{jadwalPerjalanan}/ubah', [$jp, 'edit'])->name('edit')->where('jadwalPerjalanan', '[0-9]+');
+        Route::put('/{jadwalPerjalanan}', [$jp, 'update'])->name('update')->where('jadwalPerjalanan', '[0-9]+');
+        Route::post('/{jadwalPerjalanan}/batalkan', [$jp, 'batalkan'])->name('batalkan')->where('jadwalPerjalanan', '[0-9]+');
+        Route::post('/{jadwalPerjalanan}/selesaikan', [$jp, 'selesaikan'])->name('selesaikan')->where('jadwalPerjalanan', '[0-9]+');
+        Route::post('/{jadwalPerjalanan}/ulangi-link', [$jp, 'ulangiLink'])->name('ulangi-link')->where('jadwalPerjalanan', '[0-9]+');
+        Route::post('/{jadwalPerjalanan}/tarik-trip', [$jp, 'tarikTrip'])->name('tarik-trip')->where('jadwalPerjalanan', '[0-9]+');
+    });
+
+    Route::get('/pemetaan-cartrack', [App\Http\Controllers\PemetaanCartrackController::class, 'index'])->name('pemetaan-cartrack.index');
+    Route::post('/pemetaan-cartrack', [App\Http\Controllers\PemetaanCartrackController::class, 'simpan'])->name('pemetaan-cartrack.simpan');
+    Route::post('/pemetaan-cartrack/segarkan', [App\Http\Controllers\PemetaanCartrackController::class, 'segarkan'])->name('pemetaan-cartrack.segarkan');
+});
+
+// ============================================================================
 // Rute untuk Admin, SuperAdmin, dan Staff (FULL CRUD)
 // Staff bisa full akses: Pencatatan Data Customer, Kelola Mobil/NOPOL, Rekap Pengambilan
 // ============================================================================
