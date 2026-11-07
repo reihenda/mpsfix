@@ -4,29 +4,34 @@
 
 @section('page-title', $jadwal->exists ? 'Ubah Jadwal Perjalanan' : 'Buat Jadwal Perjalanan')
 
+@push('styles')
+<link rel="stylesheet" href="{{ asset('css/jadwal-perjalanan.css') }}?v={{ filemtime(public_path('css/jadwal-perjalanan.css')) }}">
+@endpush
+
 @section('content')
 @php
     use App\Services\GpsTrip\GpsTripImporter;
     $ruteLama = old('rute', $rute);
 @endphp
 
+<div class="jp">
 <div class="row">
-    <div class="col-lg-8">
+    <div class="col-xl-9">
         @if ($errors->any())
             <div class="alert alert-danger">
-                <ul class="mb-0">@foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+                <ul class="mb-0 pl-3">@foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
             </div>
         @endif
 
         @if ($terkunci)
             <div class="alert alert-info">
-                Jadwal sedang berjalan (driver sudah di-link di Cartrack). Yang bisa diubah: waktu selesai, rute, dan catatan.
+                Jadwal sedang berjalan dan driver sudah di-link di Cartrack. Yang bisa diubah: waktu selesai, rute, dan catatan.
                 Untuk mengganti driver atau kendaraan, batalkan jadwal ini lalu buat yang baru.
             </div>
         @endif
 
         @if ($kendaraanCartrack === null)
-            <div class="alert alert-warning py-2">Daftar kendaraan Cartrack tidak bisa dimuat sekarang; form tetap bisa dipakai.</div>
+            <div class="alert alert-warning py-2">Daftar kendaraan Cartrack tidak bisa dimuat sekarang. Form tetap bisa dipakai.</div>
         @endif
 
         <form method="POST" action="{{ $jadwal->exists ? route('jadwal-perjalanan.update', $jadwal) : route('jadwal-perjalanan.store') }}">
@@ -35,11 +40,12 @@
 
             <div class="card">
                 <div class="card-body">
+                    <h4 class="jp-section-title">Kendaraan dan driver</h4>
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             <label for="nopol">Kendaraan</label>
                             <select name="nopol" id="nopol" class="form-control" required @disabled($terkunci)>
-                                <option value="">— pilih nopol —</option>
+                                <option value="">Pilih nopol</option>
                                 @foreach ($daftarNopol as $n)
                                     @php $ada = $kendaraanCartrack === null || in_array(GpsTripImporter::kunciNopol($n), $kendaraanCartrack, true); @endphp
                                     <option value="{{ $n }}" @selected(old('nopol', $jadwal->nopol) === $n)>
@@ -52,7 +58,7 @@
                         <div class="form-group col-md-6">
                             <label for="operator_gtm_id">Driver</label>
                             <select name="operator_gtm_id" id="operator_gtm_id" class="form-control" required @disabled($terkunci)>
-                                <option value="">— pilih driver —</option>
+                                <option value="">Pilih driver</option>
                                 @foreach ($operators as $o)
                                     <option value="{{ $o->id }}" @selected((int) old('operator_gtm_id', $jadwal->operator_gtm_id) === $o->id)>
                                         {{ $o->nama }}{{ $o->cartrack_driver_id ? '' : ' (belum dipetakan ke Cartrack)' }}
@@ -63,55 +69,59 @@
                         </div>
                     </div>
 
+                    <hr class="jp-divider">
+
+                    <h4 class="jp-section-title">Waktu</h4>
                     <div class="form-row">
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-6 mb-md-0">
                             <label for="waktu_mulai">Mulai</label>
                             <input type="datetime-local" name="waktu_mulai" id="waktu_mulai" class="form-control" required
                                    value="{{ old('waktu_mulai', $jadwal->waktu_mulai?->format('Y-m-d\TH:i')) }}" @readonly($terkunci)>
-                            <small class="text-muted">Driver dikirim ke Cartrack saat waktu ini tiba.</small>
+                            <span class="form-hint">Driver dikirim ke Cartrack saat waktu ini tiba.</span>
                         </div>
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-6 mb-0">
                             <label for="waktu_selesai">Selesai</label>
                             <input type="datetime-local" name="waktu_selesai" id="waktu_selesai" class="form-control" required
                                    value="{{ old('waktu_selesai', $jadwal->waktu_selesai?->format('Y-m-d\TH:i')) }}">
-                            <small class="text-muted">Setelah ini lewat, driver dilepas dan trip ditarik dari Cartrack.</small>
+                            <span class="form-hint">Setelah lewat, driver dilepas dan trip ditarik dari Cartrack.</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Rute (urutan tujuan)</label>
-                        <datalist id="daftar-tujuan">
-                            @foreach ($daftarTujuan as $t) <option value="{{ $t }}"> @endforeach
-                        </datalist>
-                        <div id="rute-baris">
-                            @foreach ($ruteLama as $i => $r)
-                                <div class="input-group mb-2 rute-item">
-                                    <div class="input-group-prepend"><span class="input-group-text rute-no">{{ $i + 1 }}</span></div>
-                                    <input type="text" name="rute[{{ $i }}][tujuan]" class="form-control" list="daftar-tujuan"
-                                           placeholder="Tujuan (customer / SPBG / lokasi)" value="{{ $r['tujuan'] ?? '' }}">
-                                    <input type="text" name="rute[{{ $i }}][catatan]" class="form-control" placeholder="Catatan (opsional)"
-                                           value="{{ $r['catatan'] ?? '' }}">
-                                    <div class="input-group-append">
-                                        <button type="button" class="btn btn-outline-danger js-hapus-rute" title="Hapus">&times;</button>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="tambah-rute"><i class="fas fa-plus"></i> Tambah tujuan</button>
+                    <hr class="jp-divider">
+
+                    <h4 class="jp-section-title">Rute</h4>
+                    <datalist id="daftar-tujuan">
+                        @foreach ($daftarTujuan as $t) <option value="{{ $t }}"> @endforeach
+                    </datalist>
+                    <div id="rute-baris">
+                        @foreach ($ruteLama as $i => $r)
+                            <div class="jp-rute-item rute-item">
+                                <span class="jp-rute-no rute-no">{{ $i + 1 }}</span>
+                                <input type="text" name="rute[{{ $i }}][tujuan]" class="form-control" list="daftar-tujuan"
+                                       placeholder="Tujuan: customer, SPBG, atau lokasi" aria-label="Tujuan" value="{{ $r['tujuan'] ?? '' }}">
+                                <input type="text" name="rute[{{ $i }}][catatan]" class="form-control" placeholder="Catatan (opsional)"
+                                       aria-label="Catatan tujuan" value="{{ $r['catatan'] ?? '' }}">
+                                <button type="button" class="btn btn-outline-danger js-hapus-rute" title="Hapus tujuan" aria-label="Hapus tujuan">&times;</button>
+                            </div>
+                        @endforeach
                     </div>
+                    <button type="button" class="btn btn-sm btn-ghost mt-1" id="tambah-rute"><i class="fas fa-plus"></i>Tambah tujuan</button>
+
+                    <hr class="jp-divider">
 
                     <div class="form-group mb-0">
-                        <label for="catatan">Catatan</label>
-                        <textarea name="catatan" id="catatan" rows="2" class="form-control">{{ old('catatan', $jadwal->catatan) }}</textarea>
+                        <label for="catatan">Catatan jadwal</label>
+                        <textarea name="catatan" id="catatan" rows="2" class="form-control" placeholder="Opsional">{{ old('catatan', $jadwal->catatan) }}</textarea>
                     </div>
                 </div>
-                <div class="card-footer">
-                    <button class="btn btn-primary">Simpan Jadwal</button>
-                    <a href="{{ $jadwal->exists ? route('jadwal-perjalanan.show', $jadwal) : route('jadwal-perjalanan.index') }}" class="btn btn-default">Batal</a>
+                <div class="card-footer d-flex flex-wrap" style="gap:.5rem">
+                    <button class="btn btn-primary">Simpan jadwal</button>
+                    <a href="{{ $jadwal->exists ? route('jadwal-perjalanan.show', $jadwal) : route('jadwal-perjalanan.index') }}" class="btn btn-ghost">Batal</a>
                 </div>
             </div>
         </form>
     </div>
+</div>
 </div>
 @endsection
 

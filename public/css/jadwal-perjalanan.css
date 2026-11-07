@@ -1,0 +1,248 @@
+/*
+ * Halaman Jadwal Perjalanan & Pemetaan Cartrack.
+ * Semua aturan di bawah .jp supaya tidak mengubah halaman lain; tema global
+ * (customer-detail.css) memberi card header gradien, tombol kapital dan card yang
+ * naik saat di-hover, jadi di sini dinetralkan untuk layar kerja yang padat data.
+ */
+.jp {
+    --jp-ink: #1e293b;
+    --jp-muted: #64748b;
+    --jp-line: #e2e8f0;
+    --jp-soft: #f8fafc;
+    --jp-accent: #3f63d8;
+    --jp-accent-soft: #eaefff;
+    --jp-ok: #15803d;      --jp-ok-soft: #e7f6ec;
+    --jp-warn: #a16207;    --jp-warn-soft: #fdf3d8;
+    --jp-bad: #b91c1c;     --jp-bad-soft: #fdeaea;
+    --jp-info: #0e7490;    --jp-info-soft: #e0f4f8;
+    --jp-neutral: #475569; --jp-neutral-soft: #eef1f5;
+    color: var(--jp-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Card: tenang, tanpa gradien & lift ---------- */
+.jp .card {
+    border: 1px solid var(--jp-line);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+    margin-bottom: 1.25rem;
+    transform: none;
+    overflow: hidden;
+}
+.jp .card:hover { transform: none; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+.jp .card-header {
+    background: #fff;
+    color: var(--jp-ink);
+    border-bottom: 1px solid var(--jp-line);
+    border-radius: 0 !important;
+    padding: .85rem 1.25rem;
+}
+.jp .card-header h3.card-title {
+    font-size: .95rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--jp-ink);
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+.jp .card-body { border-radius: 0; padding: 1.25rem; }
+.jp .card-footer { background: var(--jp-soft); border-top: 1px solid var(--jp-line); padding: .85rem 1.25rem; }
+.jp .alert { border-radius: 10px; border: 1px solid transparent; }
+
+/* ---------- Tombol: normal, bukan kapital ---------- */
+.jp .btn {
+    text-transform: none;
+    letter-spacing: 0;
+    box-shadow: none;
+    font-weight: 500;
+    font-size: .875rem;
+    padding: .4rem .9rem;
+    border-radius: 8px;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
+}
+.jp .btn:hover { transform: none; box-shadow: none; }
+.jp .btn:active { transform: scale(.98); }
+.jp .btn:focus-visible { outline: 2px solid var(--jp-accent); outline-offset: 2px; box-shadow: none; }
+.jp .btn i { margin-right: .4rem; font-size: .8rem; }
+.jp .btn-sm { padding: .3rem .7rem; font-size: .8rem; }
+.jp .btn-primary { background: var(--jp-accent); border: 1px solid var(--jp-accent); color: #fff; }
+.jp .btn-primary:hover { background: #3453bd; border-color: #3453bd; }
+.jp .btn-success { background: var(--jp-ok); border: 1px solid var(--jp-ok); color: #fff; }
+.jp .btn-success:hover { background: #166534; border-color: #166534; }
+.jp .btn-warning { background: #f5b83d; border: 1px solid #f5b83d; color: #3b2a00; }
+.jp .btn-warning:hover { background: #e9a824; border-color: #e9a824; }
+.jp .btn-ghost,
+.jp .btn-outline-secondary,
+.jp .btn-outline-primary,
+.jp .btn-outline-danger,
+.jp .btn-default {
+    background: #fff;
+    border: 1px solid var(--jp-line);
+    color: var(--jp-ink);
+}
+.jp .btn-ghost:hover,
+.jp .btn-outline-secondary:hover,
+.jp .btn-default:hover { background: var(--jp-soft); border-color: #cbd5e1; color: var(--jp-ink); }
+.jp .btn-outline-primary { color: var(--jp-accent); }
+.jp .btn-outline-primary:hover { background: var(--jp-accent-soft); border-color: #c7d3fb; color: var(--jp-accent); }
+.jp .btn-outline-danger { color: var(--jp-bad); }
+.jp .btn-outline-danger:hover { background: var(--jp-bad-soft); border-color: #f3c1c1; color: var(--jp-bad); }
+.jp .btn-link-quiet { color: var(--jp-accent); font-weight: 500; padding: .3rem .5rem; }
+.jp .btn-link-quiet:hover { background: var(--jp-accent-soft); text-decoration: none; }
+
+/* ---------- Form ---------- */
+.jp label { font-weight: 600; font-size: .8rem; color: var(--jp-ink); margin-bottom: .3rem; }
+.jp .form-control {
+    height: auto;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: .45rem .7rem;
+    font-size: .9rem;
+    color: var(--jp-ink);
+    background-color: #fff;
+}
+.jp .form-control:focus { border-color: var(--jp-accent); box-shadow: 0 0 0 3px rgba(63, 99, 216, .15); }
+.jp .form-control:disabled, .jp .form-control[readonly] { background: var(--jp-soft); color: var(--jp-muted); }
+.jp select.form-control { padding-right: 1.8rem; }
+.jp .form-hint { display: block; margin-top: .3rem; font-size: .78rem; color: var(--jp-muted); }
+
+/* ---------- Header halaman ---------- */
+.jp-head {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: .75rem; margin-bottom: 1.25rem;
+}
+.jp-head.is-start { justify-content: flex-start; }
+.jp-head p { margin: 0; color: var(--jp-muted); font-size: .9rem; max-width: 52ch; }
+.jp-head-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+/* ---------- Ringkasan ---------- */
+.jp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+.jp-stat {
+    display: flex; align-items: center; gap: .9rem;
+    background: #fff; border: 1px solid var(--jp-line); border-radius: 10px;
+    padding: .9rem 1.1rem; color: var(--jp-ink); text-decoration: none !important;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+a.jp-stat:hover { border-color: #cbd5e1; background: var(--jp-soft); color: var(--jp-ink); }
+.jp-stat-icon {
+    flex: 0 0 auto; width: 2.5rem; height: 2.5rem; border-radius: 10px;
+    display: grid; place-items: center; font-size: 1rem;
+    background: var(--jp-neutral-soft); color: var(--jp-neutral);
+}
+.jp-stat-value { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+.jp-stat-label { font-size: .8rem; color: var(--jp-muted); margin-top: .1rem; }
+.jp-stat.is-accent .jp-stat-icon { background: var(--jp-accent-soft); color: var(--jp-accent); }
+.jp-stat.is-warn .jp-stat-icon { background: var(--jp-warn-soft); color: var(--jp-warn); }
+.jp-stat.is-bad .jp-stat-icon { background: var(--jp-bad-soft); color: var(--jp-bad); }
+
+/* ---------- Toolbar filter ---------- */
+.jp-toolbar {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem;
+    padding: 1rem 1.25rem; background: var(--jp-soft); border-bottom: 1px solid var(--jp-line);
+}
+.jp-toolbar .jp-field { display: flex; flex-direction: column; min-width: 0; }
+.jp-toolbar .jp-field label { margin-bottom: .2rem; font-size: .72rem; color: var(--jp-muted); font-weight: 600; }
+.jp-toolbar .form-control { padding: .35rem .6rem; font-size: .85rem; }
+.jp-toolbar .jp-grow { flex: 1 1 180px; }
+.jp-filter-chip {
+    display: inline-flex; align-items: center; gap: .5rem; align-self: center;
+    background: var(--jp-warn-soft); color: var(--jp-warn); font-weight: 600; font-size: .8rem;
+    border-radius: 8px; padding: .4rem .7rem;
+}
+.jp-filter-chip a { color: inherit; font-size: 1rem; line-height: 1; }
+
+/* ---------- Tabel ---------- */
+.jp-table { margin: 0; font-size: .875rem; }
+.jp-table thead th {
+    background: var(--jp-soft); color: var(--jp-muted);
+    font-size: .75rem; font-weight: 600; white-space: nowrap;
+    border-top: 0; border-bottom: 1px solid var(--jp-line); padding: .65rem .9rem;
+}
+.jp-table td { padding: .75rem .9rem; vertical-align: middle; border-top: 1px solid #eef2f6; }
+.jp-table tbody tr:first-child td { border-top: 0; }
+.jp-table tbody tr { transition: background-color .12s ease; }
+.jp-table tbody tr:hover { background: #fafbfd; }
+.jp-nopol { font-weight: 600; letter-spacing: .02em; white-space: nowrap; }
+.jp-sub { display: block; font-size: .78rem; color: var(--jp-muted); }
+.jp-when strong { font-weight: 600; }
+.jp-route { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .4rem; font-size: .82rem; min-width: 15rem; max-width: 30rem; }
+.jp-route .jp-stop { color: var(--jp-ink); white-space: nowrap; }
+.jp-route.is-compact { min-width: 0; }
+.jp-route.is-compact .jp-stop { white-space: normal; }
+.jp-table .btn-link-quiet { white-space: nowrap; }
+.jp-route .jp-sep { color: #94a3b8; font-size: .65rem; }
+
+/* ---------- Badge lembut (bukan pil solid) ---------- */
+.jp-badge {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .74rem; font-weight: 600; line-height: 1;
+    padding: .32rem .55rem; border-radius: 6px; white-space: nowrap;
+    background: var(--jp-neutral-soft); color: var(--jp-neutral);
+}
+.jp-badge::before { content: ''; width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; opacity: .85; }
+.jp-badge.is-info { background: var(--jp-info-soft); color: var(--jp-info); }
+.jp-badge.is-accent { background: var(--jp-accent-soft); color: var(--jp-accent); }
+.jp-badge.is-ok { background: var(--jp-ok-soft); color: var(--jp-ok); }
+.jp-badge.is-warn { background: var(--jp-warn-soft); color: var(--jp-warn); }
+.jp-badge.is-bad { background: var(--jp-bad-soft); color: var(--jp-bad); }
+.jp-badge.is-mute { background: var(--jp-neutral-soft); color: var(--jp-muted); }
+.jp-badge.is-plain::before { display: none; }
+
+/* ---------- State kosong ---------- */
+.jp-empty { text-align: center; padding: 2.75rem 1rem; color: var(--jp-muted); }
+.jp-empty i { font-size: 1.6rem; color: #94a3b8; margin-bottom: .6rem; display: block; }
+.jp-empty strong { display: block; color: var(--jp-ink); font-weight: 600; margin-bottom: .15rem; }
+
+/* ---------- Detail: pasangan label/nilai ---------- */
+.jp-dl { display: grid; grid-template-columns: 7.5rem 1fr; gap: .7rem 1rem; margin: 0; }
+.jp-dl dt { font-size: .8rem; font-weight: 500; color: var(--jp-muted); margin: 0; }
+.jp-dl dd { margin: 0; font-weight: 500; }
+.jp-dl dd small { font-weight: 400; }
+.jp-kv { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .55rem 0; border-bottom: 1px dashed var(--jp-line); }
+.jp-kv:last-of-type { border-bottom: 0; }
+.jp-kv span:first-child { color: var(--jp-muted); font-size: .85rem; }
+.jp-note-bad { font-size: .8rem; color: var(--jp-bad); background: var(--jp-bad-soft); border-radius: 8px; padding: .5rem .7rem; margin-top: .6rem; }
+.jp-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.jp-actions form { margin: 0; }
+
+/* ---------- Rute: stepper ---------- */
+.jp-steps { list-style: none; margin: 0; padding: 0; }
+.jp-step { position: relative; display: flex; gap: .85rem; padding: .7rem 1.25rem; }
+.jp-step:not(:last-child)::before {
+    content: ''; position: absolute; left: calc(1.25rem + .8rem - 1px); top: 2.1rem; bottom: -.7rem; width: 2px; background: var(--jp-line);
+}
+.jp-step-no {
+    flex: 0 0 auto; width: 1.6rem; height: 1.6rem; border-radius: 50%;
+    display: grid; place-items: center; font-size: .75rem; font-weight: 700;
+    background: var(--jp-accent-soft); color: var(--jp-accent);
+}
+.jp-step-body { flex: 1; min-width: 0; padding-top: .1rem; }
+.jp-step-body strong { font-weight: 600; }
+.jp-step-end { flex: 0 0 auto; align-self: center; }
+
+/* ---------- Form rute ---------- */
+.jp-rute-item {
+    display: grid; grid-template-columns: 1.9rem minmax(0, 1.4fr) minmax(0, 1fr) 2.2rem; gap: .5rem; align-items: center; margin-bottom: .5rem;
+}
+.jp-rute-no {
+    width: 1.9rem; height: 1.9rem; border-radius: 50%; display: grid; place-items: center;
+    background: var(--jp-accent-soft); color: var(--jp-accent); font-size: .78rem; font-weight: 700;
+}
+.jp-rute-item .js-hapus-rute { width: 2.2rem; height: 2.2rem; padding: 0; line-height: 1; font-size: 1.1rem; }
+.jp-section-title { font-size: .95rem; font-weight: 600; color: var(--jp-ink); margin: 0 0 .9rem; }
+.jp-divider { border: 0; border-top: 1px solid var(--jp-line); margin: 1.4rem 0; }
+@media (max-width: 575.98px) {
+    .jp-rute-item { grid-template-columns: 1.9rem minmax(0, 1fr) 2.2rem; }
+    .jp-rute-item input:nth-of-type(2) { grid-column: 2 / 3; grid-row: 2; }
+    .jp-dl { grid-template-columns: 1fr; gap: .15rem; }
+    .jp-dl dd { margin-bottom: .6rem; }
+}
+
+/* ---------- Pemetaan ---------- */
+.jp-map-row { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr); gap: .75rem; align-items: start; padding: .7rem 1.25rem; border-top: 1px solid #eef2f6; }
+.jp-map-row:first-child { border-top: 0; }
+.jp-map-name { font-weight: 600; padding-top: .45rem; }
+.jp-hint-saran { display: inline-flex; align-items: center; gap: .4rem; margin-top: .35rem; font-size: .78rem; color: var(--jp-info); }
+.jp-hint-saran a { font-weight: 600; }
+.jp-scroll { max-height: 30rem; overflow-y: auto; }
+@media (max-width: 575.98px) { .jp-map-row { grid-template-columns: 1fr; gap: .25rem; } .jp-map-name { padding-top: 0; } }
