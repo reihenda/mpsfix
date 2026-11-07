@@ -244,5 +244,22 @@ a.jp-stat:hover { border-color: #cbd5e1; background: var(--jp-soft); color: var(
 .jp-map-name { font-weight: 600; padding-top: .45rem; }
 .jp-hint-saran { display: inline-flex; align-items: center; gap: .4rem; margin-top: .35rem; font-size: .78rem; color: var(--jp-info); }
 .jp-hint-saran a { font-weight: 600; }
-.jp-scroll { max-height: 30rem; overflow-y: auto; }
+.jp-scroll { max-height: 20rem; overflow-y: auto; }
 @media (max-width: 575.98px) { .jp-map-row { grid-template-columns: 1fr; gap: .25rem; } .jp-map-name { padding-top: 0; } }
+
+/* ---------- Bagian lipat (selisih daftar) ---------- */
+.jp-fold { border-top: 1px solid var(--jp-line); }
+.jp-fold summary, .jp-fold.is-empty {
+    display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+    padding: .8rem 1.25rem; font-size: .85rem; font-weight: 600;
+}
+.jp-fold summary { cursor: pointer; list-style: none; transition: background-color .12s ease; }
+.jp-fold summary::-webkit-details-marker { display: none; }
+.jp-fold summary:hover { background: var(--jp-soft); }
+.jp-fold summary:focus-visible { outline: 2px solid var(--jp-accent); outline-offset: -2px; }
+.jp-fold.is-empty { color: var(--jp-muted); font-weight: 500; }
+.jp-fold-caret { font-size: .65rem; margin-right: .55rem; color: var(--jp-muted); transition: transform .15s ease; }
+.jp-fold[open] .jp-fold-caret { transform: rotate(90deg); }
+.jp-fold-body { padding: .25rem 1.25rem 1rem; }
+.jp-chips { display: flex; flex-wrap: wrap; gap: .35rem; max-height: 14rem; overflow-y: auto; }
+.jp-chip { font-size: .78rem; font-weight: 500; padding: .25rem .5rem; border-radius: 6px; background: var(--jp-neutral-soft); color: var(--jp-ink); }

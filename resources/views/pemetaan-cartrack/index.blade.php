@@ -69,7 +69,9 @@
         <div class="col-lg-5">
             <div class="card">
                 <div class="card-header d-flex align-items-center justify-content-between">
-                    <h3 class="card-title">Kendaraan</h3>
+                    <h3 class="card-title">Kendaraan
+                        <span class="jp-badge is-plain is-ok">{{ $kendaraanCocok->count() }} cocok</span>
+                    </h3>
                     <form method="POST" action="{{ route('pemetaan-cartrack.segarkan') }}" class="m-0">@csrf
                         <button class="btn btn-sm btn-ghost"><i class="fas fa-sync-alt"></i>Segarkan</button></form>
                 </div>
@@ -77,27 +79,33 @@
                     <table class="table jp-table">
                         <thead><tr><th>Nopol kita</th><th>Di Cartrack</th></tr></thead>
                         <tbody>
-                            @foreach ($kendaraanKita as $k)
+                            @forelse ($kendaraanCocok as $k)
                                 <tr>
                                     <td class="jp-nopol">{{ $k['nopol'] }}</td>
-                                    <td>
-                                        @if ($k['registrasi'])
-                                            <span class="jp-badge is-ok">{{ $k['registrasi'] }}</span>
-                                        @else
-                                            <span class="jp-badge is-mute">Tidak ada</span>
-                                        @endif
-                                    </td>
+                                    <td class="text-muted">{{ $k['registrasi'] }}</td>
                                 </tr>
-                            @endforeach
+                            @empty
+                                <tr><td colspan="2">
+                                    <div class="jp-empty">
+                                        <i class="fas fa-car-side"></i>
+                                        <strong>{{ $galat ? 'Data Cartrack belum bisa dimuat' : 'Belum ada kendaraan yang cocok' }}</strong>
+                                    </div>
+                                </td></tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
-                @if ($kendaraanHanyaDiCartrack->isNotEmpty())
-                    <div class="card-footer">
-                        <strong class="d-block mb-1" style="font-size:.8rem">Ada di Cartrack, belum ada di Kelola Mobil/NOPOL</strong>
-                        <span class="jp-sub">{{ $kendaraanHanyaDiCartrack->implode(', ') }}</span>
-                    </div>
-                @endif
+
+                @include('pemetaan-cartrack._lipat', [
+                    'judul' => 'Ada di Cartrack, belum ada di Kelola Mobil/NOPOL',
+                    'daftar' => $kendaraanHanyaDiCartrack,
+                    'petunjuk' => 'Tambahkan nopol ini di Kelola Mobil/NOPOL supaya bisa dijadwalkan.',
+                ])
+                @include('pemetaan-cartrack._lipat', [
+                    'judul' => 'Ada di Kelola Mobil/NOPOL, tidak ada di Cartrack',
+                    'daftar' => $kendaraanHanyaDiKita,
+                    'petunjuk' => 'Kendaraan ini tidak bisa dikirim driver-nya ke Cartrack.',
+                ])
             </div>
         </div>
     </div>

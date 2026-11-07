@@ -54,11 +54,15 @@ class PemetaanCartrackController extends Controller
             'operators' => $operators,
             'driverCartrack' => $driverCartrack,
             'saran' => $saran,
-            'kendaraanKita' => $nopolKita->map(fn ($n) => [
-                'nopol' => $n,
-                'registrasi' => $kunciCartrack[GpsTripImporter::kunciNopol($n)] ?? null,
-            ]),
+            // Yang ada di dua sisi jadi daftar utama; selisihnya ditampilkan terlipat di view
+            'kendaraanCocok' => $nopolKita
+                ->map(fn ($n) => ['nopol' => $n, 'registrasi' => $kunciCartrack[GpsTripImporter::kunciNopol($n)] ?? null])
+                ->filter(fn ($k) => $k['registrasi'] !== null)
+                ->values(),
             'kendaraanHanyaDiCartrack' => collect($kunciCartrack)->except($kunciKita->keys()->all())->values(),
+            'kendaraanHanyaDiKita' => $kendaraanCartrack
+                ? $nopolKita->filter(fn ($n) => !isset($kunciCartrack[GpsTripImporter::kunciNopol($n)]))->values()
+                : collect(),
         ]);
     }
 
