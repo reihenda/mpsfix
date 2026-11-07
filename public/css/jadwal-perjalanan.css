@@ -263,3 +263,15 @@ a.jp-stat:hover { border-color: #cbd5e1; background: var(--jp-soft); color: var(
 .jp-fold-body { padding: .25rem 1.25rem 1rem; }
 .jp-chips { display: flex; flex-wrap: wrap; gap: .35rem; max-height: 14rem; overflow-y: auto; }
 .jp-chip { font-size: .78rem; font-weight: 500; padding: .25rem .5rem; border-radius: 6px; background: var(--jp-neutral-soft); color: var(--jp-ink); }
+
+/* ---------- Penjelasan inline (callout) ---------- */
+.jp-callout { margin-top: .6rem; padding: .85rem 1rem; border-radius: 8px; background: var(--jp-info-soft); border: 1px solid #bfe5ee; font-size: .82rem; }
+.jp-callout[hidden] { display: none; }
+.jp-callout strong { display: block; font-size: .85rem; margin-bottom: .25rem; }
+.jp-callout p { margin: 0 0 .5rem; }
+.jp-callout .jp-callout-label { font-weight: 600; margin: .6rem 0 .3rem; }
+.jp-callout .jp-callout-hint { color: var(--jp-muted); margin: .35rem 0 0; }
+.jp-callout .jp-chip { background: #fff; }
+.jp-callout .jp-chips { max-height: 8rem; }
+.jp-callout-link { display: inline-block; margin-top: .6rem; font-weight: 600; }
+.jp-callout-link i { margin-left: .25rem; font-size: .7rem; }

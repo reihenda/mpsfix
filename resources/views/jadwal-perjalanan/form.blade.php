@@ -10,8 +10,8 @@
 
 @section('content')
 @php
-    use App\Services\GpsTrip\GpsTripImporter;
     $ruteLama = old('rute', $rute);
+    $bisaKelolaNopol = in_array(auth()->user()->role, ['admin', 'superadmin', 'staff'], true);
 @endphp
 
 <div class="jp">
@@ -30,8 +30,8 @@
             </div>
         @endif
 
-        @if ($kendaraanCartrack === null)
-            <div class="alert alert-warning py-2">Daftar kendaraan Cartrack tidak bisa dimuat sekarang. Form tetap bisa dipakai.</div>
+        @if (!$cartrackMuat)
+            <div class="alert alert-warning py-2">Data Cartrack tidak bisa dimuat sekarang, jadi semua kendaraan dan driver ditampilkan tanpa penyaringan. Form tetap bisa dipakai.</div>
         @endif
 
         <form method="POST" action="{{ $jadwal->exists ? route('jadwal-perjalanan.update', $jadwal) : route('jadwal-perjalanan.store') }}">
@@ -47,25 +47,70 @@
                             <select name="nopol" id="nopol" class="form-control" required @disabled($terkunci)>
                                 <option value="">Pilih nopol</option>
                                 @foreach ($daftarNopol as $n)
-                                    @php $ada = $kendaraanCartrack === null || in_array(GpsTripImporter::kunciNopol($n), $kendaraanCartrack, true); @endphp
-                                    <option value="{{ $n }}" @selected(old('nopol', $jadwal->nopol) === $n)>
-                                        {{ $n }}{{ $ada ? '' : ' (tidak ada di Cartrack)' }}
-                                    </option>
+                                    <option value="{{ $n }}" @selected(old('nopol', $jadwal->nopol) === $n)>{{ $n }}</option>
                                 @endforeach
+                                @if ($cartrackMuat && !$terkunci)
+                                    <option value="__lainnya">Nopol saya tidak ada di daftar…</option>
+                                @endif
                             </select>
                             @if ($terkunci) <input type="hidden" name="nopol" value="{{ $jadwal->nopol }}"> @endif
+                            <span class="form-hint">Hanya kendaraan yang sudah terhubung antara Cartrack dan sistem ini.</span>
+
+                            @if ($cartrackMuat)
+                                <div class="jp-callout" id="info-nopol" @if ($daftarNopol->isNotEmpty()) hidden @endif>
+                                    <strong>Kenapa nopol saya tidak muncul?</strong>
+                                    <p>Nopol baru muncul di sini kalau ada di Cartrack <em>dan</em> di Kelola Mobil/NOPOL. Yang belum terhubung:</p>
+                                    @if ($nopolBelumTerhubung->isNotEmpty())
+                                        <p class="jp-callout-label">Ada di sistem kita, tidak ada di Cartrack ({{ $nopolBelumTerhubung->count() }})</p>
+                                        <div class="jp-chips">@foreach ($nopolBelumTerhubung as $n)<span class="jp-chip">{{ $n }}</span>@endforeach</div>
+                                        <p class="jp-callout-hint">Nopol ini belum didaftarkan sebagai kendaraan di akun Cartrack, atau penulisannya berbeda.</p>
+                                    @endif
+                                    @if ($nopolHanyaCartrack->isNotEmpty())
+                                        <p class="jp-callout-label">Ada di Cartrack, belum ada di sistem kita ({{ $nopolHanyaCartrack->count() }})</p>
+                                        <div class="jp-chips">@foreach ($nopolHanyaCartrack as $n)<span class="jp-chip">{{ $n }}</span>@endforeach</div>
+                                        <p class="jp-callout-hint">
+                                            @if ($bisaKelolaNopol)
+                                                Tambahkan di <a href="{{ route('nomor-polisi.index') }}">Kelola Mobil/NOPOL</a>.
+                                            @else
+                                                Minta admin menambahkannya di Kelola Mobil/NOPOL.
+                                            @endif
+                                        </p>
+                                    @endif
+                                    @if ($nopolBelumTerhubung->isEmpty() && $nopolHanyaCartrack->isEmpty())
+                                        <p class="mb-0">Semua kendaraan sudah terhubung.</p>
+                                    @endif
+                                    <a href="{{ route('pemetaan-cartrack.index') }}" class="jp-callout-link">Buka Pemetaan Cartrack <i class="fas fa-arrow-right"></i></a>
+                                </div>
+                            @endif
                         </div>
+
                         <div class="form-group col-md-6">
                             <label for="operator_gtm_id">Driver</label>
                             <select name="operator_gtm_id" id="operator_gtm_id" class="form-control" required @disabled($terkunci)>
                                 <option value="">Pilih driver</option>
                                 @foreach ($operators as $o)
-                                    <option value="{{ $o->id }}" @selected((int) old('operator_gtm_id', $jadwal->operator_gtm_id) === $o->id)>
-                                        {{ $o->nama }}{{ $o->cartrack_driver_id ? '' : ' (belum dipetakan ke Cartrack)' }}
-                                    </option>
+                                    <option value="{{ $o->id }}" @selected((int) old('operator_gtm_id', $jadwal->operator_gtm_id) === $o->id)>{{ $o->nama }}</option>
                                 @endforeach
+                                @if ($cartrackMuat && !$terkunci)
+                                    <option value="__lainnya">Driver saya tidak ada di daftar…</option>
+                                @endif
                             </select>
                             @if ($terkunci) <input type="hidden" name="operator_gtm_id" value="{{ $jadwal->operator_gtm_id }}"> @endif
+                            <span class="form-hint">Hanya driver yang sudah dipetakan ke driver Cartrack.</span>
+
+                            @if ($cartrackMuat)
+                                <div class="jp-callout" id="info-driver" @if ($operators->isNotEmpty()) hidden @endif>
+                                    <strong>Kenapa driver saya tidak muncul?</strong>
+                                    <p>Driver baru muncul di sini kalau sudah dipetakan ke driver Cartrack, karena itulah yang dikirim ke kendaraan saat jadwal mulai.</p>
+                                    @if ($operatorBelumTerhubung->isNotEmpty())
+                                        <p class="jp-callout-label">Belum dipetakan ({{ $operatorBelumTerhubung->count() }})</p>
+                                        <div class="jp-chips">@foreach ($operatorBelumTerhubung as $o)<span class="jp-chip">{{ $o->nama }}</span>@endforeach</div>
+                                    @else
+                                        <p class="mb-0">Semua driver sudah dipetakan.</p>
+                                    @endif
+                                    <a href="{{ route('pemetaan-cartrack.index') }}" class="jp-callout-link">Petakan di Pemetaan Cartrack <i class="fas fa-arrow-right"></i></a>
+                                </div>
+                            @endif
                         </div>
                     </div>
 
@@ -128,6 +173,20 @@
 @push('scripts')
 <script>
 (function () {
+    // Opsi terakhir "tidak ada di daftar" bukan pilihan sungguhan: tampilkan penjelasan lalu kosongkan pilihan
+    [['nopol', 'info-nopol'], ['operator_gtm_id', 'info-driver']].forEach(function (p) {
+        const sel = document.getElementById(p[0]);
+        const info = document.getElementById(p[1]);
+        if (!sel || !info) return;
+        sel.addEventListener('change', function () {
+            if (sel.value === '__lainnya') {
+                sel.value = '';
+                info.hidden = false;
+                info.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        });
+    });
+
     const wadah = document.getElementById('rute-baris');
     function nomori() {
         wadah.querySelectorAll('.rute-item').forEach(function (el, i) {

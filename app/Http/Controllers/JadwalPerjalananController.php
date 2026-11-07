@@ -399,23 +399,51 @@ class JadwalPerjalananController extends Controller
         };
     }
 
+    /**
+     * Pilihan kendaraan dan driver di form hanya yang sudah terhubung dengan Cartrack. Yang belum
+     * terhubung dipisah supaya form bisa menjelaskan kenapa tidak muncul. Bila Cartrack tak terjangkau,
+     * semua pilihan ditampilkan seperti biasa (tidak ada dasar untuk menyaring).
+     */
     private function dataForm(JadwalPerjalanan $jadwal): array
     {
-        $kendaraanCartrack = null;
+        $registrasiCartrack = null;
+        $driverIdCartrack = null;
         try {
-            $kendaraanCartrack = array_map(
-                fn ($v) => GpsTripImporter::kunciNopol($v['registration']),
-                $this->direktori->kendaraan()
-            );
+            $registrasiCartrack = collect($this->direktori->kendaraan())->pluck('registration')->all();
+            $driverIdCartrack = array_keys($this->direktori->driver());
         } catch (Throwable) {
-            // Cartrack tak terjangkau: form tetap bisa dipakai, tanpa penanda kendaraan
+            // Cartrack tak terjangkau: form tetap bisa dipakai, tanpa penyaringan
         }
+        $cartrackMuat = $registrasiCartrack !== null;
+
+        $semuaNopol = NomorPolisi::orderBy('nopol')->pluck('nopol');
+        $kunciCartrack = $cartrackMuat
+            ? collect($registrasiCartrack)->mapWithKeys(fn ($r) => [GpsTripImporter::kunciNopol($r) => $r])
+            : collect();
+        $pilihanNopol = old('nopol', $jadwal->nopol);
+
+        $nopolTerhubung = $semuaNopol->filter(fn ($n) => !$cartrackMuat
+            || $kunciCartrack->has(GpsTripImporter::kunciNopol($n))
+            || $n === $pilihanNopol)->values();
+        $nopolBelum = $semuaNopol->diff($nopolTerhubung)->values();
+        $kunciKita = $semuaNopol->map(fn ($n) => GpsTripImporter::kunciNopol($n))->all();
+        $nopolHanyaCartrack = $kunciCartrack->except($kunciKita)->values();
+
+        $semuaOperator = OperatorGtm::orderBy('nama')->get(['id', 'nama', 'cartrack_driver_id']);
+        $pilihanOperator = (int) old('operator_gtm_id', $jadwal->operator_gtm_id);
+        $terhubung = fn ($o) => $o->id === $pilihanOperator
+            || ($o->cartrack_driver_id && ($driverIdCartrack === null || in_array($o->cartrack_driver_id, $driverIdCartrack, true)));
+        $operatorTerhubung = $semuaOperator->filter($terhubung)->values();
+        $operatorBelum = $semuaOperator->reject($terhubung)->values();
 
         return [
             'jadwal' => $jadwal,
-            'daftarNopol' => NomorPolisi::orderBy('nopol')->pluck('nopol'),
-            'kendaraanCartrack' => $kendaraanCartrack,
-            'operators' => OperatorGtm::orderBy('nama')->get(['id', 'nama', 'cartrack_driver_id']),
+            'cartrackMuat' => $cartrackMuat,
+            'daftarNopol' => $nopolTerhubung,
+            'nopolBelumTerhubung' => $nopolBelum,
+            'nopolHanyaCartrack' => $nopolHanyaCartrack,
+            'operators' => $operatorTerhubung,
+            'operatorBelumTerhubung' => $operatorBelum,
             'daftarTujuan' => GpsGeofence::orderBy('nama')->pluck('nama'),
             'terkunci' => $jadwal->status === JadwalPerjalanan::STATUS_BERJALAN,
         ];
