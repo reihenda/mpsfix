@@ -30,7 +30,7 @@
     @endif
 
     <div class="jp-head">
-        <p>Atur kendaraan, driver, dan rute. Driver dikirim ke Cartrack saat jadwal dimulai, lalu trip ditarik setelah selesai.</p>
+        <p>Atur kendaraan, driver, dan rute. Driver dikirim ke Cartrack saat jadwal dimulai. Jadwal selesai sendiri saat semua tujuan pada rute tercapai, lalu trip ditarik untuk divalidasi.</p>
         <div class="jp-head-actions">
             <a href="{{ route('pemetaan-cartrack.index') }}" class="btn btn-ghost"><i class="fas fa-link"></i>Pemetaan Cartrack</a>
             <a href="{{ route('jadwal-perjalanan.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i>Buat jadwal</a>
@@ -112,7 +112,11 @@
                         <tr>
                             <td class="text-nowrap jp-when">
                                 <strong>{{ $j->waktu_mulai->format('d/m/Y') }}</strong>
-                                <span class="jp-sub">{{ $j->waktu_mulai->format('H:i') }} – {{ $j->waktu_selesai->format('H:i') }}@if (!$j->waktu_mulai->isSameDay($j->waktu_selesai)) ({{ $j->waktu_selesai->format('d/m') }})@endif</span>
+                                @if ($j->waktu_selesai)
+                                    <span class="jp-sub">{{ $j->waktu_mulai->format('H:i') }} – {{ $j->waktu_selesai->format('H:i') }}@if (!$j->waktu_mulai->isSameDay($j->waktu_selesai)) ({{ $j->waktu_selesai->format('d/m') }})@endif</span>
+                                @else
+                                    <span class="jp-sub">{{ $j->waktu_mulai->format('H:i') }} – {{ $j->status === 'batal' ? 'batal' : 'rute selesai' }}</span>
+                                @endif
                             </td>
                             <td><a href="{{ route('jadwal-perjalanan.show', $j) }}" class="jp-nopol text-dark">{{ $j->nopol }}</a></td>
                             <td class="text-nowrap">{{ $j->operator?->nama ?? '–' }}</td>
@@ -123,6 +127,9 @@
                                         @if (!$loop->last)<i class="fas fa-chevron-right jp-sep"></i>@endif
                                     @endforeach
                                 </div>
+                                @if ($j->aktif && $j->rute->count())
+                                    <span class="jp-sub">{{ $j->rute_tercapai_count }} dari {{ $j->rute->count() }} tujuan tercapai</span>
+                                @endif
                             </td>
                             <td><span class="jp-badge {{ $kelasStatus[$j->status] ?? '' }}">{{ $j->status_label }}</span></td>
                             <td>

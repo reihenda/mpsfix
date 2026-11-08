@@ -8,7 +8,9 @@ class JadwalPerjalananRute extends Model
 {
     protected $table = 'jadwal_perjalanan_rute';
 
-    protected $fillable = ['jadwal_perjalanan_id', 'urutan', 'tujuan', 'catatan'];
+    protected $fillable = ['jadwal_perjalanan_id', 'urutan', 'tujuan', 'catatan', 'tercapai_pada'];
+
+    protected $casts = ['tercapai_pada' => 'datetime'];
 
     public function jadwal()
     {

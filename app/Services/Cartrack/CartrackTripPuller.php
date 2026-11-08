@@ -39,7 +39,10 @@ class CartrackTripPuller
 
         $zona = config('services.cartrack.zona_lokal', 'Asia/Jakarta');
         $awal = Carbon::parse($jadwal->waktu_mulai->format('Y-m-d H:i:s'), $zona)->subHours(self::MARGIN_JAM);
-        $akhir = Carbon::parse($jadwal->waktu_selesai->format('Y-m-d H:i:s'), $zona)->addHours(self::MARGIN_JAM);
+        // Jadwal yang belum selesai ditarik sampai sekarang; yang sudah selesai diberi margin di ujung akhir
+        $akhir = $jadwal->waktu_selesai
+            ? Carbon::parse($jadwal->waktu_selesai->format('Y-m-d H:i:s'), $zona)->addHours(self::MARGIN_JAM)
+            : Carbon::now($zona);
 
         $baris = $this->client->tripsKendaraan(
             $registrasi,
@@ -51,7 +54,7 @@ class CartrackTripPuller
         if (empty($segmen)) {
             $jadwal->update(['trip_ditarik_pada' => now(), 'trip_tarik_percobaan_pada' => now(), 'trip_tarik_error' => null]);
 
-            return ['stat' => [], 'geofence_baru' => 0, 'tertaut' => 0, 'jumlah_api' => 0];
+            return ['stat' => [], 'geofence_baru' => 0, 'tertaut' => 0, 'jumlah_api' => 0, 'segmen' => []];
         }
 
         $geofenceBaru = $this->daftarkanGeofenceBaru($segmen);
@@ -78,7 +81,51 @@ class CartrackTripPuller
             'trip_tarik_error' => null,
         ]);
 
-        return ['stat' => $stat, 'geofence_baru' => $geofenceBaru, 'tertaut' => $tertaut, 'jumlah_api' => count($baris)];
+        return ['stat' => $stat, 'geofence_baru' => $geofenceBaru, 'tertaut' => $tertaut, 'jumlah_api' => count($baris), 'segmen' => $segmen];
+    }
+
+    /**
+     * Tujuan mana saja pada rute yang sudah tercapai, dilihat dari geofence yang dilewati kendaraan.
+     *
+     * Tujuan dicocokkan BERURUTAN: tiap geofence yang dilewati (awal lalu akhir tiap segmen, sejak jadwal
+     * mulai) hanya dipakai untuk tujuan berikutnya yang belum tercapai. Jadi rute "SPBG, Customer A, SPBG"
+     * baru tuntas setelah kendaraan kembali ke SPBG, bukan begitu keluar dari SPBG.
+     *
+     * @param array<int, array{id:int, tujuan:string}> $rute berurutan sesuai rute
+     * @param array<int, array>                        $segmen format ubahKeSegmen()
+     * @return array<int, string> id tujuan => waktu tercapai (Y-m-d H:i:s) untuk yang sudah tercapai
+     */
+    public static function hitungRute(array $rute, array $segmen, string $waktuMulai): array
+    {
+        usort($segmen, fn ($a, $b) => strcmp($a['mulai'], $b['mulai']));
+
+        $kejadian = [];
+        foreach ($segmen as $s) {
+            if ($s['selesai'] < $waktuMulai) {
+                continue; // perjalanan sebelum jadwal dimulai
+            }
+            if ($s['geofence_mulai'] !== '') {
+                $kejadian[] = [GpsTripParser::normalisasiNama($s['geofence_mulai']), $s['mulai']];
+            }
+            if ($s['geofence_selesai'] !== '') {
+                $kejadian[] = [GpsTripParser::normalisasiNama($s['geofence_selesai']), $s['selesai']];
+            }
+        }
+
+        $hasil = [];
+        $i = 0;
+        foreach ($kejadian as [$nama, $waktu]) {
+            if (!isset($rute[$i])) {
+                break;
+            }
+            $tujuan = GpsTripParser::normalisasiNama($rute[$i]['tujuan']);
+            if ($tujuan !== '' && ($nama === $tujuan || str_contains($nama, $tujuan) || str_contains($tujuan, $nama))) {
+                $hasil[$rute[$i]['id']] = $waktu;
+                $i++;
+            }
+        }
+
+        return $hasil;
     }
 
     /**
@@ -171,9 +218,11 @@ class CartrackTripPuller
             return 0;
         }
 
+        // Terbaru dulu: bila irisan sama besar, trip masuk ke jadwal yang mulai paling akhir
         $jadwals = JadwalPerjalanan::where('status', '!=', JadwalPerjalanan::STATUS_BATAL)
             ->where('waktu_mulai', '<', $trips->max('waktu_selesai') ?? $trips->max('waktu_mulai'))
-            ->where('waktu_selesai', '>', $trips->min('waktu_mulai'))
+            ->where(fn ($q) => $q->whereNull('waktu_selesai')->orWhere('waktu_selesai', '>', $trips->min('waktu_mulai')))
+            ->orderByDesc('waktu_mulai')
             ->get()
             ->filter(fn (JadwalPerjalanan $j) => $j->kunci_nopol === $kunci);
 
@@ -186,7 +235,8 @@ class CartrackTripPuller
             $terbaik = null;
             $irisanTerbaik = 0;
             foreach ($jadwals as $j) {
-                $irisan = min($selesai, $j->waktu_selesai->getTimestamp()) - max($mulai, $j->waktu_mulai->getTimestamp());
+                // Jadwal yang belum selesai tidak punya batas akhir
+                $irisan = min($selesai, $j->waktu_selesai?->getTimestamp() ?? PHP_INT_MAX) - max($mulai, $j->waktu_mulai->getTimestamp());
                 if ($irisan > $irisanTerbaik) {
                     $irisanTerbaik = $irisan;
                     $terbaik = $j;

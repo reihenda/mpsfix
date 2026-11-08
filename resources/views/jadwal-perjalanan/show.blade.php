@@ -15,6 +15,7 @@
     $kelasStatus = ['terjadwal' => 'is-info', 'berjalan' => 'is-accent', 'selesai' => 'is-ok', 'batal' => 'is-mute'];
     $namaOperator = GpsTripParser::normalisasiNama($namaDriverCartrack);
     $belumValid = $jadwal->trips->where('divalidasi', false);
+    $rute = $jadwal->rute;
 @endphp
 
 <div class="jp">
@@ -48,7 +49,24 @@
                             @else <small class="jp-sub text-danger">Belum dipetakan ke driver Cartrack</small> @endif
                         </dd>
                         <dt>Mulai</dt><dd>{{ $jadwal->waktu_mulai->format('d/m/Y H:i') }}</dd>
-                        <dt>Selesai</dt><dd>{{ $jadwal->waktu_selesai->format('d/m/Y H:i') }}</dd>
+                        <dt>Selesai</dt>
+                        <dd>
+                            @if ($jadwal->waktu_selesai)
+                                {{ $jadwal->waktu_selesai->format('d/m/Y H:i') }}
+                                <small class="jp-sub">
+                                    @if ($jadwal->status === 'selesai' && $rute->contains(fn ($r) => $r->tercapai_pada === null))
+                                        Diselesaikan sebelum semua tujuan terdeteksi
+                                    @else
+                                        Saat tujuan terakhir tercapai
+                                    @endif
+                                </small>
+                            @elseif ($jadwal->status === 'batal')
+                                –
+                            @else
+                                <span class="text-muted">Saat rute selesai</span>
+                                <small class="jp-sub">{{ $rute->whereNotNull('tercapai_pada')->count() }} dari {{ $rute->count() }} tujuan tercapai</small>
+                            @endif
+                        </dd>
                         @if ($jadwal->catatan)
                             <dt>Catatan</dt><dd>{{ $jadwal->catatan }}</dd>
                         @endif
@@ -67,12 +85,14 @@
                                 <strong>{{ $r->tujuan }}</strong>
                                 @if ($r->catatan) <span class="jp-sub">{{ $r->catatan }}</span> @endif
                             </div>
-                            @if ($jadwal->trips->isNotEmpty())
+                            @if ($jadwal->status !== 'batal')
                                 <span class="jp-step-end">
-                                    @if ($ruteTercapai[$r->id] ?? false)
-                                        <span class="jp-badge is-ok" title="Tujuan ini tampil di geofence trip">Tercapai</span>
+                                    @if ($r->tercapai_pada)
+                                        <span class="jp-badge is-ok" title="Kendaraan melewati geofence ini">Tercapai {{ $r->tercapai_pada->format('H:i') }}</span>
+                                    @elseif ($jadwal->status === 'selesai')
+                                        <span class="jp-badge is-warn" title="Tidak ada perjalanan yang melewati geofence ini">Tidak terdeteksi</span>
                                     @else
-                                        <span class="jp-badge is-warn" title="Tidak ada trip yang melewati geofence ini">Tidak terdeteksi</span>
+                                        <span class="jp-badge is-mute">Menunggu</span>
                                     @endif
                                 </span>
                             @endif
@@ -103,6 +123,19 @@
                         <span>Trip</span>
                         <span>{{ $jadwal->trip_ditarik_pada ? 'Ditarik '.$jadwal->trip_ditarik_pada->format('d/m H:i') : 'Belum ditarik' }}</span>
                     </div>
+                    @if ($jadwal->status === 'berjalan')
+                        <div class="jp-kv">
+                            <span>Rute dicek</span>
+                            <span>{{ $jadwal->rute_dicek_pada ? $jadwal->rute_dicek_pada->format('d/m H:i') : 'Belum' }}</span>
+                        </div>
+                        <p class="form-hint mt-1 mb-2">
+                            @if ($jadwal->waktu_selesai)
+                                Rute tuntas. Driver dilepas sekitar {{ (int) config('services.cartrack.selesai_grace_menit', 30) }} menit setelah tujuan terakhir.
+                            @else
+                                Rute dicek ke Cartrack tiap {{ (int) config('services.cartrack.rute_cek_menit', 10) }} menit. Jadwal selesai sendiri saat semua tujuan tercapai.
+                            @endif
+                        </p>
+                    @endif
                     @if ($jadwal->link_error) <div class="jp-note-bad">{{ $jadwal->link_error }}</div> @endif
                     @if ($jadwal->trip_tarik_error) <div class="jp-note-bad">{{ $jadwal->trip_tarik_error }}</div> @endif
                 </div>
@@ -116,7 +149,7 @@
                     @endif
                     @if ($jadwal->status === 'berjalan')
                         <form method="POST" action="{{ route('jadwal-perjalanan.selesaikan', $jadwal) }}"
-                              onsubmit="return confirm('Selesaikan jadwal sekarang? Driver dilepas dari kendaraan di Cartrack dan trip ditarik.')">@csrf
+                              onsubmit="return confirm('Selesaikan jadwal sekarang, walau tidak semua tujuan terdeteksi? Driver dilepas dari kendaraan di Cartrack dan trip ditarik.')">@csrf
                             <button class="btn btn-sm btn-success"><i class="fas fa-flag-checkered"></i>Selesaikan sekarang</button></form>
                     @endif
                     @if ($jadwal->status !== 'batal' && $jadwal->waktu_mulai->lte(\App\Services\Cartrack\JadwalPerjalananService::sekarangLokal()))
@@ -195,7 +228,7 @@
                                         <div class="jp-empty">
                                             <i class="fas fa-route"></i>
                                             <strong>{{ $jadwal->trip_ditarik_pada ? 'Tidak ada trip terdeteksi' : 'Trip belum ditarik' }}</strong>
-                                            {{ $jadwal->trip_ditarik_pada ? 'Cartrack tidak mencatat perjalanan pada jendela waktu jadwal ini.' : 'Trip ditarik otomatis setelah jadwal selesai.' }}
+                                            {{ $jadwal->trip_ditarik_pada ? 'Cartrack tidak mencatat perjalanan sejak jadwal ini dimulai.' : 'Trip ditarik otomatis selama jadwal berjalan dan sekali lagi setelah selesai.' }}
                                         </div>
                                     </td></tr>
                                 @endforelse

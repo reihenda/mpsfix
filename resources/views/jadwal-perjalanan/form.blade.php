@@ -25,7 +25,7 @@
 
         @if ($terkunci)
             <div class="alert alert-info">
-                Jadwal sedang berjalan dan driver sudah di-link di Cartrack. Yang bisa diubah: waktu selesai, rute, dan catatan.
+                Jadwal sedang berjalan dan driver sudah di-link di Cartrack. Yang bisa diubah: rute dan catatan.
                 Untuk mengganti driver atau kendaraan, batalkan jadwal ini lalu buat yang baru.
             </div>
         @endif
@@ -116,25 +116,24 @@
 
                     <hr class="jp-divider">
 
-                    <h4 class="jp-section-title">Waktu</h4>
+                    <h4 class="jp-section-title">Waktu mulai</h4>
                     <div class="form-row">
-                        <div class="form-group col-md-6 mb-md-0">
+                        <div class="form-group col-md-6 mb-0">
                             <label for="waktu_mulai">Mulai</label>
                             <input type="datetime-local" name="waktu_mulai" id="waktu_mulai" class="form-control" required
                                    value="{{ old('waktu_mulai', $jadwal->waktu_mulai?->format('Y-m-d\TH:i')) }}" @readonly($terkunci)>
-                            <span class="form-hint">Driver dikirim ke Cartrack saat waktu ini tiba.</span>
-                        </div>
-                        <div class="form-group col-md-6 mb-0">
-                            <label for="waktu_selesai">Selesai</label>
-                            <input type="datetime-local" name="waktu_selesai" id="waktu_selesai" class="form-control" required
-                                   value="{{ old('waktu_selesai', $jadwal->waktu_selesai?->format('Y-m-d\TH:i')) }}">
-                            <span class="form-hint">Setelah lewat, driver dilepas dan trip ditarik dari Cartrack.</span>
+                            <span class="form-hint">Driver dikirim ke Cartrack saat waktu ini tiba. Tidak ada waktu selesai: jadwal selesai sendiri saat rute di bawah tuntas.</span>
                         </div>
                     </div>
 
                     <hr class="jp-divider">
 
                     <h4 class="jp-section-title">Rute</h4>
+                    <p class="form-hint mt-0 mb-2">
+                        Urutkan tujuan sesuai perjalanan. Jadwal dianggap selesai saat kendaraan sudah melewati semua tujuan berurutan
+                        (dibaca dari geofence Cartrack), lalu driver dilepas sekitar {{ (int) config('services.cartrack.selesai_grace_menit', 30) }} menit kemudian.
+                        Pilih tujuan dari daftar saran supaya bisa dikenali. Tujuan yang diketik bebas tidak terdeteksi, jadi jadwalnya harus diselesaikan manual.
+                    </p>
                     <datalist id="daftar-tujuan">
                         @foreach ($daftarTujuan as $t) <option value="{{ $t }}"> @endforeach
                     </datalist>

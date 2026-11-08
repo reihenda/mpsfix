@@ -11,7 +11,6 @@ use App\Services\Cartrack\CartrackDirectory;
 use App\Services\Cartrack\CartrackException;
 use App\Services\Cartrack\JadwalPerjalananService;
 use App\Services\GpsTrip\GpsTripImporter;
-use App\Services\GpsTrip\GpsTripParser;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,9 +42,10 @@ class JadwalPerjalananController extends Controller
             ->withCount([
                 'trips',
                 'trips as trips_belum_validasi_count' => fn ($q) => $q->where('divalidasi', false),
+                'rute as rute_tercapai_count' => fn ($q) => $q->whereNotNull('tercapai_pada'),
             ])
             ->when(!$perluValidasi, fn ($q) => $q->where('waktu_mulai', '<=', $sampai->copy()->endOfDay())
-                ->where('waktu_selesai', '>=', $dari->copy()->startOfDay()))
+                ->where(fn ($w) => $w->whereNull('waktu_selesai')->orWhere('waktu_selesai', '>=', $dari->copy()->startOfDay())))
             ->when($status && isset(JadwalPerjalanan::STATUS_LABEL[$status]), fn ($q) => $q->where('status', $status))
             ->when($perluValidasi, fn ($q) => $q->whereHas('trips', fn ($t) => $t->where('divalidasi', false)))
             ->when($cari !== '', fn ($q) => $q->where(function ($w) use ($cari) {
@@ -75,10 +75,7 @@ class JadwalPerjalananController extends Controller
 
     public function create(Request $request)
     {
-        $jadwal = new JadwalPerjalanan([
-            'waktu_mulai' => Carbon::today()->setTime(7, 0),
-            'waktu_selesai' => Carbon::today()->setTime(17, 0),
-        ]);
+        $jadwal = new JadwalPerjalanan(['waktu_mulai' => Carbon::today()->setTime(7, 0)]);
 
         return view('jadwal-perjalanan.form', $this->dataForm($jadwal) + ['rute' => [['tujuan' => '', 'catatan' => '']]]);
     }
@@ -92,7 +89,6 @@ class JadwalPerjalananController extends Controller
                 'nopol' => $data['nopol'],
                 'operator_gtm_id' => $data['operator_gtm_id'],
                 'waktu_mulai' => $data['waktu_mulai'],
-                'waktu_selesai' => $data['waktu_selesai'],
                 'catatan' => $data['catatan'] ?? null,
                 'dibuat_oleh' => $request->user()->id,
             ]);
@@ -116,31 +112,8 @@ class JadwalPerjalananController extends Controller
             // tampilan tetap jalan tanpa nama driver Cartrack
         }
 
-        // Rute tercapai: tujuan tampil di geofence awal/akhir/singgah salah satu trip
-        $dikunjungi = [];
-        foreach ($jadwal->trips as $t) {
-            foreach (array_merge([$t->geofence_mulai, $t->geofence_selesai], $t->perhentian) as $nama) {
-                if ($nama) {
-                    $dikunjungi[GpsTripParser::normalisasiNama($nama)] = true;
-                }
-            }
-        }
-        $ruteTercapai = $jadwal->rute->mapWithKeys(function ($r) use ($dikunjungi) {
-            $tujuan = GpsTripParser::normalisasiNama($r->tujuan);
-            $ketemu = false;
-            foreach (array_keys($dikunjungi) as $nama) {
-                if ($nama === $tujuan || str_contains($nama, $tujuan) || str_contains($tujuan, $nama)) {
-                    $ketemu = true;
-                    break;
-                }
-            }
-
-            return [$r->id => $ketemu];
-        });
-
         return view('jadwal-perjalanan.show', [
             'jadwal' => $jadwal,
-            'ruteTercapai' => $ruteTercapai,
             'namaDriverCartrack' => $namaDriverCartrack,
         ]);
     }
@@ -183,9 +156,11 @@ class JadwalPerjalananController extends Controller
                 'nopol' => $data['nopol'],
                 'operator_gtm_id' => $data['operator_gtm_id'],
                 'waktu_mulai' => $data['waktu_mulai'],
-                'waktu_selesai' => $data['waktu_selesai'],
                 'catatan' => $data['catatan'] ?? null,
-            ] + ($berjalan ? [] : ['link_status' => 'menunggu', 'link_percobaan' => 0, 'link_error' => null]));
+            ] + ($berjalan
+                // rute berubah: hitung ulang tujuan mana yang sudah tercapai, jadi waktu selesai lama tidak berlaku
+                ? ['waktu_selesai' => null, 'rute_dicek_pada' => null]
+                : ['link_status' => 'menunggu', 'link_percobaan' => 0, 'link_error' => null]));
 
             $jadwalPerjalanan->rute()->delete();
             $this->simpanRute($jadwalPerjalanan, $data['rute']);
@@ -333,13 +308,11 @@ class JadwalPerjalananController extends Controller
             'nopol' => ['required', 'string', 'max:50', Rule::exists('nomor_polisi', 'nopol')],
             'operator_gtm_id' => ['required', 'integer', 'exists:operator_gtm,id'],
             'waktu_mulai' => ['required', 'date'],
-            'waktu_selesai' => ['required', 'date', 'after:waktu_mulai'],
             'catatan' => ['nullable', 'string', 'max:1000'],
             'rute' => ['required', 'array', 'min:1'],
             'rute.*.tujuan' => ['nullable', 'string', 'max:255'],
             'rute.*.catatan' => ['nullable', 'string', 'max:255'],
         ], [
-            'waktu_selesai.after' => 'Waktu selesai harus setelah waktu mulai.',
             'rute.required' => 'Tentukan minimal satu tujuan pada rute.',
         ]);
 
@@ -349,17 +322,16 @@ class JadwalPerjalananController extends Controller
         }
 
         $mulai = Carbon::parse($data['waktu_mulai']);
-        $selesai = Carbon::parse($data['waktu_selesai']);
-        if ($mulai->diffInDays($selesai) > 7) {
-            throw ValidationException::withMessages(['waktu_selesai' => 'Satu jadwal maksimal 7 hari. Pecah menjadi beberapa jadwal.']);
-        }
 
-        // Satu mobil / satu driver tidak boleh dobel pada waktu yang sama
-        $bentrok = JadwalPerjalanan::bentrok($data['nopol'], (int) $data['operator_gtm_id'], $mulai, $selesai, $jadwal?->id);
+        // Satu mobil / satu driver tidak boleh dobel. Jadwal lain yang belum selesai dianggap masih
+        // memakainya (jadwal yang belum mulai: perkiraan JadwalPerjalanan::PERKIRAAN_JAM jam sejak mulai).
+        $bentrok = JadwalPerjalanan::bentrok($data['nopol'], (int) $data['operator_gtm_id'], $mulai, $jadwal?->id);
         if ($bentrok->isNotEmpty()) {
             $bentrok->load('operator:id,nama');
-            $daftar = $bentrok->map(fn ($b) => "#{$b->id} {$b->nopol} / {$b->operator?->nama} ("
-                .$b->waktu_mulai->format('d/m H:i').'–'.$b->waktu_selesai->format('d/m H:i').')')->implode('; ');
+            $daftar = $bentrok->map(fn ($b) => "#{$b->id} {$b->nopol} / {$b->operator?->nama} (mulai "
+                .$b->waktu_mulai->format('d/m H:i').', '.($b->waktu_selesai
+                    ? 'selesai '.$b->waktu_selesai->format('d/m H:i')
+                    : ($b->status === JadwalPerjalanan::STATUS_BERJALAN ? 'masih berjalan' : 'belum selesai')).')')->implode('; ');
             throw ValidationException::withMessages([
                 'waktu_mulai' => "Bentrok dengan jadwal lain pada kendaraan atau driver yang sama: {$daftar}",
             ]);
@@ -394,7 +366,7 @@ class JadwalPerjalananController extends Controller
             $jadwal->link_status === 'gagal' => 'Driver belum bisa dikirim ke Cartrack: '.$jadwal->link_error,
             $jadwal->link_status === 'terkirim' => 'Driver sudah di-link ke kendaraan di Cartrack.',
             $jadwal->link_status === 'dilewati' && $jadwal->status !== JadwalPerjalanan::STATUS_SELESAI => 'Mode uji: tidak ada yang dikirim ke Cartrack.',
-            $jadwal->status === JadwalPerjalanan::STATUS_SELESAI => 'Waktu jadwal sudah lewat; trip akan ditarik dari Cartrack.',
+            $jadwal->status === JadwalPerjalanan::STATUS_SELESAI => 'Rute ini sudah tuntas di Cartrack; trip ditarik untuk divalidasi.',
             default => 'Driver akan dikirim ke Cartrack otomatis saat waktu mulai tiba.',
         };
     }

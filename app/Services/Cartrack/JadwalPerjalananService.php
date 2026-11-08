@@ -11,8 +11,13 @@ use Throwable;
  * Mesin status jadwal perjalanan <-> Cartrack.
  *
  *   terjadwal --(waktu mulai tiba)--> berjalan   : driver di-link ke kendaraan di Cartrack
- *   berjalan  --(waktu selesai + grace)--> selesai : driver dilepas (bila tidak ada jadwal aktif lain)
+ *   berjalan  --(tujuan terakhir rute tercapai + grace)--> selesai : driver dilepas (bila tidak ada jadwal aktif lain)
  *   selesai   --> trip ditarik dari Cartrack      : trip masuk daftar validasi
+ *
+ * Jadwal tidak punya waktu selesai yang ditentukan di muka. Selama berjalan, rute dicek ke Cartrack
+ * (paling sering tiap `rute_cek_menit`): tujuan dianggap tercapai bila kendaraan melewati geofence-nya,
+ * berurutan. Begitu tujuan terakhir tercapai, waktu itu menjadi waktu selesai. Rute yang tak kunjung
+ * terdeteksi ditutup paksa setelah `batas_berjalan_jam`, atau bisa diselesaikan manual.
  *
  * Dipanggil tiap menit oleh `cartrack:jalankan-jadwal`, dan sekali saat jadwal dibuat/diubah
  * agar jadwal yang waktunya sudah lewat langsung diproses.
@@ -80,25 +85,39 @@ class JadwalPerjalananService
         $j->refresh();
 
         if ($j->status === JadwalPerjalanan::STATUS_TERJADWAL) {
-            if ($j->waktu_selesai->lte($sekarang)) {
-                // Waktunya sudah lewat sebelum sempat berjalan (jadwal susulan / sistem mati): tidak ada link.
-                $j->update([
-                    'status' => JadwalPerjalanan::STATUS_SELESAI,
-                    'link_status' => $j->link_status === 'menunggu' ? 'dilewati' : $j->link_status,
-                ]);
-            } elseif ($j->link_status === 'menunggu' && $j->waktu_mulai->copy()->subMinutes($lead)->lte($sekarang)) {
-                $this->kirimLink($j);
+            if ($j->link_status === 'menunggu' && $j->waktu_mulai->copy()->subMinutes($lead)->lte($sekarang)) {
+                // Jadwal susulan (dibuat setelah mobil berangkat, atau sistem sempat mati): cek dulu apakah
+                // rutenya sudah tuntas. Bila ya, tidak ada driver yang perlu di-link.
+                $susulan = $j->waktu_mulai->copy()->addMinutes($grace)->lte($sekarang);
+                if ($susulan && $this->periksaRute($j, true)) {
+                    $j->update(['status' => JadwalPerjalanan::STATUS_SELESAI, 'link_status' => 'dilewati']);
+                } else {
+                    $this->kirimLink($j);
+                }
             }
-        } elseif ($j->status === JadwalPerjalanan::STATUS_BERJALAN
-            && $j->waktu_selesai->copy()->addMinutes($grace)->lte($sekarang)) {
-            $this->akhiri($j);
+        } elseif ($j->status === JadwalPerjalanan::STATUS_BERJALAN) {
+            if ($j->waktu_selesai === null) {
+                $batasJam = (int) config('services.cartrack.batas_berjalan_jam', 48);
+                if ($batasJam > 0 && $j->waktu_mulai->copy()->addHours($batasJam)->lte($sekarang)) {
+                    $this->akhiri($j); // rute tak kunjung terdeteksi: tutup paksa agar driver tidak ter-link selamanya
+                } else {
+                    $this->periksaRute($j);
+                }
+            }
+
+            $j->refresh();
+            if ($j->status === JadwalPerjalanan::STATUS_BERJALAN
+                && $j->waktu_selesai?->copy()->addMinutes($grace)->lte($sekarang)) {
+                $this->akhiri($j);
+            }
         }
 
         $j->refresh();
         if ($j->status === JadwalPerjalanan::STATUS_SELESAI && $j->trip_ditarik_pada === null) {
             $sudahLama = $j->trip_tarik_percobaan_pada === null
                 || $j->trip_tarik_percobaan_pada->copy()->addMinutes(self::JEDA_ULANG_TARIK_MENIT)->lte(now());
-            $siap = $j->waktu_selesai->copy()->addMinutes($grace)->lte($sekarang)
+            $siap = $j->waktu_selesai === null
+                || $j->waktu_selesai->copy()->addMinutes($grace)->lte($sekarang)
                 || $j->updated_at->gte(now()->subMinute()); // diselesaikan manual: tarik langsung
 
             if ($sudahLama && $siap) {
@@ -181,7 +200,15 @@ class JadwalPerjalananService
     public function akhiri(JadwalPerjalanan $j): void
     {
         $this->lepasBilaAman($j);
-        $j->update(['status' => JadwalPerjalanan::STATUS_SELESAI]);
+        $j->update([
+            'status' => JadwalPerjalanan::STATUS_SELESAI,
+            // selesai karena rute tuntas: waktunya sudah terisi; selesai manual / tutup paksa: sekarang
+            'waktu_selesai' => $j->waktu_selesai ?? self::sekarangLokal(),
+            // tarikan terakhir harus terjadi sesudah selesai, jadi tarikan selama berjalan tidak dihitung
+            // (dan percobaan terakhir direset supaya tarikan akhir tidak menunggu jeda ulang)
+            'trip_ditarik_pada' => null,
+            'trip_tarik_percobaan_pada' => null,
+        ]);
     }
 
     public function selesaikanSekarang(JadwalPerjalanan $j): void
@@ -197,16 +224,72 @@ class JadwalPerjalananService
     }
 
     /**
-     * Tarik trip dari Cartrack untuk jadwal ini. Galat disimpan di jadwal dan dilempar ulang.
+     * Tarik trip dari Cartrack untuk jadwal ini, lalu catat tujuan mana saja yang sudah tercapai.
+     * Galat disimpan di jadwal dan dilempar ulang.
      */
     public function tarikTrip(JadwalPerjalanan $j, ?int $userId = null): array
     {
         try {
-            return $this->puller->tarik($j, $userId);
+            $hasil = $this->puller->tarik($j, $userId);
+            $this->catatRute($j, $hasil['segmen']);
+
+            return $hasil;
         } catch (Throwable $e) {
             $j->update(['trip_tarik_percobaan_pada' => now(), 'trip_tarik_error' => mb_substr($e->getMessage(), 0, 500)]);
 
             throw $e instanceof CartrackException ? $e : new CartrackException($e->getMessage());
+        }
+    }
+
+    /**
+     * Cek rute ke Cartrack (jarang-jarang, sesuai rute_cek_menit). True bila semua tujuan sudah tercapai.
+     * Gagal menghubungi Cartrack tidak dianggap tuntas; dicoba lagi pada putaran berikutnya.
+     */
+    private function periksaRute(JadwalPerjalanan $j, bool $paksa = false): bool
+    {
+        $jeda = max(1, (int) config('services.cartrack.rute_cek_menit', 10));
+        if (!$paksa && $j->rute_dicek_pada && $j->rute_dicek_pada->copy()->addMinutes($jeda)->gt(now())) {
+            return false;
+        }
+
+        $j->update(['rute_dicek_pada' => now()]);
+
+        try {
+            $this->tarikTrip($j);
+        } catch (CartrackException) {
+            return false;
+        }
+
+        return $j->refresh()->waktu_selesai !== null;
+    }
+
+    /**
+     * Simpan kapan tiap tujuan tercapai. Begitu tujuan terakhir tercapai, waktunya menjadi waktu selesai
+     * jadwal (kecuali jadwal sudah punya waktu selesai). Tujuan yang sudah tercatat tidak dihapus.
+     *
+     * @param array<int, array> $segmen
+     */
+    public function catatRute(JadwalPerjalanan $j, array $segmen): void
+    {
+        $rute = $j->rute()->get();
+        if ($rute->isEmpty()) {
+            return;
+        }
+
+        $tercapai = CartrackTripPuller::hitungRute(
+            $rute->map(fn ($r) => ['id' => $r->id, 'tujuan' => $r->tujuan])->all(),
+            $segmen,
+            $j->waktu_mulai->format('Y-m-d H:i:s')
+        );
+
+        foreach ($rute as $r) {
+            if (isset($tercapai[$r->id]) && $r->tercapai_pada === null) {
+                $r->update(['tercapai_pada' => $tercapai[$r->id]]);
+            }
+        }
+
+        if ($j->waktu_selesai === null && $rute->every(fn ($r) => $r->tercapai_pada !== null)) {
+            $j->update(['waktu_selesai' => $rute->last()->tercapai_pada]);
         }
     }
 

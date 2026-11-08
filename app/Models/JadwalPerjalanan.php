@@ -24,6 +24,7 @@ class JadwalPerjalanan extends Model
         'trip_ditarik_pada',
         'trip_tarik_percobaan_pada',
         'trip_tarik_error',
+        'rute_dicek_pada',
         'dibuat_oleh',
     ];
 
@@ -34,7 +35,15 @@ class JadwalPerjalanan extends Model
         'unlink_pada' => 'datetime',
         'trip_ditarik_pada' => 'datetime',
         'trip_tarik_percobaan_pada' => 'datetime',
+        'rute_dicek_pada' => 'datetime',
     ];
+
+    /**
+     * Jadwal tidak punya waktu selesai di muka. waktu_selesai baru terisi saat tujuan terakhir pada
+     * rute tercapai (atau jadwal diselesaikan manual). Untuk cek bentrok, jadwal yang belum selesai
+     * dianggap memakai kendaraan dan driver selama sekian jam sejak mulai.
+     */
+    public const PERKIRAAN_JAM = 12;
 
     public const STATUS_TERJADWAL = 'terjadwal';
     public const STATUS_BERJALAN = 'berjalan';
@@ -87,23 +96,46 @@ class JadwalPerjalanan extends Model
         return self::STATUS_LABEL[$this->status] ?? $this->status;
     }
 
+    /** Sudah selesai: tujuan terakhir tercapai atau diselesaikan manual. */
+    public function getRuteSelesaiAttribute(): bool
+    {
+        return $this->waktu_selesai !== null;
+    }
+
     /**
-     * Jadwal lain (bukan batal) pada kendaraan atau driver yang sama dan jendela waktunya beririsan.
-     * Dipakai untuk mencegah satu mobil/satu driver dobel dalam waktu yang sama.
+     * Sampai kapan jadwal ini dianggap memakai kendaraan/driver. Sudah selesai: waktu selesainya.
+     * Sedang berjalan tapi belum selesai: tanpa batas. Belum mulai: perkiraan sejak waktu mulai.
+     */
+    public function batasPemakaian(): ?\Carbon\Carbon
+    {
+        if ($this->waktu_selesai) {
+            return $this->waktu_selesai;
+        }
+
+        return $this->status === self::STATUS_BERJALAN
+            ? null
+            : $this->waktu_mulai->copy()->addHours(self::PERKIRAAN_JAM);
+    }
+
+    /**
+     * Jadwal lain (bukan batal) pada kendaraan atau driver yang sama yang masih memakainya saat
+     * jadwal baru mulai. Dipakai untuk mencegah satu mobil/satu driver dobel dalam waktu yang sama.
      *
      * @return \Illuminate\Support\Collection<int, self>
      */
-    public static function bentrok(string $nopol, int $operatorId, $mulai, $selesai, ?int $kecualiId = null)
+    public static function bentrok(string $nopol, int $operatorId, $mulai, ?int $kecualiId = null)
     {
         $kunci = GpsTripImporter::kunciNopol($nopol);
+        $akhirBaru = $mulai->copy()->addHours(self::PERKIRAAN_JAM);
 
         return static::query()
             ->where('status', '!=', self::STATUS_BATAL)
             ->when($kecualiId, fn ($q) => $q->where('id', '!=', $kecualiId))
-            ->where('waktu_mulai', '<', $selesai)
-            ->where('waktu_selesai', '>', $mulai)
+            ->where('waktu_mulai', '<', $akhirBaru)
+            ->where(fn ($q) => $q->whereNull('waktu_selesai')->orWhere('waktu_selesai', '>', $mulai))
             ->get()
             ->filter(fn (self $j) => $j->operator_gtm_id === $operatorId || $j->kunci_nopol === $kunci)
+            ->filter(fn (self $j) => ($batas = $j->batasPemakaian()) === null || $batas->gt($mulai))
             ->values();
     }
 }
