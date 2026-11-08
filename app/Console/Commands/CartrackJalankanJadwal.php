@@ -13,6 +13,8 @@ class CartrackJalankanJadwal extends Command
 
     public function handle(JadwalPerjalananService $service): int
     {
+        JadwalPerjalananService::catatDetak();
+
         $hasil = $service->jalankan();
 
         if ($hasil['diproses'] || $hasil['galat']) {

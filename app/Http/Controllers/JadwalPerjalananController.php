@@ -70,6 +70,7 @@ class JadwalPerjalananController extends Controller
             'perluValidasi' => $perluValidasi,
             'cari' => $cari,
             'ringkasan' => $ringkasan,
+            'detakPenjadwal' => JadwalPerjalananService::detakTerakhir(),
         ]);
     }
 

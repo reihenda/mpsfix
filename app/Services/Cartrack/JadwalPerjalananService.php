@@ -4,6 +4,7 @@ namespace App\Services\Cartrack;
 
 use App\Models\JadwalPerjalanan;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -32,6 +33,22 @@ class JadwalPerjalananService
         private CartrackDirectory $direktori,
         private CartrackTripPuller $puller,
     ) {
+    }
+
+    private const KUNCI_DETAK = 'cartrack:penjadwal_terakhir_jalan';
+
+    /** Dicatat tiap kali cron menjalankan penjadwal, supaya halaman jadwal bisa menunjukkan cron-nya hidup atau mati. */
+    public static function catatDetak(): void
+    {
+        Cache::forever(self::KUNCI_DETAK, now()->toIso8601String());
+    }
+
+    /** Kapan penjadwal terakhir dijalankan cron; null bila belum pernah. */
+    public static function detakTerakhir(): ?Carbon
+    {
+        $nilai = Cache::get(self::KUNCI_DETAK);
+
+        return $nilai ? Carbon::parse($nilai) : null;
     }
 
     /** Waktu sekarang sebagai waktu lokal "telanjang" (sama dengan cara jadwal & trip disimpan). */

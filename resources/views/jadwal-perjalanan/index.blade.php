@@ -37,6 +37,27 @@
         </div>
     </div>
 
+    @php
+        $menitDetak = $detakPenjadwal ? (int) $detakPenjadwal->diffInMinutes(now()) : null;
+        $penjadwalHidup = $menitDetak !== null && $menitDetak <= 3;
+    @endphp
+    <div class="mb-3">
+        @if ($penjadwalHidup)
+            <span class="jp-badge is-ok">Penjadwal aktif</span>
+            <span class="jp-sub d-inline ml-1">terakhir jalan {{ $menitDetak < 1 ? 'baru saja' : $menitDetak.' menit lalu' }}</span>
+        @else
+            <span class="jp-badge is-bad">Penjadwal tidak jalan</span>
+            <span class="jp-sub d-inline ml-1">
+                @if ($detakPenjadwal)
+                    Terakhir jalan {{ $detakPenjadwal->copy()->setTimezone(config('services.cartrack.zona_lokal', 'Asia/Jakarta'))->format('d/m H:i') }}.
+                @else
+                    Belum pernah jalan.
+                @endif
+                Jadwal tidak akan dikirim ke Cartrack otomatis. Periksa cron job di hPanel.
+            </span>
+        @endif
+    </div>
+
     <div class="jp-stats">
         <div class="jp-stat is-accent">
             <span class="jp-stat-icon"><i class="fas fa-truck-moving"></i></span>
