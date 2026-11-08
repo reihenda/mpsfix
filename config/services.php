@@ -39,9 +39,12 @@ return [
         // Driver di-link ke kendaraan sekian menit SEBELUM waktu mulai jadwal
         'link_lead_menit' => (int) env('CARTRACK_LINK_LEAD_MENIT', 0),
         // Driver dilepas & trip ditarik sekian menit SESUDAH tujuan terakhir pada rute tercapai
-        'selesai_grace_menit' => (int) env('CARTRACK_SELESAI_GRACE_MENIT', 30),
-        // Selama jadwal berjalan, rute dicek ke Cartrack paling sering sekali per sekian menit
-        'rute_cek_menit' => (int) env('CARTRACK_RUTE_CEK_MENIT', 10),
+        // (singkat, karena driver sering langsung berangkat lagi ke tempat lain beberapa menit kemudian)
+        'selesai_grace_menit' => (int) env('CARTRACK_SELESAI_GRACE_MENIT', 5),
+        // Selama jadwal berjalan, rute dicek ke Cartrack paling sering sekali per sekian menit.
+        // Driver dilepas paling cepat saat pengecekan yang mendeteksi tujuan terakhir, jadi jeda ini ikut
+        // menentukan seberapa cepat driver dilepas.
+        'rute_cek_menit' => (int) env('CARTRACK_RUTE_CEK_MENIT', 5),
         // Jaring pengaman: jadwal yang rutenya tak kunjung selesai ditutup paksa setelah sekian jam sejak mulai
         'batas_berjalan_jam' => (int) env('CARTRACK_BATAS_BERJALAN_JAM', 48),
     ],
