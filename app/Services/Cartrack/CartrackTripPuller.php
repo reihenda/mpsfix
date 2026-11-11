@@ -4,6 +4,8 @@ namespace App\Services\Cartrack;
 
 use App\Models\GpsGeofence;
 use App\Models\GpsTrip;
+use App\Models\GpsTripDibuang;
+use App\Models\GpsTripImport;
 use App\Models\JadwalPerjalanan;
 use App\Models\User;
 use App\Services\GpsTrip\GpsTripImporter;
@@ -44,6 +46,28 @@ class CartrackTripPuller
             ? Carbon::parse($jadwal->waktu_selesai->format('Y-m-d H:i:s'), $zona)->addHours(self::MARGIN_JAM)
             : Carbon::now($zona);
 
+        $hasil = $this->tarikRentang($registrasi, $awal, $akhir, $userId);
+
+        $jadwal->update([
+            'trip_ditarik_pada' => now(),
+            'trip_tarik_percobaan_pada' => now(),
+            'trip_tarik_error' => null,
+        ]);
+
+        return $hasil;
+    }
+
+    /**
+     * Tarik trip satu kendaraan pada rentang waktu (waktu lokal) dan simpan lewat jalur import yang sama.
+     * Dipakai penarikan per jadwal maupun sinkron berkala semua kendaraan. Trip yang tidak punya jadwal
+     * tetap disimpan (belum tervalidasi, driver dicocokkan dari nama di Cartrack bila ada).
+     *
+     * @return array{stat: array, geofence_baru: int, tertaut: int, jumlah_api: int, segmen: array}
+     */
+    public function tarikRentang(string $registrasi, Carbon $awal, Carbon $akhir, ?int $userId = null): array
+    {
+        $zona = config('services.cartrack.zona_lokal', 'Asia/Jakarta');
+
         $baris = $this->client->tripsKendaraan(
             $registrasi,
             $awal->format('Y-m-d H:i:s'),
@@ -52,8 +76,6 @@ class CartrackTripPuller
 
         $segmen = self::ubahKeSegmen($baris, $zona);
         if (empty($segmen)) {
-            $jadwal->update(['trip_ditarik_pada' => now(), 'trip_tarik_percobaan_pada' => now(), 'trip_tarik_error' => null]);
-
             return ['stat' => [], 'geofence_baru' => 0, 'tertaut' => 0, 'jumlah_api' => 0, 'segmen' => []];
         }
 
@@ -68,20 +90,62 @@ class CartrackTripPuller
 
         $stat = $this->importer->import(
             $parsed,
-            "Cartrack API {$registrasi} {$awal->format('d/m H:i')}-{$akhir->format('d/m H:i')}",
+            'Cartrack sinkron',
             $userId,
-            ['sumber' => GpsTrip::SUMBER_CARTRACK, 'divalidasi' => false]
+            ['sumber' => GpsTrip::SUMBER_CARTRACK, 'divalidasi' => false],
+            $this->importHarian($zona)
         );
 
-        $tertaut = $this->tautkanKeJadwal($nopol);
-
-        $jadwal->update([
-            'trip_ditarik_pada' => now(),
-            'trip_tarik_percobaan_pada' => now(),
-            'trip_tarik_error' => null,
-        ]);
+        $tertaut = $this->tautkanKeJadwal($nopol, $awal);
+        $stat['noise_dibuang'] = $this->buangNoiseTanpaJadwal($nopol, $awal);
 
         return ['stat' => $stat, 'geofence_baru' => $geofenceBaru, 'tertaut' => $tertaut, 'jumlah_api' => count($baris), 'segmen' => $segmen];
+    }
+
+    /**
+     * Satu baris riwayat import per hari untuk semua tarikan Cartrack. Sinkron berjalan tiap 15 menit untuk
+     * 20-an kendaraan; satu baris per tarikan akan menumpuk ribuan baris per hari.
+     */
+    private function importHarian(string $zona): int
+    {
+        $hari = Carbon::now($zona)->toDateString();
+
+        return GpsTripImport::firstOrCreate(
+            ['nama_file' => "Cartrack sinkron {$hari}"],
+            ['periode_mulai' => $hari, 'periode_selesai' => $hari]
+        )->id;
+    }
+
+    /**
+     * Trip noise (kurang dari 5 menit) hasil Cartrack yang tidak punya jadwal tidak berguna dan hanya
+     * memenuhi panel noise: dibuang dan dicatat agar tidak dibuat lagi. Noise yang tertaut jadwal, sudah
+     * diberi driver, diedit, atau sudah masuk lembur dibiarkan untuk ditinjau admin.
+     */
+    private function buangNoiseTanpaJadwal(string $nopol, Carbon $sejak): int
+    {
+        $noise = GpsTrip::noise()
+            ->where('nopol', $nopol)
+            ->where('sumber', GpsTrip::SUMBER_CARTRACK)
+            // Hanya yang sudah selesai: trip yang baru mulai dan masih berjalan sementara tampak pendek,
+            // jangan sampai dibuang lalu tak pernah dibuat utuh
+            ->where('status', 'selesai')
+            ->where('divalidasi', false)
+            ->where('diedit', false)
+            ->whereNull('jadwal_perjalanan_id')
+            ->whereNull('operator_gtm_id')
+            ->whereNull('operator_gtm_lembur_id')
+            ->where('waktu_mulai', '>=', $sejak->format('Y-m-d H:i:s'))
+            ->get();
+
+        foreach ($noise as $trip) {
+            GpsTripDibuang::firstOrCreate([
+                'nopol' => $trip->nopol,
+                'waktu_mulai' => ($trip->kunci_waktu_mulai ?? $trip->waktu_mulai)->format('Y-m-d H:i:s'),
+            ]);
+            $trip->delete();
+        }
+
+        return $noise->count();
     }
 
     /**
@@ -206,12 +270,14 @@ class CartrackTripPuller
      * dan isi driver trip dari jadwal (sumber kebenaran: kita yang menugaskan, bukan tebakan nama GPS).
      * Trip yang sudah tervalidasi atau sudah diedit manual tidak diubah drivernya.
      */
-    private function tautkanKeJadwal(string $nopol): int
+    private function tautkanKeJadwal(string $nopol, Carbon $sejak): int
     {
         $kunci = GpsTripImporter::kunciNopol($nopol);
+        // Hanya trip yang menyentuh rentang tarikan; trip lama tidak perlu dievaluasi ulang tiap sinkron
         $trips = GpsTrip::where('nopol', $nopol)
             ->where('sumber', GpsTrip::SUMBER_CARTRACK)
             ->where('divalidasi', false)
+            ->where(fn ($q) => $q->whereNull('waktu_selesai')->orWhere('waktu_selesai', '>=', $sejak->format('Y-m-d H:i:s')))
             ->get();
 
         if ($trips->isEmpty()) {

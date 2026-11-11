@@ -3,15 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\GpsGeofence;
+use App\Models\GpsSinkronPeriode;
 use App\Models\GpsTrip;
 use App\Models\GpsTripDibuang;
 use App\Models\GpsTripImport;
 use App\Models\NomorPolisi;
 use App\Models\OperatorGtm;
 use App\Models\User;
+use App\Services\Cartrack\CartrackSinkronService;
 use App\Services\GpsTrip\GpsTripImporter;
 use App\Services\GpsTrip\GpsTripLemburService;
 use App\Services\GpsTrip\GpsTripParser;
+use App\Services\GpsTrip\PeriodeLembur;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,15 +36,8 @@ class GpsTripController extends Controller
 
     public function index(Request $request)
     {
-        $bulan = $request->query('bulan');
-        if (!$bulan || !preg_match('/^\d{4}-\d{2}$/', $bulan)) {
-            // Default: bulan data trip terbaru, atau bulan berjalan bila belum ada data
-            $terbaru = GpsTrip::max('waktu_mulai');
-            $bulan = $terbaru ? Carbon::parse($terbaru)->format('Y-m') : now()->format('Y-m');
-        }
-
-        $awal = Carbon::createFromFormat('Y-m-d', $bulan . '-01')->startOfMonth();
-        $akhir = $awal->copy()->endOfMonth();
+        // Periode lembur: 26 bulan lalu s/d 25 bulan berlabel. Default = periode yang sedang berjalan.
+        [$bulan, $awal, $akhir] = $this->periodeBulan($request->query('bulan'));
 
         $query = GpsTrip::with('operator:id,nama')
             ->whereBetween('waktu_mulai', [$awal, $akhir])
@@ -57,6 +53,13 @@ class GpsTripController extends Controller
             $query->whereNull('operator_gtm_id');
         } elseif ($driver) {
             $query->where('operator_gtm_id', (int) $driver);
+        }
+
+        $validasi = $request->query('validasi');
+        if ($validasi === 'belum') {
+            $query->where('divalidasi', false);
+        } elseif ($validasi === 'sudah') {
+            $query->where('divalidasi', true);
         }
 
         $tampil = $request->query('tampil', 'semua');
@@ -115,7 +118,20 @@ class GpsTripController extends Controller
             ->get()
             ->mapWithKeys(fn ($g) => [GpsTripParser::normalisasiNama($g->nama) => $g->customer->name ?? null]);
 
-        $importTerakhir = GpsTripImport::with('user:id,name')->latest()->first();
+        // Riwayat upload Excel saja; tarikan Cartrack (satu baris per hari) punya status sendiri
+        $importTerakhir = GpsTripImport::with('user:id,name')->where('nama_file', 'not like', 'Cartrack%')->latest()->first();
+
+        // Periode ini sudah pernah ditarik penuh dari Cartrack? Bila belum, admin diminta menyinkronkan dulu
+        $periodeSinkron = GpsSinkronPeriode::where('periode', $bulan)->first();
+        $periodeLabel = PeriodeLembur::label($bulan);
+        $periodeBerjalan = $bulan === PeriodeLembur::bulanUntuk(Carbon::now(config('services.cartrack.zona_lokal', 'Asia/Jakarta')));
+
+        // Trip hasil sinkron Cartrack yang belum divalidasi di periode ini (belum ikut hitungan lembur)
+        $belumValidasi = GpsTrip::where('divalidasi', false)
+            ->whereBetween('waktu_mulai', [$awal, $akhir])
+            ->count();
+        $sinkronTerakhir = CartrackSinkronService::hasilTerakhir();
+        $sinkronMenunggu = CartrackSinkronService::permintaanMenunggu();
 
         // Trip noise (< 5 menit) di bulan ini, terlepas dari filter di atas
         $noise = GpsTrip::noise()
@@ -127,8 +143,29 @@ class GpsTripController extends Controller
 
         return view('gps-trip.index', compact(
             'bulan', 'perKendaraan', 'nomorTrip', 'rekapDriver', 'ringkasan', 'daftarNopol',
-            'operators', 'kunciTerdaftar', 'geofenceCustomer', 'importTerakhir', 'tampil', 'driver', 'noise'
+            'operators', 'kunciTerdaftar', 'geofenceCustomer', 'importTerakhir', 'tampil', 'driver', 'noise',
+            'validasi', 'belumValidasi', 'sinkronTerakhir', 'sinkronMenunggu', 'periodeSinkron', 'periodeLabel', 'periodeBerjalan'
         ) + ['nopolDipilih' => $request->query('nopol')]);
+    }
+
+    // ------------------------------------------------------------------
+    // Sinkron dari Cartrack
+    // ------------------------------------------------------------------
+
+    /**
+     * Minta tarik penuh satu periode lembur dari Cartrack. Menarik semua kendaraan bisa memakan waktu semenit
+     * lebih, jadi hanya dicatat dan dikerjakan penjadwal pada menit berikutnya.
+     */
+    public function sinkron(Request $request)
+    {
+        $data = $request->validate([
+            'bulan' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+        ]);
+
+        CartrackSinkronService::mintaPeriode($data['bulan']);
+
+        return redirect()->route('gps-trip.index', ['bulan' => $data['bulan']])
+            ->with('success', 'Sinkron periode '.PeriodeLembur::label($data['bulan']).' diminta. Penjadwal mengerjakannya dalam sekitar satu menit; muat ulang halaman ini setelah itu.');
     }
 
     // ------------------------------------------------------------------
@@ -137,7 +174,7 @@ class GpsTripController extends Controller
 
     public function upload()
     {
-        $riwayat = GpsTripImport::with('user:id,name')->latest()->limit(10)->get();
+        $riwayat = GpsTripImport::with('user:id,name')->where('nama_file', 'not like', 'Cartrack%')->latest()->limit(10)->get();
 
         return view('gps-trip.upload', compact('riwayat'));
     }
@@ -327,7 +364,7 @@ class GpsTripController extends Controller
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer|exists:gps_trip,id',
-            'aksi' => ['required', Rule::in(['driver', 'hitung', 'abaikan', 'hapus'])],
+            'aksi' => ['required', Rule::in(['driver', 'hitung', 'abaikan', 'hapus', 'validasi', 'batal_validasi'])],
             'operator_gtm_id' => 'nullable|integer|exists:operator_gtm,id',
         ]);
 
@@ -335,6 +372,10 @@ class GpsTripController extends Controller
         $jumlah = (clone $query)->count();
 
         switch ($validated['aksi']) {
+            case 'validasi':
+            case 'batal_validasi':
+                $pesan = $this->validasiMassal($validated['ids'], $validated['aksi'] === 'validasi', $request->user()->id);
+                break;
             case 'driver':
                 $query->update(['operator_gtm_id' => $validated['operator_gtm_id'] ?? null]);
                 $pesan = "Driver diperbarui untuk {$jumlah} trip.";
@@ -348,6 +389,13 @@ class GpsTripController extends Controller
                 $pesan = "{$jumlah} trip tidak dihitung.";
                 break;
             default:
+                // Trip hasil sinkron Cartrack yang dihapus dicatat agar tidak dibuat lagi oleh sinkron berikutnya
+                $query->get()
+                    ->where('sumber', GpsTrip::SUMBER_CARTRACK)
+                    ->each(fn (GpsTrip $t) => GpsTripDibuang::firstOrCreate([
+                        'nopol' => $t->nopol,
+                        'waktu_mulai' => ($t->kunci_waktu_mulai ?? $t->waktu_mulai)->format('Y-m-d H:i:s'),
+                    ]));
                 $query->delete();
                 $pesan = "{$jumlah} trip dihapus.";
         }
@@ -357,6 +405,43 @@ class GpsTripController extends Controller
         }
 
         return back()->with('success', $pesan);
+    }
+
+    /**
+     * Validasi / batal validasi trip hasil Cartrack. Aturannya sama dengan validasi di halaman jadwal:
+     * hanya trip Cartrack, yang belum masuk lembur, dan (untuk validasi) sudah punya driver.
+     */
+    private function validasiMassal(array $ids, bool $validasi, int $userId): string
+    {
+        $trips = GpsTrip::whereIn('id', $ids)
+            ->where('sumber', GpsTrip::SUMBER_CARTRACK)
+            ->whereNull('operator_gtm_lembur_id')
+            ->get();
+
+        $lewat = count($ids) - $trips->count();
+        $berubah = 0;
+
+        foreach ($trips as $trip) {
+            if ($trip->divalidasi === $validasi) {
+                continue;
+            }
+            if ($validasi && $trip->operator_gtm_id === null) {
+                $lewat++;
+                continue;
+            }
+
+            $trip->update($validasi
+                ? ['divalidasi' => true, 'divalidasi_oleh' => $userId, 'divalidasi_pada' => now()]
+                : ['divalidasi' => false, 'divalidasi_oleh' => null, 'divalidasi_pada' => null]);
+            $berubah++;
+        }
+
+        $pesan = $berubah.' trip '.($validasi ? 'divalidasi' : 'dibatalkan validasinya').'.';
+        if ($lewat > 0) {
+            $pesan .= " {$lewat} trip dilewati (tanpa driver, bukan dari Cartrack, atau sudah masuk lembur).";
+        }
+
+        return $pesan;
     }
 
     /**
@@ -424,6 +509,7 @@ class GpsTripController extends Controller
 
         return view('gps-trip.lembur', [
             'bulan' => $bulan,
+            'periodeLabel' => PeriodeLembur::label($bulan),
             'baris' => $hasil['baris'],
             'tanpaDriver' => $hasil['tanpa_driver'],
             'belumValidasi' => $hasil['belum_validasi'],
@@ -456,16 +542,20 @@ class GpsTripController extends Controller
     // Helper
     // ------------------------------------------------------------------
 
+    /**
+     * Periode lembur (26 bulan lalu s/d 25 bulan berlabel) dari label YYYY-MM; kosong/tidak valid = periode berjalan.
+     *
+     * @return array{0: string, 1: Carbon, 2: Carbon}
+     */
     private function periodeBulan(?string $bulan): array
     {
-        if (!$bulan || !preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $bulan)) {
-            $terbaru = GpsTrip::max('waktu_mulai');
-            $bulan = $terbaru ? Carbon::parse($terbaru)->format('Y-m') : now()->format('Y-m');
+        if (!PeriodeLembur::valid($bulan)) {
+            $bulan = PeriodeLembur::bulanUntuk(Carbon::now(config('services.cartrack.zona_lokal', 'Asia/Jakarta')));
         }
 
-        $awal = Carbon::createFromFormat('Y-m-d', $bulan . '-01')->startOfMonth();
+        [$awal, $akhir] = PeriodeLembur::rentang($bulan);
 
-        return [$bulan, $awal, $awal->copy()->endOfMonth()];
+        return [$bulan, $awal, $akhir];
     }
 
     private function daftarCustomer()
@@ -475,7 +565,9 @@ class GpsTripController extends Controller
 
     private function bulanDari(array $parsed): string
     {
-        return $parsed['periode'][0] ? substr($parsed['periode'][0], 0, 7) : now()->format('Y-m');
+        return $parsed['periode'][0]
+            ? PeriodeLembur::bulanUntuk(Carbon::parse($parsed['periode'][0]))
+            : PeriodeLembur::bulanUntuk(now());
     }
 
     /**
@@ -484,8 +576,8 @@ class GpsTripController extends Controller
     private function redirectSetelahImport(array $parsed, array $stat)
     {
         $bulan = $this->bulanDari($parsed);
-        $awal = Carbon::createFromFormat('Y-m-d', $bulan . '-01')->startOfMonth();
-        $jumlahNoise = GpsTrip::noise()->whereBetween('waktu_mulai', [$awal, $awal->copy()->endOfMonth()])->count();
+        [$awal, $akhir] = PeriodeLembur::rentang($bulan);
+        $jumlahNoise = GpsTrip::noise()->whereBetween('waktu_mulai', [$awal, $akhir])->count();
 
         $pesan = $this->pesanHasil($stat);
         if ($jumlahNoise > 0) {

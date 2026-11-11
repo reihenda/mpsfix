@@ -45,8 +45,9 @@
         <div class="card">
             <div class="card-body py-2">
                 <form action="{{ route('gps-trip.lembur') }}" method="GET" class="form-inline">
-                    <label class="mr-2 small text-muted">Bulan</label>
-                    <input type="month" name="bulan" value="{{ $bulan }}" class="form-control form-control-sm mr-2" onchange="this.form.submit()">
+                    <label class="mr-2 small text-muted">Periode</label>
+                    <input type="month" name="bulan" value="{{ $bulan }}" class="form-control form-control-sm mr-2" onchange="this.form.submit()" title="Periode lembur diberi nama menurut bulan tanggal 25">
+                    <span class="small text-muted">{{ $periodeLabel }}</span>
                     <a href="{{ route('gps-trip.index', ['bulan' => $bulan]) }}" class="btn btn-secondary btn-sm ml-auto"><i class="fas fa-arrow-left mr-1"></i> Kembali ke Trip GPS</a>
                 </form>
             </div>
@@ -63,15 +64,15 @@
         @if (($belumValidasi ?? 0) > 0)
             <div class="alert alert-info py-2">
                 <i class="fas fa-clipboard-check mr-1"></i>
-                <strong>{{ $belumValidasi }} trip</strong> dari Cartrack di bulan ini belum divalidasi, jadi belum masuk hitungan.
-                <a href="{{ route('jadwal-perjalanan.index', ['perlu_validasi' => 1]) }}">Buka validasi perjalanan</a>
+                <strong>{{ $belumValidasi }} trip</strong> dari Cartrack di periode ini belum divalidasi, jadi belum masuk hitungan.
+                <a href="{{ route('gps-trip.index', ['bulan' => $bulan, 'validasi' => 'belum']) }}">Lihat &amp; validasi di Trip GPS</a>
             </div>
         @endif
 
         @if ($tanpaDriver > 0)
             <div class="alert alert-warning py-2">
                 <i class="fas fa-user-slash mr-1"></i>
-                <strong>{{ $tanpaDriver }} trip</strong> di bulan ini belum punya driver, jadi belum masuk hitungan.
+                <strong>{{ $tanpaDriver }} trip</strong> di periode ini belum punya driver, jadi belum masuk hitungan.
                 <a href="{{ route('gps-trip.index', ['bulan' => $bulan, 'driver' => 'kosong', 'tampil' => 'dihitung']) }}">Lengkapi driver</a>
             </div>
         @endif
@@ -79,7 +80,7 @@
         @if (empty($baris))
             <div class="card">
                 <div class="card-body text-center text-muted py-5">
-                    Belum ada trip yang dihitung dan sudah punya driver di bulan ini.
+                    Belum ada trip yang dihitung dan sudah punya driver di periode ini.
                 </div>
             </div>
         @else

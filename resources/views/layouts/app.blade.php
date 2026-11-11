@@ -305,7 +305,7 @@
                                     <li class="nav-item">
                                         <a href="{{ route('gps-trip.index') }}" class="nav-link">
                                             <i class="fas fa-satellite-dish nav-icon"></i>
-                                            <p>Trip GPS (Import Excel)</p>
+                                            <p>Trip GPS</p>
                                         </a>
                                     </li>
                                     <li class="nav-item">

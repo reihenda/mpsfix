@@ -14,3 +14,11 @@ Schedule::command('cartrack:jalankan-jadwal')
     ->everyMinute()
     ->withoutOverlapping(10)
     ->runInBackground();
+
+// Semua trip kendaraan Cartrack masuk ke halaman Trip GPS (yang tidak punya jadwal: driver diisi admin).
+// Dipanggil tiap menit, tapi perintahnya sendiri yang memutuskan: jalan tiap 15 menit, atau segera bila
+// admin menekan "Sinkron sekarang" di halaman Trip GPS.
+Schedule::command('cartrack:sinkron-trip')
+    ->everyMinute()
+    ->withoutOverlapping(30)
+    ->runInBackground();

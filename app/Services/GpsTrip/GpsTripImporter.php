@@ -33,9 +33,11 @@ class GpsTripImporter
      *  - ada di DB tapi tidak lagi terdeteksi, belum diedit & belum ada driver -> dihapus
      */
     /**
-     * @param array $atributBaru atribut tambahan HANYA untuk trip yang baru dibuat (mis. sumber, divalidasi)
+     * @param array    $atributBaru atribut tambahan HANYA untuk trip yang baru dibuat (mis. sumber, divalidasi)
+     * @param int|null $importId    pakai baris riwayat import yang sudah ada (mis. satu baris per hari untuk sinkron
+     *                              Cartrack) alih-alih membuat baris baru tiap panggilan
      */
-    public function import(array $parsed, string $namaFile, ?int $userId, array $atributBaru = []): array
+    public function import(array $parsed, string $namaFile, ?int $userId, array $atributBaru = [], ?int $importId = null): array
     {
         $geofence = GpsGeofence::all()->keyBy(fn ($g) => GpsTripParser::normalisasiNama($g->nama));
         $batasTrip = function (string $nama) use ($geofence): bool {
@@ -47,13 +49,15 @@ class GpsTripImporter
         $operators = OperatorGtm::select('id', 'nama')->get();
         $stat = ['baru' => 0, 'diperbarui' => 0, 'dilewati' => 0, 'dihapus' => 0, 'dibuang' => 0, 'dipertahankan' => 0, 'total' => 0, 'kendaraan' => 0];
 
-        DB::transaction(function () use ($parsed, $namaFile, $userId, $batasTrip, $operators, $atributBaru, &$stat) {
-            $import = GpsTripImport::create([
-                'nama_file' => $namaFile,
-                'periode_mulai' => $parsed['periode'][0],
-                'periode_selesai' => $parsed['periode'][1],
-                'user_id' => $userId,
-            ]);
+        DB::transaction(function () use ($parsed, $namaFile, $userId, $batasTrip, $operators, $atributBaru, $importId, &$stat) {
+            $import = $importId
+                ? GpsTripImport::findOrFail($importId)
+                : GpsTripImport::create([
+                    'nama_file' => $namaFile,
+                    'periode_mulai' => $parsed['periode'][0],
+                    'periode_selesai' => $parsed['periode'][1],
+                    'user_id' => $userId,
+                ]);
 
             foreach ($parsed['kendaraan'] as $nopol => $kendaraan) {
                 $trips = $this->builder->bangun($kendaraan['segmen'], $batasTrip);
@@ -133,10 +137,12 @@ class GpsTripImporter
                 }
             }
 
-            $import->update([
-                'jumlah_kendaraan' => $stat['kendaraan'],
-                'jumlah_trip' => $stat['total'],
-            ]);
+            if (! $importId) {
+                $import->update([
+                    'jumlah_kendaraan' => $stat['kendaraan'],
+                    'jumlah_trip' => $stat['total'],
+                ]);
+            }
         });
 
         return $stat;

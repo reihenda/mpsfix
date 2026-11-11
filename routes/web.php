@@ -369,6 +369,7 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
         Route::get('/geofence', [$c, 'geofence'])->name('geofence');
         Route::put('/geofence/{geofence}', [$c, 'updateGeofence'])->name('geofence.update')->where('geofence', '[0-9]+');
         Route::post('/aksi', [$c, 'aksiMassal'])->name('aksi');
+        Route::post('/sinkron', [$c, 'sinkron'])->name('sinkron');
         Route::post('/noise', [$c, 'hapusNoise'])->name('noise');
         Route::get('/lembur', [$c, 'lembur'])->name('lembur');
         Route::post('/lembur', [$c, 'terapkanLembur'])->name('lembur.terapkan');

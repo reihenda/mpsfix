@@ -47,6 +47,10 @@ return [
         'rute_cek_menit' => (int) env('CARTRACK_RUTE_CEK_MENIT', 5),
         // Jaring pengaman: jadwal yang rutenya tak kunjung selesai ditutup paksa setelah sekian jam sejak mulai
         'batas_berjalan_jam' => (int) env('CARTRACK_BATAS_BERJALAN_JAM', 48),
+        // Sinkron berkala semua kendaraan Cartrack ke halaman Trip GPS (tanpa harus ada jadwal perjalanan).
+        // Tiap sinkron menarik trip sekian hari ke belakang; rentang yang tumpang tindih aman (idempoten).
+        'sinkron_aktif' => (bool) env('CARTRACK_SINKRON_AKTIF', true),
+        'sinkron_hari' => (int) env('CARTRACK_SINKRON_HARI', 3),
     ],
 
     'slack' => [

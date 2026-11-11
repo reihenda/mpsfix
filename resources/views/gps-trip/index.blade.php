@@ -2,7 +2,7 @@
 
 @section('title', 'Trip GPS')
 
-@section('page-title', 'Trip GPS (Import Excel)')
+@section('page-title', 'Trip GPS')
 
 @section('css')
 <style>
@@ -67,8 +67,9 @@
         <div class="card">
             <div class="card-body py-2">
                 <form action="{{ route('gps-trip.index') }}" method="GET" class="form-inline">
-                    <label class="mr-2 small text-muted">Bulan</label>
-                    <input type="month" name="bulan" value="{{ $bulan }}" class="form-control form-control-sm mr-3 mb-1">
+                    <label class="mr-2 small text-muted">Periode</label>
+                    <input type="month" name="bulan" value="{{ $bulan }}" class="form-control form-control-sm mr-2 mb-1" title="Periode lembur diberi nama menurut bulan tanggal 25">
+                    <span class="small text-muted mr-3 mb-1">{{ $periodeLabel }}</span>
 
                     <label class="mr-2 small text-muted">Kendaraan</label>
                     <select name="nopol" class="form-control form-control-sm mr-3 mb-1">
@@ -94,16 +95,85 @@
                         <option value="perlu_dicek" @selected($tampil === 'perlu_dicek')>Perlu dicek</option>
                     </select>
 
+                    <label class="mr-2 small text-muted">Validasi</label>
+                    <select name="validasi" class="form-control form-control-sm mr-3 mb-1">
+                        <option value="">Semua</option>
+                        <option value="belum" @selected($validasi === 'belum')>Belum divalidasi</option>
+                        <option value="sudah" @selected($validasi === 'sudah')>Sudah divalidasi</option>
+                    </select>
+
                     <button type="submit" class="btn btn-primary btn-sm mb-1 mr-2"><i class="fas fa-filter mr-1"></i> Terapkan</button>
 
                     <div class="ml-auto mb-1">
                         <a href="{{ route('gps-trip.lembur', ['bulan' => $bulan]) }}" class="btn btn-primary btn-sm"><i class="fas fa-user-clock mr-1"></i> Terapkan ke Lembur</a>
                         <a href="{{ route('gps-trip.geofence') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-map-pin mr-1"></i> Master Geofence</a>
-                        <a href="{{ route('gps-trip.upload') }}" class="btn btn-success btn-sm"><i class="fas fa-file-upload mr-1"></i> Upload Excel GPS</a>
+                        <a href="{{ route('gps-trip.upload') }}" class="btn btn-outline-secondary btn-sm" title="Cadangan bila data Cartrack tidak tersedia"><i class="fas fa-file-upload mr-1"></i> Import Excel</a>
                     </div>
                 </form>
             </div>
         </div>
+
+        {{-- Sinkron Cartrack: semua trip kendaraan Cartrack masuk ke sini, dengan atau tanpa jadwal perjalanan --}}
+        @php
+            $waktuSinkron = $sinkronTerakhir ? \Carbon\Carbon::parse($sinkronTerakhir['waktu']) : null;
+            $menitSinkron = $waktuSinkron ? (int) $waktuSinkron->diffInMinutes(now()) : null;
+            $sinkronHidup = $menitSinkron !== null && $menitSinkron <= 30;
+        @endphp
+        <div class="card">
+            <div class="card-body py-2 d-flex flex-wrap align-items-center">
+                <span class="badge {{ $sinkronHidup ? 'badge-success' : 'badge-danger' }} mr-2">{{ $sinkronHidup ? 'Sinkron Cartrack aktif' : 'Sinkron Cartrack tidak jalan' }}</span>
+                <span class="small text-muted mr-3">
+                    @if ($waktuSinkron)
+                        Terakhir {{ $menitSinkron < 1 ? 'baru saja' : $menitSinkron.' menit lalu' }}
+                        · {{ $sinkronTerakhir['kendaraan'] }} kendaraan
+                        @if ($sinkronTerakhir['baru']) · {{ $sinkronTerakhir['baru'] }} trip baru @endif
+                    @else
+                        Belum pernah jalan.
+                    @endif
+                    · otomatis tiap 15 menit untuk semua kendaraan; periode berjalan ditarik penuh sekali sehari
+                </span>
+                @if (!empty($sinkronTerakhir['galat']))
+                    <span class="small text-danger mr-3" title="{{ implode(' | ', array_map(fn ($k, $v) => $k.': '.$v, array_keys($sinkronTerakhir['galat']), $sinkronTerakhir['galat'])) }}">
+                        <i class="fas fa-exclamation-triangle"></i> {{ count($sinkronTerakhir['galat']) }} kendaraan gagal ditarik
+                    </span>
+                @endif
+                @if ($belumValidasi)
+                    <a href="{{ route('gps-trip.index', ['bulan' => $bulan, 'validasi' => 'belum']) }}" class="small mr-3">
+                        <i class="fas fa-clipboard-check"></i> {{ $belumValidasi }} trip periode ini belum divalidasi
+                    </a>
+                @endif
+                @if ($sinkronMenunggu)
+                    <span class="small text-info ml-auto mr-2"><i class="fas fa-hourglass-half"></i> Sinkron periode {{ \App\Services\GpsTrip\PeriodeLembur::label($sinkronMenunggu) }} diminta, menunggu penjadwal (±1 menit)</span>
+                @endif
+                <form action="{{ route('gps-trip.sinkron') }}" method="POST" class="form-inline {{ $sinkronMenunggu ? '' : 'ml-auto' }}">
+                    @csrf
+                    <input type="hidden" name="bulan" value="{{ $bulan }}">
+                    <button type="submit" class="btn btn-success btn-sm" title="Tarik ulang seluruh trip periode {{ $periodeLabel }} dari Cartrack"><i class="fas fa-sync-alt mr-1"></i> Sinkron periode ini</button>
+                </form>
+            </div>
+        </div>
+
+        {{-- Periode yang dipilih belum pernah ditarik penuh dari Cartrack --}}
+        @unless ($periodeSinkron)
+            <div class="alert alert-warning d-flex flex-wrap align-items-center">
+                <div class="mr-3">
+                    <i class="fas fa-exclamation-circle mr-1"></i>
+                    @if ($periodeBerjalan)
+                        Periode <strong>{{ $periodeLabel }}</strong> belum ditarik penuh dari Cartrack. Penjadwal akan menariknya otomatis dalam beberapa menit.
+                    @else
+                        Periode <strong>{{ $periodeLabel }}</strong> belum pernah ditarik dari Cartrack, jadi datanya mungkin kosong atau belum lengkap.
+                        Sinkronkan dulu sebelum dipakai.
+                    @endif
+                </div>
+                @unless ($sinkronMenunggu)
+                    <form action="{{ route('gps-trip.sinkron') }}" method="POST" class="ml-auto">
+                        @csrf
+                        <input type="hidden" name="bulan" value="{{ $bulan }}">
+                        <button type="submit" class="btn btn-warning btn-sm"><i class="fas fa-sync-alt mr-1"></i> Sinkronkan periode ini</button>
+                    </form>
+                @endunless
+            </div>
+        @endunless
 
         {{-- Ringkasan --}}
         <div class="row">
@@ -216,8 +286,8 @@
             <div class="card">
                 <div class="card-body text-center text-muted py-5">
                     <i class="fas fa-satellite-dish fa-2x mb-3"></i>
-                    <p class="mb-3">Belum ada data trip untuk filter ini.</p>
-                    <a href="{{ route('gps-trip.upload') }}" class="btn btn-success"><i class="fas fa-file-upload mr-1"></i> Upload Excel GPS</a>
+                    <p class="mb-3">Belum ada data trip untuk filter ini. Trip dari Cartrack masuk otomatis tiap 15 menit.</p>
+                    <a href="{{ route('gps-trip.upload') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-upload mr-1"></i> Import Excel GPS</a>
                 </div>
             </div>
         @else
@@ -271,6 +341,8 @@
                              (js/responsive.js) menonaktifkan tombol submit saat submit, sehingga nilainya tidak terkirim. --}}
                         <input type="hidden" name="aksi" id="aksi-nilai" value="">
                         <button type="submit" data-aksi="driver" class="btn btn-primary btn-sm mr-3"><i class="fas fa-user-check mr-1"></i> Set Driver</button>
+                        <button type="submit" data-aksi="validasi" class="btn btn-outline-primary btn-sm mr-1" title="Hanya trip Cartrack yang sudah punya driver"><i class="fas fa-check-double mr-1"></i> Validasi</button>
+                        <button type="submit" data-aksi="batal_validasi" class="btn btn-outline-secondary btn-sm mr-3">Batal validasi</button>
                         <button type="submit" data-aksi="hitung" class="btn btn-outline-success btn-sm mr-1">Hitung</button>
                         <button type="submit" data-aksi="abaikan" class="btn btn-outline-secondary btn-sm mr-1">Jangan hitung</button>
                         <button type="submit" data-aksi="hapus" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash mr-1"></i> Hapus</button>
@@ -393,6 +465,18 @@
                                                 @endif
                                                 @if (!$t->dihitung)
                                                     <span class="badge badge-secondary">tidak dihitung</span>
+                                                @endif
+                                                @if ($t->sumber === GpsTrip::SUMBER_CARTRACK)
+                                                    @if ($t->divalidasi)
+                                                        <span class="badge badge-success" title="Sudah divalidasi, layak masuk halaman Lembur">valid</span>
+                                                    @else
+                                                        <span class="badge badge-warning" title="Belum divalidasi: belum ikut hitungan lembur">belum valid</span>
+                                                    @endif
+                                                    @if ($t->jadwal_perjalanan_id)
+                                                        <a href="{{ route('jadwal-perjalanan.show', $t->jadwal_perjalanan_id) }}" class="badge badge-info" title="Trip ini bagian dari jadwal perjalanan">jadwal #{{ $t->jadwal_perjalanan_id }}</a>
+                                                    @else
+                                                        <span class="badge badge-light border" title="Terbaca dari Cartrack tanpa jadwal perjalanan: isi driver lalu validasi di sini">tanpa jadwal</span>
+                                                    @endif
                                                 @endif
                                                 @if ($t->operator_gtm_lembur_id)
                                                     <span class="badge badge-success" title="Sudah dipakai untuk data lembur operator">lembur</span>
@@ -552,7 +636,7 @@
                 alert('Pilih minimal satu trip terlebih dahulu.');
                 return;
             }
-            if (aksi === 'hapus' && !confirm('Hapus ' + n + ' trip terpilih? Trip yang terhapus akan muncul lagi bila file laporan di-upload ulang.')) {
+            if (aksi === 'hapus' && !confirm('Hapus ' + n + ' trip terpilih? Trip dari Cartrack tidak akan dibuat lagi; trip dari Excel muncul lagi bila file laporannya di-upload ulang.')) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
             }
