@@ -4,7 +4,7 @@
 
 @section('page-title', 'Terapkan Trip GPS ke Lembur Operator')
 
-@section('css')
+@push('styles')
 <style>
     .lembur-table td { vertical-align: top; }
     .sesi-chip {
@@ -14,7 +14,7 @@
     .sesi-chip.lama { background: #fff3cd; color: #7a5b00; }
     .baris-sama { color: #8a8f98; }
 </style>
-@endsection
+@endpush
 
 @section('content')
 @php

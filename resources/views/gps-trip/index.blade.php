@@ -4,11 +4,29 @@
 
 @section('page-title', 'Trip GPS')
 
-@section('css')
+@push('styles')
 <style>
     .gps-trip-table { min-width: 980px; }
     .gps-trip-table td { vertical-align: middle; }
-    .gps-trip-table .kolom-rute { min-width: 270px; }
+    .gps-trip-table .kolom-rute { min-width: 340px; }
+    /* Rute: titik-titik terhubung garis tipis, satu baris, nama dipotong "…" bila kepanjangan */
+    .rute-titik { display: flex; align-items: center; min-width: 0; font-size: .8rem; line-height: 1.3; color: inherit; }
+    .rute-titik .titik { display: flex; align-items: center; min-width: 0; flex: 0 1 auto; }
+    .rute-titik .titik + .titik::before {
+        content: ''; flex: 0 0 12px; height: 1px; background: #ced4da; margin: 0 5px;
+    }
+    .rute-titik .titik-nama { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .rute-titik .titik-dot {
+        flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px;
+        background: #495057; border: 1.5px solid #495057;
+    }
+    .rute-titik .titik-singgah .titik-dot { background: #fff; border-color: #868e96; }
+    .rute-titik .titik-singgah { color: #6c757d; }
+    .rute-titik .titik-lebih { color: #868e96; font-size: .72rem; flex: 0 0 auto; }
+    .rute-titik .titik-kosong .titik-dot { background: transparent; border: 1.5px dashed #adb5bd; }
+    .rute-titik .titik-kosong .titik-nama { font-style: italic; color: #adb5bd; }
+    .gps-trip-table .baris-abaikan .rute-titik .titik-dot { background: #adb5bd; border-color: #adb5bd; }
+    .gps-trip-table .baris-abaikan .rute-titik .titik-singgah .titik-dot { background: #fff; }
     .header-sekunder { opacity: .8; font-size: .85rem; }
     .gps-trip-table .baris-tanggal td {
         background: #f4f6f9;
@@ -31,7 +49,7 @@
     .bulk-bar { position: sticky; top: 0; z-index: 10; }
     @media (max-width: 768px) { .gps-trip-table { font-size: .82rem; } }
 </style>
-@endsection
+@endpush
 
 @section('content')
 @php
@@ -423,17 +441,32 @@
                                                 @endif
                                             </td>
                                             <td class="kolom-rute">
-                                                <div class="rute-utama" title="{{ $namaCustMulai ? 'Customer: ' . $namaCustMulai : '' }}">
-                                                    {{ $t->geofence_mulai ?? '(tidak terbaca)' }}
-                                                    <i class="fas fa-long-arrow-alt-right text-muted mx-1"></i>
-                                                    {{ $t->geofence_selesai ?? '(tidak terbaca)' }}
+                                                {{-- Rute sebagai titik-titik terhubung: awal, singgah (maks. 2, sisanya "+N"), akhir.
+                                                     Satu baris; nama panjang dipotong "…", nama lengkap & customer ada di tooltip. --}}
+                                                @php
+                                                    $namaCust = fn ($g) => $g ? ($geofenceCustomer[GpsTripParser::normalisasiNama($g)] ?? null) : null;
+                                                    $singgah = $t->perhentian;
+                                                    $titik = [['awal', $t->geofence_mulai, $namaCustMulai]];
+                                                    foreach (array_slice($singgah, 0, 2) as $s) {
+                                                        $titik[] = ['singgah', $s, $namaCust($s)];
+                                                    }
+                                                    if (count($singgah) > 2) {
+                                                        $titik[] = ['lebih', '+' . (count($singgah) - 2), implode(', ', array_slice($singgah, 2))];
+                                                    }
+                                                    $titik[] = ['akhir', $t->geofence_selesai, $namaCustSelesai];
+                                                @endphp
+                                                <div class="rute-titik">
+                                                    @foreach ($titik as [$jenis, $nama, $cust])
+                                                        @if ($jenis === 'lebih')
+                                                            <span class="titik titik-lebih" title="Singgah lainnya: {{ $cust }}"><span class="titik-nama">{{ $nama }}</span></span>
+                                                        @else
+                                                            <span class="titik titik-{{ $jenis }} {{ $nama ? '' : 'titik-kosong' }}"
+                                                                  title="{{ ['awal' => 'Mulai', 'singgah' => 'Singgah', 'akhir' => 'Selesai'][$jenis] }}: {{ $nama ?? 'tidak terbaca' }}{{ $cust ? ' · Customer: ' . $cust : '' }}">
+                                                                <i class="titik-dot"></i><span class="titik-nama">{{ $nama ?? 'tidak terbaca' }}</span>
+                                                            </span>
+                                                        @endif
+                                                    @endforeach
                                                 </div>
-                                                @if ($t->perhentian)
-                                                    <div class="rute-singgah">singgah: {{ implode(', ', $t->perhentian) }}</div>
-                                                @endif
-                                                @if ($namaCustMulai || $namaCustSelesai)
-                                                    <div class="rute-singgah">{{ $namaCustMulai ?? '?' }} → {{ $namaCustSelesai ?? '?' }}</div>
-                                                @endif
                                                 @if ($t->catatan)
                                                     <div class="rute-singgah"><i class="far fa-sticky-note"></i> {{ $t->catatan }}</div>
                                                 @endif
