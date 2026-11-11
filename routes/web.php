@@ -101,6 +101,7 @@ Route::middleware(['auth', 'role:admin,superadmin,staff_operasional'])->group(fu
         Route::post('/{jadwalPerjalanan}/selesaikan', [$jp, 'selesaikan'])->name('selesaikan')->where('jadwalPerjalanan', '[0-9]+');
         Route::post('/{jadwalPerjalanan}/ulangi-link', [$jp, 'ulangiLink'])->name('ulangi-link')->where('jadwalPerjalanan', '[0-9]+');
         Route::post('/{jadwalPerjalanan}/tarik-trip', [$jp, 'tarikTrip'])->name('tarik-trip')->where('jadwalPerjalanan', '[0-9]+');
+        Route::delete('/{jadwalPerjalanan}', [$jp, 'destroy'])->name('destroy')->where('jadwalPerjalanan', '[0-9]+');
     });
 
     Route::get('/pemetaan-cartrack', [App\Http\Controllers\PemetaanCartrackController::class, 'index'])->name('pemetaan-cartrack.index');

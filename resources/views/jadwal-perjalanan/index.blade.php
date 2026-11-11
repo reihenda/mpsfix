@@ -175,7 +175,12 @@
                                     <span class="text-muted">–</span>
                                 @endif
                             </td>
-                            <td class="text-right">
+                            <td class="text-right text-nowrap">
+                                @if ($j->status === 'batal')
+                                    <form method="POST" action="{{ route('jadwal-perjalanan.destroy', $j) }}" class="d-inline"
+                                          onsubmit="return confirm('Hapus jadwal {{ $j->nopol }} ini permanen?{{ $j->trips_belum_validasi_count ? ' '.$j->trips_belum_validasi_count.' trip yang belum divalidasi ikut terhapus.' : '' }} Tindakan ini tidak bisa dibatalkan.')">@csrf @method('DELETE')
+                                        <button class="btn btn-sm btn-link-quiet text-danger" title="Hapus jadwal" aria-label="Hapus jadwal"><i class="fas fa-trash mr-0"></i></button></form>
+                                @endif
                                 <a href="{{ route('jadwal-perjalanan.show', $j) }}" class="btn btn-sm btn-link-quiet">Buka<i class="fas fa-arrow-right ml-1 mr-0"></i></a>
                             </td>
                         </tr>

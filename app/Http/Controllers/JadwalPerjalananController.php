@@ -182,6 +182,38 @@ class JadwalPerjalananController extends Controller
         return redirect()->route('jadwal-perjalanan.show', $jadwalPerjalanan)->with('success', 'Jadwal dibatalkan.');
     }
 
+    /**
+     * Hapus jadwal yang sudah dibatalkan. Trip hasil tarikannya yang belum divalidasi ikut dihapus
+     * (kalau dibiarkan, trip itu jadi yatim: tidak punya jadwal sehingga tak muncul lagi di daftar validasi).
+     * Bila ada trip yang sudah divalidasi atau sudah masuk lembur, jadwal ditahan supaya hitungan lembur tak terganggu.
+     */
+    public function destroy(JadwalPerjalanan $jadwalPerjalanan)
+    {
+        if ($jadwalPerjalanan->status !== JadwalPerjalanan::STATUS_BATAL) {
+            return back()->with('error', 'Hanya jadwal yang sudah dibatalkan yang bisa dihapus. Batalkan dulu jadwalnya.');
+        }
+
+        $terkunci = $jadwalPerjalanan->trips()
+            ->where(fn ($q) => $q->where('divalidasi', true)->orWhereNotNull('operator_gtm_lembur_id'))
+            ->count();
+        if ($terkunci > 0) {
+            return back()->with('error', "Jadwal tidak bisa dihapus: {$terkunci} trip-nya sudah divalidasi atau masuk lembur. "
+                .'Batalkan validasinya dulu di halaman jadwal ini (trip yang sudah masuk lembur tidak bisa dihapus).');
+        }
+
+        $jumlahTrip = DB::transaction(function () use ($jadwalPerjalanan) {
+            $jumlah = $jadwalPerjalanan->trips()->delete();
+            $jadwalPerjalanan->delete();
+
+            return $jumlah;
+        });
+
+        return redirect()->route('jadwal-perjalanan.index')->with(
+            'success',
+            "Jadwal #{$jadwalPerjalanan->id} dihapus".($jumlahTrip ? " beserta {$jumlahTrip} trip yang belum divalidasi." : '.')
+        );
+    }
+
     public function selesaikan(JadwalPerjalanan $jadwalPerjalanan)
     {
         if ($jadwalPerjalanan->status !== JadwalPerjalanan::STATUS_BERJALAN) {

@@ -156,6 +156,11 @@
                         <form method="POST" action="{{ route('jadwal-perjalanan.tarik-trip', $jadwal) }}">@csrf
                             <button class="btn btn-sm btn-ghost"><i class="fas fa-download"></i>{{ $jadwal->trip_ditarik_pada ? 'Tarik ulang trip' : 'Tarik trip' }}</button></form>
                     @endif
+                    @if ($jadwal->status === 'batal')
+                        <form method="POST" action="{{ route('jadwal-perjalanan.destroy', $jadwal) }}"
+                              onsubmit="return confirm('Hapus jadwal ini permanen?{{ $belumValid->count() ? ' '.$belumValid->count().' trip yang belum divalidasi ikut terhapus.' : '' }} Tindakan ini tidak bisa dibatalkan.')">@csrf @method('DELETE')
+                            <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i>Hapus jadwal</button></form>
+                    @endif
                     @if ($jadwal->aktif)
                         <form method="POST" action="{{ route('jadwal-perjalanan.batalkan', $jadwal) }}"
                               onsubmit="return confirm('Batalkan jadwal ini?{{ $jadwal->status === 'berjalan' ? ' Driver akan dilepas dari kendaraan di Cartrack.' : '' }}')">@csrf
