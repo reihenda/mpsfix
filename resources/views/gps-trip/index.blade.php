@@ -8,25 +8,33 @@
 <style>
     .gps-trip-table { min-width: 980px; }
     .gps-trip-table td { vertical-align: middle; }
-    .gps-trip-table .kolom-rute { min-width: 340px; }
-    /* Rute: titik-titik terhubung garis tipis, satu baris, nama dipotong "…" bila kepanjangan */
-    .rute-titik { display: flex; align-items: center; min-width: 0; font-size: .8rem; line-height: 1.3; color: inherit; }
-    .rute-titik .titik { display: flex; align-items: center; min-width: 0; flex: 0 1 auto; }
-    .rute-titik .titik + .titik::before {
-        content: ''; flex: 0 0 12px; height: 1px; background: #ced4da; margin: 0 5px;
-    }
-    .rute-titik .titik-nama { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .gps-trip-table .kolom-rute { min-width: 240px; }
+    /* Rute: deret titik terhubung garis tipis; nama di BAWAH tiap titik, kecil, dipotong "…" (lengkap di tooltip) */
+    .rute-titik { display: flex; align-items: flex-start; color: inherit; padding: 2px 0; }
+    .rute-titik .titik { position: relative; flex: 0 0 80px; min-width: 0; padding-right: 6px; }
+    .rute-titik .titik-lebih { flex: 0 0 28px; padding-right: 0; }
     .rute-titik .titik-dot {
-        flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px;
-        background: #495057; border: 1.5px solid #495057;
+        display: block; width: 7px; height: 7px; border-radius: 50%;
+        background: #495057; border: 1.5px solid #495057; position: relative; z-index: 1;
+    }
+    /* garis dari titik ini ke titik berikutnya (berhenti di tepi titik berikutnya) */
+    .rute-titik .titik:not(:last-child)::before {
+        content: ''; position: absolute; top: 3px; left: 9px; right: 2px; height: 1px; background: #ced4da;
+    }
+    .rute-titik .titik-lebih::before { left: 17px; right: 0; }
+    .rute-titik .titik-nama {
+        display: block; margin-top: 3px; font-size: .7rem; line-height: 1.2; color: #495057;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .rute-titik .titik-singgah .titik-dot { background: #fff; border-color: #868e96; }
-    .rute-titik .titik-singgah { color: #6c757d; }
-    .rute-titik .titik-lebih { color: #868e96; font-size: .72rem; flex: 0 0 auto; }
+    .rute-titik .titik-singgah .titik-nama { color: #868e96; }
+    /* "+N" menggantikan titik: sejajar dengan garis */
+    .rute-titik .titik-lebih .titik-nama { margin-top: -4px; color: #868e96; font-size: .68rem; overflow: visible; }
     .rute-titik .titik-kosong .titik-dot { background: transparent; border: 1.5px dashed #adb5bd; }
     .rute-titik .titik-kosong .titik-nama { font-style: italic; color: #adb5bd; }
     .gps-trip-table .baris-abaikan .rute-titik .titik-dot { background: #adb5bd; border-color: #adb5bd; }
     .gps-trip-table .baris-abaikan .rute-titik .titik-singgah .titik-dot { background: #fff; }
+    .gps-trip-table .baris-abaikan .rute-titik .titik-nama { color: #adb5bd; }
     .header-sekunder { opacity: .8; font-size: .85rem; }
     .gps-trip-table .baris-tanggal td {
         background: #f4f6f9;
@@ -441,17 +449,17 @@
                                                 @endif
                                             </td>
                                             <td class="kolom-rute">
-                                                {{-- Rute sebagai titik-titik terhubung: awal, singgah (maks. 2, sisanya "+N"), akhir.
-                                                     Satu baris; nama panjang dipotong "…", nama lengkap & customer ada di tooltip. --}}
+                                                {{-- Rute sebagai deret titik terhubung: awal, 1 singgah (sisanya "+N"), akhir.
+                                                     Nama di bawah tiap titik, dipotong "…"; nama lengkap & customer ada di tooltip. --}}
                                                 @php
                                                     $namaCust = fn ($g) => $g ? ($geofenceCustomer[GpsTripParser::normalisasiNama($g)] ?? null) : null;
                                                     $singgah = $t->perhentian;
                                                     $titik = [['awal', $t->geofence_mulai, $namaCustMulai]];
-                                                    foreach (array_slice($singgah, 0, 2) as $s) {
+                                                    foreach (array_slice($singgah, 0, 1) as $s) {
                                                         $titik[] = ['singgah', $s, $namaCust($s)];
                                                     }
-                                                    if (count($singgah) > 2) {
-                                                        $titik[] = ['lebih', '+' . (count($singgah) - 2), implode(', ', array_slice($singgah, 2))];
+                                                    if (count($singgah) > 1) {
+                                                        $titik[] = ['lebih', '+' . (count($singgah) - 1), implode(', ', array_slice($singgah, 1))];
                                                     }
                                                     $titik[] = ['akhir', $t->geofence_selesai, $namaCustSelesai];
                                                 @endphp
