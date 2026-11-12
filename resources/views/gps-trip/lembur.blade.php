@@ -56,8 +56,9 @@
         <div class="callout callout-info small">
             <strong>Cara kerja:</strong> tiap trip yang <em>dihitung</em> dan sudah punya driver menjadi satu sesi lembur driver itu di tanggal trip dimulai
             (jam masuk = mulai trip, jam keluar = selesai trip). Jeda antar sesi tidak dihitung. Trip yang bertumpuk jamnya digabung, dan
-            bila lebih dari 5 trip dalam sehari, trip dengan jeda terkecil digabung agar muat 5 sesi. Jeda lebih dari 6 jam di dalam satu trip
-            (mobil parkir di titik tak terbaca) dipecah dan tidak dihitung sebagai jam kerja.
+            bila lebih dari 5 trip dalam sehari, trip dengan jeda terkecil digabung agar muat 5 sesi. Waktu diam di tengah satu trip
+            (misalnya menunggu antrean gas di SPBG) tetap dihitung sebagai jam kerja, kecuali berhenti lebih dari 1 jam di titik yang
+            sama di luar geofence (mogok / berhenti di tengah jalan): waktu itu dikurangi.
             Jam kerja normal dan tarif lembur mengikuti pengaturan operator.
         </div>
 
@@ -129,6 +130,9 @@
                                             @foreach ($b['sesi'] as $i => $s)
                                                 <span class="sesi-chip">{{ $i + 1 }}. {{ $s['masuk'] }}–{{ $s['keluar'] }}</span>
                                             @endforeach
+                                            @if (!empty($b['dipotong']))
+                                                @include('gps-trip._potongan', ['henti' => $b['dipotong']])
+                                            @endif
                                             @if ($b['status'] === 'berbeda' && $b['existing'])
                                                 <div class="small text-muted mt-1">Saat ini di data lembur:</div>
                                                 @forelse ($b['existing']['sesi'] as $i => $s)

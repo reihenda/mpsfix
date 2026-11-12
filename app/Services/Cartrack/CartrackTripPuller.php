@@ -215,6 +215,10 @@ class CartrackTripPuller
                 'selesai' => Carbon::parse($r['end_timestamp'])->setTimezone($zona)->format('Y-m-d H:i:s'),
                 'lokasi_mulai' => trim((string) ($r['start_location'] ?? '')),
                 'lokasi_selesai' => trim((string) ($r['end_location'] ?? '')),
+                'lat_mulai' => self::koordinat($r['start_coordinates']['latitude'] ?? null),
+                'lng_mulai' => self::koordinat($r['start_coordinates']['longitude'] ?? null),
+                'lat_selesai' => self::koordinat($r['end_coordinates']['latitude'] ?? null),
+                'lng_selesai' => self::koordinat($r['end_coordinates']['longitude'] ?? null),
                 'geofence_mulai' => self::namaGeofence($r['start_geofence_name'] ?? null),
                 'geofence_selesai' => self::namaGeofence($r['end_geofence_name'] ?? null),
                 'jarak_km' => round(((float) ($r['trip_distance'] ?? 0)) / 1000, 2),
@@ -224,6 +228,11 @@ class CartrackTripPuller
         usort($segmen, fn ($a, $b) => strcmp($a['mulai'], $b['mulai']));
 
         return $segmen;
+    }
+
+    private static function koordinat($nilai): ?float
+    {
+        return is_numeric($nilai) ? round((float) $nilai, 6) : null;
     }
 
     private static function namaGeofence($nilai): string

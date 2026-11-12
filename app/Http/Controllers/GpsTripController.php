@@ -66,10 +66,7 @@ class GpsTripController extends Controller
         if ($tampil === 'dihitung') {
             $query->where('dihitung', true);
         } elseif ($tampil === 'perlu_dicek') {
-            $query->where(function ($q) {
-                $q->where('status', 'tidak_lengkap')
-                    ->orWhere('jeda_terpanjang_detik', '>', GpsTrip::AMBANG_JEDA_DETIK);
-            });
+            $query->where('status', 'tidak_lengkap');
         }
 
         $trips = $query->get();

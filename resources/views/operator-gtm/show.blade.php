@@ -437,6 +437,9 @@
                                         <td>
                                             @if($record)
                                                 {{ floor($record->total_jam_kerja / 60) }} jam {{ $record->total_jam_kerja % 60 }} menit
+                                                @if (!empty($potonganGps[$record->id] ?? null))
+                                                    @include('gps-trip._potongan', ['henti' => $potonganGps[$record->id]])
+                                                @endif
                                                 <!-- Debug info -->
                                                 <!-- ID: {{ $record->id }} | Date: {{ $record->tanggal }} -->
                                             @else

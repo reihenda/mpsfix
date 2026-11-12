@@ -151,7 +151,18 @@ class OperatorGtmController extends Controller
         // Log untuk debugging periode yang dipilih
         \Log::info('Filter periode - bulan: ' . $selectedMonth . ', tahun: ' . $selectedYear);
             
+        // Bukti jam kerja yang dipotong (berhenti > 1 jam di luar geofence) per data lembur hasil trip GPS
+        $potonganGps = [];
+        if ($lemburRecords->isNotEmpty()) {
+            foreach (\App\Models\GpsTrip::whereIn('operator_gtm_lembur_id', $lemburRecords->pluck('id'))->get() as $trip) {
+                foreach ($trip->hentiDiJalan() as $h) {
+                    $potonganGps[$trip->operator_gtm_lembur_id][] = $h + ['nopol' => $trip->nopol];
+                }
+            }
+        }
+
         return view('operator-gtm.show', compact(
+            'potonganGps',
             'operatorGtm', 
             'lemburRecords', 
             'selectedMonth', 

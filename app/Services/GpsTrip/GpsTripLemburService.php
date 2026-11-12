@@ -12,9 +12,10 @@ use Illuminate\Support\Facades\DB;
  *
  * Aturan penyusunan:
  *  - Hanya trip dengan dihitung=true, selesai, dan sudah ada driver.
- *  - Trip dipecah menjadi "blok kerja". Trip hasil import dipecah di jeda antar segmen > AMBANG_JEDA
- *    (kendaraan parkir lama di titik tak terbaca tidak dihitung sebagai jam kerja).
- *    Trip yang sudah diedit manual dipakai apa adanya (waktu mulai - selesai hasil edit).
+ *  - Tiap trip = satu "blok kerja" dari waktu mulai (meninggalkan customer) sampai waktu selesai
+ *    (tiba di customer). Jeda di tengah trip (mobil dimatikan menunggu antrean gas di SPBG, dll.)
+ *    tetap dihitung sebagai jam kerja. Satu pengecualian: berhenti lebih dari 1 jam di titik yang sama
+ *    di luar geofence mana pun (mogok / di tengah jalan) dipotong, lihat GpsTrip::hentiDiJalan().
  *  - Blok yang bertumpuk (satu driver, dua kendaraan, jam sama) digabung agar jam tidak terhitung ganda.
  *  - Blok dikelompokkan per tanggal mulai. Lebih dari 5 blok sehari: gabungkan blok dengan jeda terkecil.
  *  - Tiap blok = satu sesi; jeda di antara sesi tidak dihitung (sama seperti pengelompokan Absen Trip).
@@ -72,6 +73,14 @@ class GpsTripLemburService
                 }
                 $hitung = OperatorGtmLembur::calculateUpahLembur($totalMenit, $operator->jam_kerja);
 
+                $dipotong = [];
+                foreach (array_unique(array_merge(...array_column($bloks, 'trip_ids'))) as $tripId) {
+                    $trip = $tripOperator->firstWhere('id', $tripId);
+                    foreach ($trip ? $trip->hentiDiJalan() : [] as $h) {
+                        $dipotong[] = $h + ['nopol' => $trip->nopol];
+                    }
+                }
+
                 $existing = OperatorGtmLembur::where('operator_gtm_id', $operatorId)->where('tanggal', $tanggal)->first();
                 $sesiExisting = $existing ? $this->sesiDari($existing) : null;
 
@@ -84,6 +93,7 @@ class GpsTripLemburService
                     'sesi' => $sesi,
                     'trip_ids' => array_values(array_unique(array_merge(...array_column($bloks, 'trip_ids')))),
                     'nopol' => array_values(array_unique(array_merge(...array_column($bloks, 'nopol')))),
+                    'dipotong' => $dipotong,
                     'total_menit' => $totalMenit,
                     'lembur_menit' => $hitung['total_jam_lembur'],
                     'upah' => $hitung['upah_lembur'],
@@ -156,30 +166,14 @@ class GpsTripLemburService
         $bloks = [];
 
         foreach ($trips as $trip) {
-            $rentang = [];
-
-            if (!$trip->diedit && !empty($trip->segmen)) {
-                $segmen = $trip->segmen;
-                usort($segmen, fn ($a, $b) => strcmp($a['mulai'], $b['mulai']));
-
-                $mulai = strtotime($segmen[0]['mulai']);
-                $selesai = strtotime($segmen[0]['selesai']);
-                foreach (array_slice($segmen, 1) as $seg) {
-                    $segMulai = strtotime($seg['mulai']);
-                    if ($segMulai - $selesai > GpsTrip::AMBANG_JEDA_DETIK) {
-                        $rentang[] = [$mulai, $selesai];
-                        $mulai = $segMulai;
-                    }
-                    $selesai = max($selesai, strtotime($seg['selesai']));
-                }
-                $rentang[] = [$mulai, $selesai];
-            } else {
-                $rentang[] = [$trip->waktu_mulai->getTimestamp(), $trip->waktu_selesai->getTimestamp()];
+            // Berhenti > 1 jam di titik yang sama di luar geofence (mogok / di tengah jalan) dipotong
+            // dari jam kerja: trip dipecah menjadi beberapa blok di sekitar waktu berhenti itu.
+            $mulai = $trip->waktu_mulai->getTimestamp();
+            foreach ($trip->hentiDiJalan() as $henti) {
+                $bloks[] = ['mulai' => $mulai, 'selesai' => $henti['mulai'], 'trip_ids' => [$trip->id], 'nopol' => [$trip->nopol]];
+                $mulai = $henti['selesai'];
             }
-
-            foreach ($rentang as [$m, $s]) {
-                $bloks[] = ['mulai' => $m, 'selesai' => $s, 'trip_ids' => [$trip->id], 'nopol' => [$trip->nopol]];
-            }
+            $bloks[] = ['mulai' => $mulai, 'selesai' => $trip->waktu_selesai->getTimestamp(), 'trip_ids' => [$trip->id], 'nopol' => [$trip->nopol]];
         }
 
         return $bloks;

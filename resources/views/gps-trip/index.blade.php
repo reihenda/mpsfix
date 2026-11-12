@@ -501,8 +501,13 @@
                                                 @if ($t->status === 'tidak_lengkap')
                                                     <span class="badge badge-warning" title="Akhir trip tidak terbaca di geofence customer atau trip belum selesai di akhir laporan">tidak lengkap</span>
                                                 @endif
-                                                @if ($t->jeda_terpanjang_detik > GpsTrip::AMBANG_JEDA_DETIK)
-                                                    <span class="badge badge-danger" title="Ada jeda {{ GpsTrip::formatDurasi($t->jeda_terpanjang_detik) }} jam antar perjalanan (kendaraan berhenti lama di titik tak terbaca)">jeda {{ GpsTrip::formatDurasi($t->jeda_terpanjang_detik) }}j</span>
+                                                @if ($t->henti_di_jalan_detik > 0)
+                                                    <span class="badge badge-danger" title="Berhenti {{ GpsTrip::formatDurasi($t->henti_di_jalan_detik) }} jam di titik yang sama di luar geofence ({{ collect($t->hentiDiJalan())->pluck('lokasi')->unique()->implode('; ') }}). Waktu ini dikurangi dari jam kerja.">berhenti di jalan {{ GpsTrip::formatDurasi($t->henti_di_jalan_detik) }}j</span>
+                                                @elseif ($t->jeda_terpanjang_detik > GpsTrip::AMBANG_JEDA_DETIK)
+                                                    <span class="badge badge-light border" title="Kendaraan diam {{ GpsTrip::formatDurasi($t->jeda_terpanjang_detik) }} jam di tengah perjalanan (misalnya menunggu antrean gas). Tetap dihitung sebagai jam kerja.">diam {{ GpsTrip::formatDurasi($t->jeda_terpanjang_detik) }}j</span>
+                                                @endif
+                                                @if ($t->henti_di_jalan_detik > 0)
+                                                    @include('gps-trip._potongan', ['henti' => $t->hentiDiJalan(), 'nopol' => $t->nopol])
                                                 @endif
                                                 @if (!$t->dihitung)
                                                     <span class="badge badge-secondary">tidak dihitung</span>
