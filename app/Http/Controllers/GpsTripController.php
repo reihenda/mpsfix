@@ -138,7 +138,29 @@ class GpsTripController extends Controller
             ->orderBy('waktu_mulai')
             ->get();
 
+        // Berhenti lama di luar geofence (> 1 jam, jam kerjanya dipotong) di periode ini, terlepas dari filter di atas
+        $hentiLama = [];
+        $tripHenti = GpsTrip::with('operator:id,nama')
+            ->where('dihitung', true)
+            ->where('diedit', false)
+            ->where('jumlah_segmen', '>', 1)
+            ->whereBetween('waktu_mulai', [$awal, $akhir])
+            ->get();
+        foreach ($tripHenti as $trip) {
+            foreach ($trip->hentiDiJalan() as $h) {
+                $hentiLama[] = $h + [
+                    'trip_id' => $trip->id,
+                    'nopol' => $trip->nopol,
+                    'driver' => $trip->operator->nama ?? null,
+                    'divalidasi' => (bool) $trip->divalidasi,
+                    'di_lembur' => (bool) $trip->operator_gtm_lembur_id,
+                ];
+            }
+        }
+        usort($hentiLama, fn ($a, $b) => [$a['nopol'], $a['mulai']] <=> [$b['nopol'], $b['mulai']]);
+
         return view('gps-trip.index', compact(
+            'hentiLama',
             'bulan', 'perKendaraan', 'nomorTrip', 'rekapDriver', 'ringkasan', 'daftarNopol',
             'operators', 'kunciTerdaftar', 'geofenceCustomer', 'importTerakhir', 'tampil', 'driver', 'noise',
             'validasi', 'belumValidasi', 'sinkronTerakhir', 'sinkronMenunggu', 'periodeSinkron', 'periodeLabel', 'periodeBerjalan'

@@ -308,6 +308,66 @@
             </form>
         @endif
 
+        {{-- Panel berhenti lama: jam kerja yang dipotong (berhenti > 1 jam di titik yang sama di luar geofence) --}}
+        @if (!empty($hentiLama))
+            <div class="card card-danger card-outline" id="panel-henti">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-cut mr-1"></i>
+                        <strong class="mr-1">{{ count($hentiLama) }}</strong>berhenti lama, jam kerja dipotong
+                        <small class="header-sekunder ml-1">
+                            {{ collect($hentiLama)->pluck('nopol')->unique()->count() }} kendaraan ·
+                            total {{ GpsTrip::formatDurasi(collect($hentiLama)->sum('durasi')) }} jam
+                        </small>
+                    </h3>
+                </div>
+                <div class="card-body p-0">
+                    <div class="px-3 py-2 small border-bottom">
+                        Mobil berhenti lebih dari 1 jam di titik yang sama di luar geofence mana pun (mogok / berhenti di tengah jalan).
+                        Waktu berhentinya dikurangi dari jam kerja lembur. Antre di SPBG atau di dalam geofence tidak masuk daftar ini.
+                    </div>
+                    <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0" style="min-width: 760px;">
+                            <thead>
+                                <tr>
+                                    <th>Kendaraan</th>
+                                    <th>Driver</th>
+                                    <th>Waktu berhenti</th>
+                                    <th class="text-right">Durasi</th>
+                                    <th>Lokasi</th>
+                                    <th>Keterangan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($hentiLama as $h)
+                                    <tr>
+                                        <td class="text-nowrap"><a href="{{ route('gps-trip.index', ['bulan' => $bulan, 'nopol' => $h['nopol']]) }}" title="Lihat trip kendaraan ini">{{ $h['nopol'] }}</a></td>
+                                        <td>{{ $h['driver'] ?? '—' }}</td>
+                                        <td class="text-nowrap">{{ \Carbon\Carbon::parse($h['tanggal'])->format('d/m') }} {{ $h['jam_mulai'] }}–{{ $h['jam_selesai'] }}@if (date('Y-m-d', $h['selesai']) !== $h['tanggal']) <small class="text-muted">(+{{ \Carbon\Carbon::parse($h['tanggal'])->diffInDays(\Carbon\Carbon::parse(date('Y-m-d', $h['selesai']))) }} hari)</small>@endif</td>
+                                        <td class="text-right text-nowrap">{{ GpsTrip::formatDurasi($h['durasi']) }} j</td>
+                                        <td>
+                                            {{ $h['lokasi'] !== '' ? $h['lokasi'] : '(alamat tidak terbaca)' }}
+                                            @if (!empty($h['peta']))
+                                                <a href="{{ $h['peta'] }}" target="_blank" rel="noopener" class="ml-1">peta</a>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if (!$h['divalidasi'])
+                                                <span class="badge badge-warning" title="Trip belum divalidasi, belum ikut hitungan lembur">belum valid</span>
+                                            @endif
+                                            @if ($h['di_lembur'])
+                                                <span class="badge badge-secondary" title="Trip sudah dipakai di data lembur">sudah di lembur</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         @if ($perKendaraan->isEmpty())
             <div class="card">
                 <div class="card-body text-center text-muted py-5">
