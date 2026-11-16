@@ -26,6 +26,7 @@ class CartrackTripPuller
         private CartrackClient $client,
         private CartrackDirectory $direktori,
         private GpsTripImporter $importer,
+        private CartrackWilayahGeofence $wilayah,
     ) {
     }
 
@@ -76,8 +77,13 @@ class CartrackTripPuller
 
         $segmen = self::ubahKeSegmen($baris, $zona);
         if (empty($segmen)) {
-            return ['stat' => [], 'geofence_baru' => 0, 'tertaut' => 0, 'jumlah_api' => 0, 'segmen' => []];
+            return ['stat' => [], 'geofence_baru' => 0, 'geofence_dicocokkan' => 0, 'geofence_dikoreksi' => 0, 'tertaut' => 0, 'jumlah_api' => 0, 'segmen' => []];
         }
+
+        // Cartrack tidak menghitung ulang nama geofence di trip lama setelah wilayahnya direvisi:
+        // isi nama yang kosong, dan koreksi nama yang titiknya kini di luar wilayah, dari koordinat
+        // terhadap wilayah geofence yang berlaku sekarang.
+        [$segmen, $geofenceDicocokkan, $geofenceDikoreksi] = $this->wilayah->sesuaikan($segmen);
 
         $geofenceBaru = $this->daftarkanGeofenceBaru($segmen);
 
@@ -99,7 +105,7 @@ class CartrackTripPuller
         $tertaut = $this->tautkanKeJadwal($nopol, $awal);
         $stat['noise_dibuang'] = $this->buangNoiseTanpaJadwal($nopol, $awal);
 
-        return ['stat' => $stat, 'geofence_baru' => $geofenceBaru, 'tertaut' => $tertaut, 'jumlah_api' => count($baris), 'segmen' => $segmen];
+        return ['stat' => $stat, 'geofence_baru' => $geofenceBaru, 'geofence_dicocokkan' => $geofenceDicocokkan, 'geofence_dikoreksi' => $geofenceDikoreksi, 'tertaut' => $tertaut, 'jumlah_api' => count($baris), 'segmen' => $segmen];
     }
 
     /**

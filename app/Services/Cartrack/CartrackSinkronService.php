@@ -40,7 +40,7 @@ class CartrackSinkronService
     /**
      * Tarikan ringan: sekian hari ke belakang (termasuk hari ini), 1 = hanya hari ini.
      *
-     * @return array{kendaraan:int, baru:int, diperbarui:int, tertaut:int, noise_dibuang:int, geofence_baru:int, galat:array<string,string>}
+     * @return array{kendaraan:int, baru:int, diperbarui:int, tertaut:int, noise_dibuang:int, geofence_baru:int, geofence_dicocokkan:int, geofence_dikoreksi:int, galat:array<string,string>}
      */
     public function sinkron(int $hari = 3, ?int $userId = null, ?string $nopol = null): array
     {
@@ -83,7 +83,7 @@ class CartrackSinkronService
 
     private function jalankan(Carbon $awalSemua, Carbon $sekarang, ?int $userId, ?string $nopol): array
     {
-        $hasil = ['kendaraan' => 0, 'baru' => 0, 'diperbarui' => 0, 'tertaut' => 0, 'noise_dibuang' => 0, 'geofence_baru' => 0, 'galat' => []];
+        $hasil = ['kendaraan' => 0, 'baru' => 0, 'diperbarui' => 0, 'tertaut' => 0, 'noise_dibuang' => 0, 'geofence_baru' => 0, 'geofence_dicocokkan' => 0, 'geofence_dikoreksi' => 0, 'galat' => []];
 
         try {
             $daftar = array_column($this->direktori->kendaraan(), 'registration');
@@ -112,6 +112,8 @@ class CartrackSinkronService
                     $hasil['noise_dibuang'] += $r['stat']['noise_dibuang'] ?? 0;
                     $hasil['tertaut'] += $r['tertaut'];
                     $hasil['geofence_baru'] += $r['geofence_baru'];
+                    $hasil['geofence_dicocokkan'] += $r['geofence_dicocokkan'] ?? 0;
+                    $hasil['geofence_dikoreksi'] += $r['geofence_dikoreksi'] ?? 0;
                 }
                 $hasil['kendaraan']++;
             } catch (\Throwable $e) {
@@ -206,6 +208,8 @@ class CartrackSinkronService
                 'diperbarui' => $hasil['diperbarui'],
                 'tertaut' => $hasil['tertaut'],
                 'noise_dibuang' => $hasil['noise_dibuang'],
+                'geofence_dicocokkan' => $hasil['geofence_dicocokkan'] ?? 0,
+                'geofence_dikoreksi' => $hasil['geofence_dikoreksi'] ?? 0,
                 'galat' => $hasil['galat'],
             ]);
         } catch (\Throwable $e) {
