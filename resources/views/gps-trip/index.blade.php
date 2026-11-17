@@ -314,17 +314,19 @@
                 <div class="card-header">
                     <h3 class="card-title">
                         <i class="fas fa-cut mr-1"></i>
-                        <strong class="mr-1">{{ count($hentiLama) }}</strong>berhenti lama, jam kerja dipotong
+                        <strong class="mr-1">{{ count($hentiLama) }}</strong>berhenti lama di luar geofence
                         <small class="header-sekunder ml-1">
                             {{ collect($hentiLama)->pluck('nopol')->unique()->count() }} kendaraan ·
-                            total {{ GpsTrip::formatDurasi(collect($hentiLama)->sum('durasi')) }} jam
+                            {{ collect($hentiLama)->where('terbukti', true)->count() }} dipotong ({{ GpsTrip::formatDurasi(collect($hentiLama)->where('terbukti', true)->sum('durasi')) }} jam) ·
+                            {{ collect($hentiLama)->where('terbukti', false)->count() }} menunggu bukti
                         </small>
                     </h3>
                 </div>
                 <div class="card-body p-0">
                     <div class="px-3 py-2 small border-bottom">
                         Mobil berhenti lebih dari 1 jam di titik yang sama di luar geofence mana pun (mogok / berhenti di tengah jalan).
-                        Waktu berhentinya dikurangi dari jam kerja lembur. Antre di SPBG atau di dalam geofence tidak masuk daftar ini.
+                        Jam kerja <strong>baru dipotong setelah ada foto bukti</strong>; tanpa foto, jam tetap dihitung penuh.
+                        Antre di SPBG atau di dalam geofence tidak masuk daftar ini.
                     </div>
                     <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
                         <table class="table table-sm table-hover mb-0" style="min-width: 760px;">
@@ -335,7 +337,8 @@
                                     <th>Waktu berhenti</th>
                                     <th class="text-right">Durasi</th>
                                     <th>Lokasi</th>
-                                    <th>Keterangan</th>
+                                    <th>Status</th>
+                                    <th>Bukti foto</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -352,12 +355,27 @@
                                             @endif
                                         </td>
                                         <td>
+                                            @if ($h['terbukti'])
+                                                <span class="badge badge-danger" title="Ada foto bukti, jam kerja dipotong">dipotong</span>
+                                            @else
+                                                <span class="badge badge-warning" title="Belum ada foto bukti, jam kerja belum dipotong">menunggu bukti</span>
+                                            @endif
                                             @if (!$h['divalidasi'])
-                                                <span class="badge badge-warning" title="Trip belum divalidasi, belum ikut hitungan lembur">belum valid</span>
+                                                <span class="badge badge-light border" title="Trip belum divalidasi, belum ikut hitungan lembur">belum valid</span>
                                             @endif
                                             @if ($h['di_lembur'])
-                                                <span class="badge badge-secondary" title="Trip sudah dipakai di data lembur">sudah di lembur</span>
+                                                <span class="badge badge-secondary" title="Trip sudah dipakai di data lembur; terapkan ulang di Terapkan ke Lembur setelah bukti berubah">sudah di lembur</span>
                                             @endif
+                                        </td>
+                                        <td class="text-nowrap">
+                                            <button type="button" class="btn btn-xs {{ $h['terbukti'] ? 'btn-outline-danger' : 'btn-warning' }} js-bukti"
+                                                    data-nopol="{{ $h['nopol'] }}"
+                                                    data-mulai="{{ $h['mulai_teks'] }}"
+                                                    data-judul="{{ $h['nopol'] }} · {{ \Carbon\Carbon::parse($h['tanggal'])->format('d/m') }} {{ $h['jam_mulai'] }}–{{ $h['jam_selesai'] }} ({{ GpsTrip::formatDurasi($h['durasi']) }} j)"
+                                                    data-lokasi="{{ $h['lokasi'] }}"
+                                                    data-foto='@json($h['foto'])'>
+                                                <i class="fas fa-camera mr-1"></i>{{ $h['terbukti'] ? count($h['foto']).' foto' : 'Unggah bukti' }}
+                                            </button>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -584,13 +602,23 @@
                                                 @if ($t->status === 'tidak_lengkap')
                                                     <span class="badge badge-warning" title="Akhir trip tidak terbaca di geofence customer atau trip belum selesai di akhir laporan">tidak lengkap</span>
                                                 @endif
-                                                @if ($t->henti_di_jalan_detik > 0)
-                                                    <span class="badge badge-danger" title="Berhenti {{ GpsTrip::formatDurasi($t->henti_di_jalan_detik) }} jam di titik yang sama di luar geofence ({{ collect($t->hentiDiJalan())->pluck('lokasi')->unique()->implode('; ') }}). Waktu ini dikurangi dari jam kerja.">berhenti di jalan {{ GpsTrip::formatDurasi($t->henti_di_jalan_detik) }}j</span>
+                                                @php $hentiTrip = $t->hentiDenganBukti($buktiSet); @endphp
+                                                @if (count($hentiTrip) > 0)
+                                                    @php
+                                                        $detikTerpotong = collect($hentiTrip)->where('terbukti', true)->sum('durasi');
+                                                        $detikMenunggu = collect($hentiTrip)->where('terbukti', false)->sum('durasi');
+                                                    @endphp
+                                                    @if ($detikTerpotong > 0)
+                                                        <span class="badge badge-danger" title="Berhenti lama di luar geofence dengan foto bukti. Waktu ini dikurangi dari jam kerja.">dipotong {{ GpsTrip::formatDurasi($detikTerpotong) }}j</span>
+                                                    @endif
+                                                    @if ($detikMenunggu > 0)
+                                                        <span class="badge badge-warning" title="Berhenti lama di luar geofence, belum ada foto bukti. Jam kerja belum dipotong; unggah bukti di panel berhenti lama.">butuh bukti {{ GpsTrip::formatDurasi($detikMenunggu) }}j</span>
+                                                    @endif
                                                 @elseif ($t->jeda_terpanjang_detik > GpsTrip::AMBANG_JEDA_DETIK)
                                                     <span class="badge badge-light border" title="Kendaraan diam {{ GpsTrip::formatDurasi($t->jeda_terpanjang_detik) }} jam di tengah perjalanan (misalnya menunggu antrean gas). Tetap dihitung sebagai jam kerja.">diam {{ GpsTrip::formatDurasi($t->jeda_terpanjang_detik) }}j</span>
                                                 @endif
-                                                @if ($t->henti_di_jalan_detik > 0)
-                                                    @include('gps-trip._potongan', ['henti' => $t->hentiDiJalan(), 'nopol' => $t->nopol])
+                                                @if (count($hentiTrip) > 0)
+                                                    @include('gps-trip._potongan', ['henti' => $hentiTrip, 'nopol' => $t->nopol])
                                                 @endif
                                                 @if (!$t->dihitung)
                                                     <span class="badge badge-secondary">tidak dihitung</span>
@@ -650,6 +678,36 @@
 </div>
 
 {{-- Modal edit trip --}}
+<div class="modal fade" id="modalBukti" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Bukti berhenti lama<div id="bukti-judul" class="text-primary small mt-1"></div></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-2" id="bukti-lokasi"></div>
+                <div id="bukti-daftar" class="mb-3"></div>
+                <form id="form-bukti" action="{{ route('gps-trip.henti-bukti.simpan') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <input type="hidden" name="nopol" id="bukti-nopol">
+                    <input type="hidden" name="mulai" id="bukti-mulai">
+                    <div class="form-group mb-2">
+                        <label class="small mb-1">Tambah foto bukti <span class="text-muted">(JPG/PNG/WEBP, maks. 5 foto, 8 MB per foto)</span></label>
+                        <input type="file" name="foto[]" id="bukti-foto" class="form-control-file" accept="image/jpeg,image/png,image/webp" multiple required>
+                    </div>
+                    <div class="form-group mb-2">
+                        <label class="small mb-1">Catatan <span class="text-muted">(opsional, mis. alasan atau penjelasan driver)</span></label>
+                        <textarea name="catatan" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
+                    </div>
+                    <div class="small text-muted mb-2">Begitu ada foto, jam kerja untuk kejadian ini dipotong. Hapus semua foto untuk membatalkan potongan.</div>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-upload mr-1"></i> Unggah &amp; potong jam kerja</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalEdit" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <form id="form-edit" method="POST" class="modal-content">
@@ -822,6 +880,44 @@
             }
         });
     }
+
+    // --- Bukti foto berhenti lama
+    document.querySelectorAll('.js-bukti').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var d = btn.dataset;
+            var foto = [];
+            try { foto = JSON.parse(d.foto) || []; } catch (e) {}
+            document.getElementById('bukti-judul').textContent = d.judul;
+            document.getElementById('bukti-lokasi').textContent = d.lokasi ? 'Berhenti di ' + d.lokasi : '';
+            document.getElementById('bukti-nopol').value = d.nopol;
+            document.getElementById('bukti-mulai').value = d.mulai;
+            document.getElementById('bukti-foto').value = '';
+            var daftar = document.getElementById('bukti-daftar');
+            daftar.innerHTML = '';
+            foto.forEach(function (f) {
+                var kartu = document.createElement('div');
+                kartu.className = 'd-flex align-items-start border rounded p-2 mb-2';
+                var a = document.createElement('a');
+                a.href = f.url; a.target = '_blank'; a.rel = 'noopener';
+                var img = document.createElement('img');
+                img.src = f.url; img.style.cssText = 'width:96px;height:72px;object-fit:cover;border-radius:4px;';
+                a.appendChild(img);
+                var info = document.createElement('div');
+                info.className = 'ml-2 small flex-grow-1';
+                info.textContent = (f.oleh || '—') + ' · ' + (f.waktu || '') + (f.catatan ? ' — ' + f.catatan : '');
+                var form = document.createElement('form');
+                form.method = 'POST'; form.action = f.hapus;
+                form.innerHTML = '<input type="hidden" name="_token" value="' + csrf + '"><input type="hidden" name="_method" value="DELETE">'
+                    + '<button type="submit" class="btn btn-outline-danger btn-xs" title="Hapus foto"><i class="fas fa-trash"></i></button>';
+                form.addEventListener('submit', function (e) {
+                    if (!confirm('Hapus foto ini?' + (foto.length === 1 ? ' Ini foto terakhir: jam kerja untuk kejadian ini tidak lagi dipotong.' : ''))) { e.preventDefault(); e.stopImmediatePropagation(); }
+                });
+                kartu.appendChild(a); kartu.appendChild(info); kartu.appendChild(form);
+                daftar.appendChild(kartu);
+            });
+            $('#modalBukti').modal('show');
+        });
+    });
 
     // --- Panel noise
     var formNoise = document.getElementById('form-noise');

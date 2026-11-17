@@ -152,6 +152,9 @@ class GpsTrip extends Model
                     'mulai' => $selesai,
                     'selesai' => $mulai,
                     'durasi' => $mulai - $selesai,
+                    'kunci' => $this->nopol.'|'.$selesaiTeks,
+                    'mulai_teks' => $selesaiTeks,
+                    'selesai_teks' => $seg['mulai'],
                     'tanggal' => substr($selesaiTeks, 0, 10),
                     'jam_mulai' => substr($selesaiTeks, 11, 5),
                     'jam_selesai' => substr($seg['mulai'], 11, 5),
@@ -193,6 +196,17 @@ class GpsTrip extends Model
         $h = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
 
         return 2 * $r * asin(min(1, sqrt($h)));
+    }
+
+    /**
+     * Berhenti lama yang terdeteksi, ditandai sudah/belum punya foto bukti. HANYA yang terbukti
+     * (terbukti = true) yang memotong jam kerja.
+     *
+     * @param array<string, int> $bukti kunci => jumlah foto (GpsHentiBukti::himpunan())
+     */
+    public function hentiDenganBukti(array $bukti): array
+    {
+        return array_map(fn ($h) => $h + ['bukti' => $bukti[$h['kunci']] ?? 0, 'terbukti' => ($bukti[$h['kunci']] ?? 0) > 0], $this->hentiDiJalan());
     }
 
     public function getHentiDiJalanDetikAttribute(): int

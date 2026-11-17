@@ -154,8 +154,9 @@ class OperatorGtmController extends Controller
         // Bukti jam kerja yang dipotong (berhenti > 1 jam di luar geofence) per data lembur hasil trip GPS
         $potonganGps = [];
         if ($lemburRecords->isNotEmpty()) {
+            $buktiSet = \App\Models\GpsHentiBukti::himpunan(now()->subYears(2), now()->addDay());
             foreach (\App\Models\GpsTrip::whereIn('operator_gtm_lembur_id', $lemburRecords->pluck('id'))->get() as $trip) {
-                foreach ($trip->hentiDiJalan() as $h) {
+                foreach ($trip->hentiDenganBukti($buktiSet) as $h) {
                     $potonganGps[$trip->operator_gtm_lembur_id][] = $h + ['nopol' => $trip->nopol];
                 }
             }

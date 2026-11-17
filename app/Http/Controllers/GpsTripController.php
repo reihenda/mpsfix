@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\GpsGeofence;
+use App\Models\GpsHentiBukti;
 use App\Models\GpsSinkronPeriode;
 use App\Models\GpsTrip;
 use App\Models\GpsTripDibuang;
@@ -140,6 +141,20 @@ class GpsTripController extends Controller
 
         // Berhenti lama di luar geofence (> 1 jam, jam kerjanya dipotong) di periode ini, terlepas dari filter di atas
         $hentiLama = [];
+        $buktiSet = GpsHentiBukti::himpunan($awal->copy()->subDay(), $akhir->copy()->addDay());
+        $buktiFoto = GpsHentiBukti::with('pengunggah:id,name')
+            ->whereBetween('waktu_mulai', [$awal->copy()->subDay(), $akhir->copy()->addDay()])
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn ($b) => GpsHentiBukti::kunci($b->nopol, $b->waktu_mulai->format('Y-m-d H:i:s')))
+            ->map(fn ($grup) => $grup->map(fn ($b) => [
+                'id' => $b->id,
+                'url' => route('gps-trip.henti-bukti.foto', $b->id),
+                'hapus' => route('gps-trip.henti-bukti.hapus', $b->id),
+                'catatan' => $b->catatan,
+                'oleh' => $b->pengunggah->name ?? null,
+                'waktu' => $b->created_at?->format('d/m/Y H:i'),
+            ])->values()->all());
         $tripHenti = GpsTrip::with('operator:id,nama')
             ->where('dihitung', true)
             ->where('diedit', false)
@@ -147,8 +162,9 @@ class GpsTripController extends Controller
             ->whereBetween('waktu_mulai', [$awal, $akhir])
             ->get();
         foreach ($tripHenti as $trip) {
-            foreach ($trip->hentiDiJalan() as $h) {
+            foreach ($trip->hentiDenganBukti($buktiSet) as $h) {
                 $hentiLama[] = $h + [
+                    'foto' => $buktiFoto[$h['kunci']] ?? [],
                     'trip_id' => $trip->id,
                     'nopol' => $trip->nopol,
                     'driver' => $trip->operator->nama ?? null,
@@ -160,11 +176,82 @@ class GpsTripController extends Controller
         usort($hentiLama, fn ($a, $b) => [$a['nopol'], $a['mulai']] <=> [$b['nopol'], $b['mulai']]);
 
         return view('gps-trip.index', compact(
-            'hentiLama',
+            'hentiLama', 'buktiSet',
             'bulan', 'perKendaraan', 'nomorTrip', 'rekapDriver', 'ringkasan', 'daftarNopol',
             'operators', 'kunciTerdaftar', 'geofenceCustomer', 'importTerakhir', 'tampil', 'driver', 'noise',
             'validasi', 'belumValidasi', 'sinkronTerakhir', 'sinkronMenunggu', 'periodeSinkron', 'periodeLabel', 'periodeBerjalan'
         ) + ['nopolDipilih' => $request->query('nopol')]);
+    }
+
+    // ------------------------------------------------------------------
+    // Foto bukti berhenti lama
+    // ------------------------------------------------------------------
+
+    /**
+     * Simpan foto bukti untuk satu kejadian berhenti lama. Kejadian harus benar-benar terdeteksi dari data trip
+     * (nopol + waktu mulai berhenti), jadi bukti tidak bisa ditempel ke kejadian yang tidak ada.
+     */
+    public function simpanBukti(Request $request)
+    {
+        $data = $request->validate([
+            'nopol' => ['required', 'string', 'max:30'],
+            'mulai' => ['required', 'date_format:Y-m-d H:i:s'],
+            'foto' => ['required', 'array', 'min:1', 'max:5'],
+            'foto.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
+            'catatan' => ['nullable', 'string', 'max:500'],
+        ], [
+            'foto.required' => 'Pilih minimal satu foto.',
+            'foto.*.mimes' => 'Foto harus berformat JPG, PNG, atau WEBP.',
+            'foto.*.max' => 'Ukuran tiap foto maksimal 8 MB.',
+            'foto.*.uploaded' => 'Foto gagal diunggah (kemungkinan terlalu besar untuk server). Coba kecilkan ukurannya.',
+        ]);
+
+        $kejadian = null;
+        $trips = GpsTrip::where('nopol', $data['nopol'])
+            ->where('waktu_mulai', '<=', $data['mulai'])
+            ->where('waktu_selesai', '>=', $data['mulai'])
+            ->get();
+        foreach ($trips as $trip) {
+            foreach ($trip->hentiDiJalan() as $h) {
+                if ($h['mulai_teks'] === $data['mulai']) {
+                    $kejadian = $h;
+                    break 2;
+                }
+            }
+        }
+        if (!$kejadian) {
+            return back()->withErrors(['foto' => 'Kejadian berhenti lama itu tidak ditemukan (mungkin data tripnya berubah setelah sinkron). Muat ulang halaman.']);
+        }
+
+        foreach ($request->file('foto') as $file) {
+            $path = $file->store('henti-bukti/'.substr($data['mulai'], 0, 7), GpsHentiBukti::DISK);
+            GpsHentiBukti::create([
+                'nopol' => $data['nopol'],
+                'waktu_mulai' => $kejadian['mulai_teks'],
+                'waktu_selesai' => $kejadian['selesai_teks'],
+                'path' => $path,
+                'nama_asli' => mb_substr($file->getClientOriginalName(), 0, 255),
+                'catatan' => $data['catatan'] ?? null,
+                'diunggah_oleh' => $request->user()?->id,
+            ]);
+        }
+
+        return back()->with('success', 'Bukti foto tersimpan. Jam kerja untuk berhenti lama ini kini dipotong; terapkan ulang di Terapkan ke Lembur bila data lemburnya sudah ada.');
+    }
+
+    public function fotoBukti(GpsHentiBukti $bukti)
+    {
+        abort_unless(Storage::disk(GpsHentiBukti::DISK)->exists($bukti->path), 404);
+
+        return Storage::disk(GpsHentiBukti::DISK)->response($bukti->path);
+    }
+
+    public function hapusBukti(GpsHentiBukti $bukti)
+    {
+        Storage::disk(GpsHentiBukti::DISK)->delete($bukti->path);
+        $bukti->delete();
+
+        return back()->with('success', 'Foto bukti dihapus. Bila itu foto terakhir, jam kerja untuk berhenti lama ini tidak lagi dipotong.');
     }
 
     // ------------------------------------------------------------------

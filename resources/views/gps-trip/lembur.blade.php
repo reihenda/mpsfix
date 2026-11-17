@@ -58,7 +58,8 @@
             (jam masuk = mulai trip, jam keluar = selesai trip). Jeda antar sesi tidak dihitung. Trip yang bertumpuk jamnya digabung, dan
             bila lebih dari 5 trip dalam sehari, trip dengan jeda terkecil digabung agar muat 5 sesi. Waktu diam di tengah satu trip
             (misalnya menunggu antrean gas di SPBG) tetap dihitung sebagai jam kerja, kecuali berhenti lebih dari 1 jam di titik yang
-            sama di luar geofence (mogok / berhenti di tengah jalan): waktu itu dikurangi.
+            sama di luar geofence (mogok / berhenti di tengah jalan) <strong>yang sudah punya foto bukti</strong>: waktu itu dikurangi.
+            Tanpa foto bukti jam tetap dihitung penuh (unggah bukti di panel berhenti lama pada halaman Trip GPS).
             Jam kerja normal dan tarif lembur mengikuti pengaturan operator.
         </div>
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\GpsTrip;
 
+use App\Models\GpsHentiBukti;
 use App\Models\GpsTrip;
 use App\Models\OperatorGtmLembur;
 use Carbon\Carbon;
@@ -15,7 +16,8 @@ use Illuminate\Support\Facades\DB;
  *  - Tiap trip = satu "blok kerja" dari waktu mulai (meninggalkan customer) sampai waktu selesai
  *    (tiba di customer). Jeda di tengah trip (mobil dimatikan menunggu antrean gas di SPBG, dll.)
  *    tetap dihitung sebagai jam kerja. Satu pengecualian: berhenti lebih dari 1 jam di titik yang sama
- *    di luar geofence mana pun (mogok / di tengah jalan) dipotong, lihat GpsTrip::hentiDiJalan().
+ *    di luar geofence mana pun (mogok / di tengah jalan) dipotong, lihat GpsTrip::hentiDiJalan(),
+ *    asalkan kejadian itu sudah punya foto bukti (GpsHentiBukti).
  *  - Blok yang bertumpuk (satu driver, dua kendaraan, jam sama) digabung agar jam tidak terhitung ganda.
  *  - Blok dikelompokkan per tanggal mulai. Lebih dari 5 blok sehari: gabungkan blok dengan jeda terkecil.
  *  - Tiap blok = satu sesi; jeda di antara sesi tidak dihitung (sama seperti pengelompokan Absen Trip).
@@ -24,6 +26,9 @@ class GpsTripLemburService
 {
     public const MAKS_SESI = 5;
 
+    /** Kejadian berhenti lama yang sudah punya foto bukti (kunci => jumlah foto); diisi di susun(). */
+    private array $bukti = [];
+
     /**
      * @return array{baris: array<int, array>, tanpa_driver: int, belum_validasi: int}
      */
@@ -31,6 +36,8 @@ class GpsTripLemburService
     {
         // Hanya trip yang sudah divalidasi yang ikut hitungan lembur. Trip Excel lama otomatis
         // berstatus tervalidasi; trip dari Cartrack baru masuk setelah divalidasi staff operasional/admin.
+        $this->bukti = GpsHentiBukti::himpunan($awal->copy()->subDay(), $akhir->copy()->addDay());
+
         $trips = GpsTrip::with('operator')
             ->where('dihitung', true)
             ->where('divalidasi', true)
@@ -76,7 +83,7 @@ class GpsTripLemburService
                 $dipotong = [];
                 foreach (array_unique(array_merge(...array_column($bloks, 'trip_ids'))) as $tripId) {
                     $trip = $tripOperator->firstWhere('id', $tripId);
-                    foreach ($trip ? $trip->hentiDiJalan() : [] as $h) {
+                    foreach ($trip ? $trip->hentiDenganBukti($this->bukti) : [] as $h) {
                         $dipotong[] = $h + ['nopol' => $trip->nopol];
                     }
                 }
@@ -167,9 +174,13 @@ class GpsTripLemburService
 
         foreach ($trips as $trip) {
             // Berhenti > 1 jam di titik yang sama di luar geofence (mogok / di tengah jalan) dipotong
-            // dari jam kerja: trip dipecah menjadi beberapa blok di sekitar waktu berhenti itu.
+            // dari jam kerja, TETAPI hanya bila kejadian itu sudah punya foto bukti: trip dipecah menjadi
+            // beberapa blok di sekitar waktu berhenti itu.
             $mulai = $trip->waktu_mulai->getTimestamp();
-            foreach ($trip->hentiDiJalan() as $henti) {
+            foreach ($trip->hentiDenganBukti($this->bukti) as $henti) {
+                if (!$henti['terbukti']) {
+                    continue;
+                }
                 $bloks[] = ['mulai' => $mulai, 'selesai' => $henti['mulai'], 'trip_ids' => [$trip->id], 'nopol' => [$trip->nopol]];
                 $mulai = $henti['selesai'];
             }
