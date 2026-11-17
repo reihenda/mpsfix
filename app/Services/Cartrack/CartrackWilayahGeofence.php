@@ -2,7 +2,6 @@
 
 namespace App\Services\Cartrack;
 
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -14,11 +13,6 @@ use Illuminate\Support\Facades\Log;
  */
 class CartrackWilayahGeofence
 {
-    private const KUNCI_CACHE = 'cartrack.wilayah_geofence';
-
-    /** Singkat supaya revisi wilayah di Cartrack cepat terbawa. */
-    private const TTL_DETIK = 600;
-
     /** Titik yang berada sampai sejauh ini di luar tepi wilayah tetap dianggap di dalam (toleransi akurasi GPS). */
     private const TOLERANSI_METER = 50;
 
@@ -141,7 +135,9 @@ class CartrackWilayahGeofence
         }
 
         try {
-            $baris = Cache::remember(self::KUNCI_CACHE, self::TTL_DETIK, fn () => $this->client->getAll('geofences', [], limit: 100, maxPages: 20));
+            // Selalu ambil terbaru (satu panggilan ringan per proses): revisi wilayah yang baru diubah
+            // di Cartrack harus langsung terbawa saat sinkron ulang, tidak boleh memakai salinan lama.
+            $baris = $this->client->getAll('geofences', [], limit: 100, maxPages: 20);
         } catch (\Throwable $e) {
             // Tanpa daftar wilayah, tarikan tetap jalan memakai nama bawaan Cartrack.
             Log::warning('Cartrack: daftar wilayah geofence gagal diambil: '.$e->getMessage());
