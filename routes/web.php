@@ -339,19 +339,10 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
     Route::delete('/operator-gtm/{operatorGtm}', [App\Http\Controllers\OperatorGtmController::class, 'destroy'])->name('operator-gtm.destroy');
 
     // ========================================================================
-    // Absen Trip: approval lokasi custom, pengelompokan trip ke sesi,
-    // review pengajuan perbaikan trip (HANYA Admin/SuperAdmin)
+    // Absen Trip: pengelompokan trip ke sesi (HANYA Admin/SuperAdmin)
     // ========================================================================
-    Route::get('/trip-lokasi', [App\Http\Controllers\TripLokasiController::class, 'index'])->name('trip-lokasi.index');
-    Route::post('/trip-lokasi/{tripLokasi}/approve', [App\Http\Controllers\TripLokasiController::class, 'approve'])->name('trip-lokasi.approve');
-    Route::post('/trip-lokasi/{tripLokasi}/reject', [App\Http\Controllers\TripLokasiController::class, 'reject'])->name('trip-lokasi.reject');
-
     Route::get('/operator-gtm/{operatorGtm}/trip-sesi', [App\Http\Controllers\OperatorTripSesiController::class, 'index'])->name('operator-gtm.trip-sesi');
     Route::post('/operator-gtm/{operatorGtm}/trip-sesi', [App\Http\Controllers\OperatorTripSesiController::class, 'store'])->name('operator-gtm.trip-sesi.store');
-
-    Route::get('/operator-trip-perbaikan', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'index'])->name('operator-trip-perbaikan.index');
-    Route::post('/operator-trip-perbaikan/{operatorTripPerbaikan}/approve', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'approve'])->name('operator-trip-perbaikan.approve');
-    Route::post('/operator-trip-perbaikan/{operatorTripPerbaikan}/reject', [App\Http\Controllers\OperatorTripPerbaikanReviewController::class, 'reject'])->name('operator-trip-perbaikan.reject');
 
     // ========================================================================
     // GPS Trip: import laporan "Summary Trip Report" GPS -> trip per kendaraan,

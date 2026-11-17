@@ -320,18 +320,6 @@
                                             <p>Pemetaan Cartrack</p>
                                         </a>
                                     </li>
-                                    <li class="nav-item">
-                                        <a href="{{ route('trip-lokasi.index') }}" class="nav-link">
-                                            <i class="fas fa-map-marker-alt nav-icon"></i>
-                                            <p>Approval Lokasi Trip</p>
-                                        </a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a href="{{ route('operator-trip-perbaikan.index') }}" class="nav-link">
-                                            <i class="fas fa-tools nav-icon"></i>
-                                            <p>Review Perbaikan Trip</p>
-                                        </a>
-                                    </li>
                                 </ul>
                             </li>
                             <li class="nav-item has-treeview">
