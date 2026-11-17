@@ -329,7 +329,7 @@
                         Antre di SPBG atau di dalam geofence tidak masuk daftar ini.
                     </div>
                     <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
-                        <table class="table table-sm table-hover mb-0" style="min-width: 760px;">
+                        <table class="table table-sm table-hover table-bordered mb-0" style="min-width: 720px;">
                             <thead>
                                 <tr>
                                     <th>Kendaraan</th>
@@ -348,11 +348,19 @@
                                         <td>{{ $h['driver'] ?? '—' }}</td>
                                         <td class="text-nowrap">{{ \Carbon\Carbon::parse($h['tanggal'])->format('d/m') }} {{ $h['jam_mulai'] }}–{{ $h['jam_selesai'] }}@if (date('Y-m-d', $h['selesai']) !== $h['tanggal']) <small class="text-muted">(+{{ \Carbon\Carbon::parse($h['tanggal'])->diffInDays(\Carbon\Carbon::parse(date('Y-m-d', $h['selesai']))) }} hari)</small>@endif</td>
                                         <td class="text-right text-nowrap">{{ GpsTrip::formatDurasi($h['durasi']) }} j</td>
+                                        @php
+                                            // Alamat Cartrack panjang ("Jalan X, Kecamatan, Kabupaten, 17215, Provinsi, Indonesia"):
+                                            // tampilkan dua bagian pertama saja; alamat lengkap muncul saat di-hover.
+                                            $bagianAlamat = array_values(array_filter(array_map('trim', explode(',', $h['lokasi'])), fn ($b) => $b !== '' && !ctype_digit($b)));
+                                            $alamatSingkat = $bagianAlamat ? implode(', ', array_slice($bagianAlamat, 0, 2)) : '(alamat tidak terbaca)';
+                                        @endphp
                                         <td>
-                                            {{ $h['lokasi'] !== '' ? $h['lokasi'] : '(alamat tidak terbaca)' }}
-                                            @if (!empty($h['peta']))
-                                                <a href="{{ $h['peta'] }}" target="_blank" rel="noopener" class="ml-1">peta</a>
-                                            @endif
+                                            <div class="d-flex align-items-center">
+                                                <span title="{{ $h['lokasi'] }}" style="max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block;">{{ $alamatSingkat }}</span>
+                                                @if (!empty($h['peta']))
+                                                    <a href="{{ $h['peta'] }}" target="_blank" rel="noopener" class="ml-2 text-nowrap" title="Buka di peta"><i class="fas fa-map-marker-alt"></i></a>
+                                                @endif
+                                            </div>
                                         </td>
                                         <td>
                                             @if ($h['terbukti'])
