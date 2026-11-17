@@ -436,27 +436,50 @@
                 </div>
             </form>
 
-            {{-- Per kendaraan --}}
+            {{-- Per kendaraan: tertutup sebagai default (daftar trip panjang); terbuka bila hanya satu kendaraan / difilter nopol --}}
+            @php
+                $bukaAwal = $perKendaraan->count() === 1 || !empty($nopolDipilih);
+                $hentiPerNopol = collect($hentiLama)->groupBy('nopol')->map->count();
+            @endphp
+            @if ($perKendaraan->count() > 1)
+                <div class="d-flex align-items-center mb-2">
+                    <span class="small text-muted mr-3">{{ $perKendaraan->count() }} kendaraan. Klik nama kendaraan untuk membuka daftar tripnya.</span>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mr-1" id="buka-semua"><i class="fas fa-plus mr-1"></i> Buka semua</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="tutup-semua"><i class="fas fa-minus mr-1"></i> Tutup semua</button>
+                </div>
+            @endif
             @foreach ($perKendaraan as $nopol => $daftar)
                 @php
                     $dihitung = $daftar->where('dihitung', true);
                     $terdaftar = isset($kunciTerdaftar[GpsTripImporter::kunciNopol($nopol)]);
                     $perTanggal = $daftar->groupBy(fn ($t) => $t->waktu_mulai->toDateString());
+                    $nBelumValid = $dihitung->where('divalidasi', false)->count();
+                    $nTanpaDriver = $dihitung->whereNull('operator_gtm_id')->count();
+                    $nHenti = $hentiPerNopol[$nopol] ?? 0;
                 @endphp
-                <div class="card card-outline card-primary">
-                    <div class="card-header">
+                <div class="card card-outline card-primary card-kendaraan {{ $bukaAwal ? '' : 'collapsed-card' }}" data-nopol="{{ $nopol }}">
+                    <div class="card-header" style="cursor: pointer;">
                         <h3 class="card-title">
                             <i class="fas fa-truck mr-1"></i> <strong>{{ $nopol }}</strong>
                             <small class="header-sekunder ml-1">{{ $daftar->first()->model_kendaraan }}</small>
                             @unless ($terdaftar)
                                 <span class="badge badge-warning ml-2" title="Nopol ini belum ada di Kelola Mobil/NOPOL">belum terdaftar di NOPOL</span>
                             @endunless
+                            @if ($nBelumValid > 0)
+                                <span class="badge badge-warning ml-1" title="Trip dihitung yang belum divalidasi">{{ $nBelumValid }} belum valid</span>
+                            @endif
+                            @if ($nTanpaDriver > 0)
+                                <span class="badge badge-light border ml-1" title="Trip dihitung yang belum punya driver">{{ $nTanpaDriver }} tanpa driver</span>
+                            @endif
+                            @if ($nHenti > 0)
+                                <span class="badge badge-danger ml-1" title="Berhenti lama di luar geofence, jam kerja dipotong">{{ $nHenti }} berhenti lama</span>
+                            @endif
                         </h3>
                         <div class="card-tools header-sekunder mr-2">
                             <strong>{{ $dihitung->count() }}</strong> trip ·
                             {{ number_format($dihitung->sum('jarak_km'), 1, ',', '.') }} km ·
                             jalan {{ GpsTrip::formatDurasi($dihitung->sum('durasi_jalan_detik')) }} jam
-                            <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas {{ $bukaAwal ? 'fa-minus' : 'fa-plus' }}"></i></button>
                         </div>
                     </div>
                     <div class="card-body table-responsive p-0">
@@ -704,6 +727,57 @@
     var urlAksi = @json(route('gps-trip.aksi'));
     var urlUpdate = @json(route('gps-trip.update', ':id'));
     var csrf = document.querySelector('meta[name="csrf-token"]').content;
+
+    // --- Kartu per kendaraan: klik judul untuk buka/tutup, ingat yang terbuka (sessionStorage)
+    var kartuKend = document.querySelectorAll('.card-kendaraan');
+    var multiKend = kartuKend.length > 1;
+    var kunciSimpan = 'gps-trip-terbuka';
+    function simpanTerbuka() {
+        if (!multiKend) { return; }
+        try {
+            var buka = [];
+            kartuKend.forEach(function (k) { if (!k.classList.contains('collapsed-card')) { buka.push(k.dataset.nopol); } });
+            sessionStorage.setItem(kunciSimpan, JSON.stringify(buka));
+        } catch (e) {}
+    }
+    function aturKartu(k, buka) {
+        k.classList.toggle('collapsed-card', !buka);
+        var ikon = k.querySelector('[data-card-widget="collapse"] i');
+        if (ikon) { ikon.className = 'fas ' + (buka ? 'fa-minus' : 'fa-plus'); }
+        var badan = k.querySelector('.card-body');
+        if (badan) { badan.style.display = buka ? '' : 'none'; }
+    }
+    if (multiKend) {
+        try {
+            var tersimpan = JSON.parse(sessionStorage.getItem(kunciSimpan) || 'null');
+            if (Array.isArray(tersimpan)) {
+                kartuKend.forEach(function (k) { aturKartu(k, tersimpan.indexOf(k.dataset.nopol) !== -1); });
+            }
+        } catch (e) {}
+    }
+    kartuKend.forEach(function (k) {
+        var judul = k.querySelector('.card-header');
+        if (judul) {
+            judul.addEventListener('click', function (e) {
+                if (e.target.closest('a, button, input, select, label')) { return; }
+                aturKartu(k, k.classList.contains('collapsed-card'));
+                simpanTerbuka();
+            });
+        }
+        // Tombol +/- ditangani di sini (bukan oleh AdminLTE) supaya status buka/tutup konsisten dan bisa diingat
+        var tombol = k.querySelector('[data-card-widget="collapse"]');
+        if (tombol) {
+            tombol.addEventListener('click', function (e) {
+                e.stopPropagation();
+                aturKartu(k, k.classList.contains('collapsed-card'));
+                simpanTerbuka();
+            });
+        }
+    });
+    var bukaSemua = document.getElementById('buka-semua');
+    var tutupSemua = document.getElementById('tutup-semua');
+    if (bukaSemua) { bukaSemua.addEventListener('click', function () { kartuKend.forEach(function (k) { aturKartu(k, true); }); simpanTerbuka(); }); }
+    if (tutupSemua) { tutupSemua.addEventListener('click', function () { kartuKend.forEach(function (k) { aturKartu(k, false); }); simpanTerbuka(); }); }
 
     // --- Pilih trip & penghitung
     var jumlahEl = document.getElementById('jumlah-terpilih');
