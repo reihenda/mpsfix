@@ -250,12 +250,13 @@
                         <h3 class="card-title">
                             <i class="fas fa-broom mr-1"></i>
                             <strong class="mr-1">{{ $noise->count() }}</strong>trip noise terdeteksi
-                            <small class="header-sekunder ml-1">durasi kurang dari 5 menit</small>
+                            <small class="header-sekunder ml-1">kurang dari 5 menit atau hanya bergeser di dalam area customer</small>
                         </h3>
                     </div>
                     <div class="card-body p-0">
                         <div class="px-3 py-2 small border-bottom">
-                            Trip sependek ini biasanya hanya pembacaan sistem GPS (mis. PT → PT yang sama selama beberapa detik).
+                            Trip sependek ini biasanya hanya pembacaan sistem GPS (mis. PT → PT yang sama selama beberapa detik),
+                            atau mobil yang cuma bergeser di dalam area customer (kurang dari 1 km, mulai dan berakhir di geofence).
                             Semua sudah <strong>dicentang untuk dihapus</strong>. Hilangkan centang pada trip yang ingin dipertahankan.
                             Trip yang tidak dicentang akan tetap menjadi trip biasa dan tidak ditanyakan lagi.
                         </div>
@@ -287,6 +288,9 @@
                                             <td>{{ $n->geofence_mulai ?? '(tidak terbaca)' }} <i class="fas fa-long-arrow-alt-right text-muted mx-1"></i> {{ $n->geofence_selesai ?? '(tidak terbaca)' }}</td>
                                             <td class="text-right text-nowrap">{{ number_format($n->jarak_km, 1, ',', '.') }}</td>
                                             <td>
+                                                @if ($n->noise_mikro)
+                                                    <span class="badge badge-light border" title="Durasi 5 menit atau lebih, tapi hanya bergeser di dalam area customer (kurang dari 1 km)">dalam area customer</span>
+                                                @endif
                                                 @if ($n->operator)
                                                     <span class="badge badge-info" title="Trip ini sudah diberi driver">driver: {{ $n->operator->nama }}</span>
                                                 @endif

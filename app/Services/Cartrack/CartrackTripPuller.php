@@ -129,7 +129,7 @@ class CartrackTripPuller
      */
     private function buangNoiseTanpaJadwal(string $nopol, Carbon $sejak): int
     {
-        $noise = GpsTrip::noise()
+        $noise = GpsTrip::noiseDurasi()
             ->where('nopol', $nopol)
             ->where('sumber', GpsTrip::SUMBER_CARTRACK)
             // Hanya yang sudah selesai: trip yang baru mulai dan masih berjalan sementara tampak pendek,

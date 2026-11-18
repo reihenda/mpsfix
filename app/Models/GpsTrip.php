@@ -69,13 +69,39 @@ class GpsTrip extends Model
     public const AMBANG_NOISE_DETIK = 5 * 60;
 
     /**
-     * Trip noise: durasi (mulai -> selesai) kurang dari 5 menit dan belum ditinjau admin.
+     * Trip noise yang belum ditinjau admin: durasi kurang dari 5 menit, ATAU trip mikro (satu segmen,
+     * kurang dari 1 km, mulai dan berakhir di geofence, otomatis tidak dihitung = mobil cuma bergeser
+     * di dalam area customer).
      */
     public function scopeNoise($query)
     {
         return $query->whereNotNull('waktu_selesai')
             ->where('bukan_noise', false)
+            ->where(function ($q) {
+                $q->whereRaw('TIMESTAMPDIFF(SECOND, waktu_mulai, waktu_selesai) < ?', [self::AMBANG_NOISE_DETIK])
+                    ->orWhere(function ($m) {
+                        $m->where('status', 'selesai')
+                            ->where('dihitung', false)
+                            ->where('jumlah_segmen', 1)
+                            ->where('jarak_km', '<', 1.0)
+                            ->whereNotNull('geofence_mulai')
+                            ->whereNotNull('geofence_selesai');
+                    });
+            });
+    }
+
+    /** Hanya noise karena durasi (< 5 menit); dipakai pembuangan otomatis saat sinkron. */
+    public function scopeNoiseDurasi($query)
+    {
+        return $query->whereNotNull('waktu_selesai')
+            ->where('bukan_noise', false)
             ->whereRaw('TIMESTAMPDIFF(SECOND, waktu_mulai, waktu_selesai) < ?', [self::AMBANG_NOISE_DETIK]);
+    }
+
+    /** Noise karena trip mikro (durasi 5 menit atau lebih, tapi hanya bergeser di dalam area customer). */
+    public function getNoiseMikroAttribute(): bool
+    {
+        return ($this->durasi_trip_detik ?? 0) >= self::AMBANG_NOISE_DETIK;
     }
 
     public function operator()
