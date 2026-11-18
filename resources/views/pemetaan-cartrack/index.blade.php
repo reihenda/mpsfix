@@ -1,8 +1,8 @@
 @extends('layouts.app')
 
-@section('title', 'Pemetaan Cartrack')
+@section('title', 'Sinkronasi Cartrack dan MPS')
 
-@section('page-title', 'Pemetaan Cartrack')
+@section('page-title', 'Sinkronasi Cartrack dan MPS')
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/jadwal-perjalanan.css') }}?v={{ filemtime(public_path('css/jadwal-perjalanan.css')) }}">

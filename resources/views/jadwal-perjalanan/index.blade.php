@@ -32,7 +32,7 @@
     <div class="jp-head">
         <p>Atur kendaraan, driver, dan rute. Driver dikirim ke Cartrack saat jadwal dimulai. Jadwal selesai sendiri saat semua tujuan pada rute tercapai, lalu trip ditarik untuk divalidasi.</p>
         <div class="jp-head-actions">
-            <a href="{{ route('pemetaan-cartrack.index') }}" class="btn btn-ghost"><i class="fas fa-link"></i>Pemetaan Cartrack</a>
+            <a href="{{ route('pemetaan-cartrack.index') }}" class="btn btn-ghost"><i class="fas fa-link"></i>Sinkronasi Cartrack dan MPS</a>
             <a href="{{ route('jadwal-perjalanan.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i>Buat jadwal</a>
         </div>
     </div>

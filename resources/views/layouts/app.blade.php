@@ -317,7 +317,7 @@
                                     <li class="nav-item">
                                         <a href="{{ route('pemetaan-cartrack.index') }}" class="nav-link">
                                             <i class="fas fa-link nav-icon"></i>
-                                            <p>Pemetaan Cartrack</p>
+                                            <p>Sinkronasi Cartrack dan MPS</p>
                                         </a>
                                     </li>
                                 </ul>
@@ -571,7 +571,7 @@
                             <li class="nav-item">
                                 <a href="{{ route('pemetaan-cartrack.index') }}" class="nav-link">
                                     <i class="nav-icon fas fa-link"></i>
-                                    <p>Pemetaan Cartrack</p>
+                                    <p>Sinkronasi Cartrack dan MPS</p>
                                 </a>
                             </li>
                         @endif

@@ -455,8 +455,6 @@
                         <button type="submit" data-aksi="driver" class="btn btn-primary btn-sm mr-3"><i class="fas fa-user-check mr-1"></i> Set Driver</button>
                         <button type="submit" data-aksi="validasi" class="btn btn-outline-primary btn-sm mr-1" title="Hanya trip Cartrack yang sudah punya driver"><i class="fas fa-check-double mr-1"></i> Validasi</button>
                         <button type="submit" data-aksi="batal_validasi" class="btn btn-outline-secondary btn-sm mr-3">Batal validasi</button>
-                        <button type="submit" data-aksi="hitung" class="btn btn-outline-success btn-sm mr-1">Hitung</button>
-                        <button type="submit" data-aksi="abaikan" class="btn btn-outline-secondary btn-sm mr-1">Jangan hitung</button>
                         <button type="submit" data-aksi="hapus" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash mr-1"></i> Hapus</button>
                     </div>
                 </div>

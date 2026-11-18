@@ -79,7 +79,7 @@
                                     @if ($nopolBelumTerhubung->isEmpty() && $nopolHanyaCartrack->isEmpty())
                                         <p class="mb-0">Semua kendaraan sudah terhubung.</p>
                                     @endif
-                                    <a href="{{ route('pemetaan-cartrack.index') }}" class="jp-callout-link">Buka Pemetaan Cartrack <i class="fas fa-arrow-right"></i></a>
+                                    <a href="{{ route('pemetaan-cartrack.index') }}" class="jp-callout-link">Buka Sinkronasi Cartrack dan MPS <i class="fas fa-arrow-right"></i></a>
                                 </div>
                             @endif
                         </div>
@@ -108,7 +108,7 @@
                                     @else
                                         <p class="mb-0">Semua driver sudah dipetakan.</p>
                                     @endif
-                                    <a href="{{ route('pemetaan-cartrack.index') }}" class="jp-callout-link">Petakan di Pemetaan Cartrack <i class="fas fa-arrow-right"></i></a>
+                                    <a href="{{ route('pemetaan-cartrack.index') }}" class="jp-callout-link">Petakan di Sinkronasi Cartrack dan MPS <i class="fas fa-arrow-right"></i></a>
                                 </div>
                             @endif
                         </div>

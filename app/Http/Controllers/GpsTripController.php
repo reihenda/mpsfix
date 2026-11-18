@@ -463,14 +463,14 @@ class GpsTripController extends Controller
     }
 
     /**
-     * Aksi massal / per baris: set driver, hitung, abaikan, hapus.
+     * Aksi massal: set driver, validasi / batal validasi, hapus. Menghitung atau tidak menghitung satu trip dilakukan lewat edit trip.
      */
     public function aksiMassal(Request $request)
     {
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer|exists:gps_trip,id',
-            'aksi' => ['required', Rule::in(['driver', 'hitung', 'abaikan', 'hapus', 'validasi', 'batal_validasi'])],
+            'aksi' => ['required', Rule::in(['driver', 'hapus', 'validasi', 'batal_validasi'])],
             'operator_gtm_id' => 'nullable|integer|exists:operator_gtm,id',
         ]);
 
@@ -485,14 +485,6 @@ class GpsTripController extends Controller
             case 'driver':
                 $query->update(['operator_gtm_id' => $validated['operator_gtm_id'] ?? null]);
                 $pesan = "Driver diperbarui untuk {$jumlah} trip.";
-                break;
-            case 'hitung':
-                $query->update(['dihitung' => true, 'diedit' => true]);
-                $pesan = "{$jumlah} trip dihitung.";
-                break;
-            case 'abaikan':
-                $query->update(['dihitung' => false, 'diedit' => true]);
-                $pesan = "{$jumlah} trip tidak dihitung.";
                 break;
             default:
                 // Trip hasil sinkron Cartrack yang dihapus dicatat agar tidak dibuat lagi oleh sinkron berikutnya

@@ -164,7 +164,7 @@ class JadwalPerjalananService
 
         $galatPermanen = match (true) {
             $registrasi === null => "Nopol {$j->nopol} tidak ditemukan di kendaraan Cartrack.",
-            !$driverId => 'Driver '.($j->operator?->nama ?? '?').' belum dipetakan ke driver Cartrack (menu Pemetaan Cartrack).',
+            !$driverId => 'Driver '.($j->operator?->nama ?? '?').' belum dipetakan ke driver Cartrack (menu Sinkronasi Cartrack dan MPS).',
             default => null,
         };
 
