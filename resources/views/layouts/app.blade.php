@@ -28,7 +28,7 @@
     <!-- Responsive styles -->
     <link rel="stylesheet" href="{{ asset('css/responsive.css') }}">
     <!-- Custom Sidebar CSS -->
-    <link rel="stylesheet" href="{{ asset('css/custom-sidebar.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/custom-sidebar.css') }}?v={{ filemtime(public_path('css/custom-sidebar.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/customer-detail.css') }}?v={{ time() }}">
     <!-- Modal Fix CSS -->
     <link rel="stylesheet" href="{{ asset('css/modal-fix.css') }}?v={{ time() }}">
@@ -81,7 +81,7 @@
     @yield('js')
 </head>
 
-<body class="hold-transition sidebar-mini">
+<body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed">
 
     <div class="wrapper">
         {{-- Navbar --}}
