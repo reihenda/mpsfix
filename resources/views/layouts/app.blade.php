@@ -622,6 +622,14 @@
                                 </a>
                             </li>
                         @endif
+
+                        {{-- Panduan Sistem: untuk semua role, isi artikel disaring sesuai akses menu --}}
+                        <li class="nav-item">
+                            <a href="{{ route('panduan.index') }}" class="nav-link {{ request()->routeIs('panduan.*') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-book-open"></i>
+                                <p>Panduan Sistem</p>
+                            </a>
+                        </li>
                     </ul>
                 </nav>
             </div>

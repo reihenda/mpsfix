@@ -30,4 +30,14 @@
         </div>
     </div>
 </a>
+
+<a href="{{ route('panduan.index') }}" class="card text-decoration-none">
+    <div class="card-body d-flex align-items-center">
+        <i class="fas fa-book-open fa-2x text-info mr-3"></i>
+        <div>
+            <h5 class="mb-0 text-dark">Panduan</h5>
+            <small class="text-muted">Cara pakai Absen Trip dan Perbaikan Trip</small>
+        </div>
+    </div>
+</a>
 @endsection

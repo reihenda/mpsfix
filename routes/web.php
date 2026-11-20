@@ -534,6 +534,17 @@ Route::middleware(['auth', 'role:demo'])->group(function () {
         ->name('demo.remove-deposit');
 });
 
+// ============================================================================
+// Panduan Sistem — semua user login; artikel yang tampil disaring per role
+// mengikuti akses route menu yang dibahas (lihat App\Support\Panduan)
+// ============================================================================
+Route::middleware(['auth'])->group(function () {
+    Route::get('/panduan', [App\Http\Controllers\PanduanController::class, 'index'])->name('panduan.index');
+    Route::get('/panduan/{slug}', [App\Http\Controllers\PanduanController::class, 'show'])
+        ->where('slug', '[a-z0-9\-]+')
+        ->name('panduan.show');
+});
+
 // Rute default setelah login
 Route::get('/', function () {
     return redirect('/login');
