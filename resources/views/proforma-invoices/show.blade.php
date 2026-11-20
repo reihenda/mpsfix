@@ -175,7 +175,7 @@
                                                     $ {{ number_format($proformaInvoice->total_usd, 2, ',', '.') }}
                                                 </td>
                                                 <td class="text-right">
-                                                    Rp {{ number_format($proformaInvoice->kurs_usd, 0, ',', '.') }}
+                                                    Rp {{ number_format($proformaInvoice->kurs_usd, 2, ',', '.') }}
                                                 </td>
                                                 <td class="text-right bg-light font-weight-bold">
                                                     Rp {{ number_format($total_biaya, 0, ',', '.') }}
