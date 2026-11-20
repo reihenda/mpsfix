@@ -126,9 +126,18 @@
                                         <td colspan="3"></td>
                                         <td class="text-center">
                                             <strong>Saldo per {{ $tanggal_saldo->format('d M Y') }} :</strong><br>
+                                            @if($isMmbtu)
+                                            <span class="badge badge-{{ $saldo_mmbtu['mmbtu'] >= 0 ? 'success' : 'danger' }} p-2">
+                                                {{ number_format($saldo_mmbtu['mmbtu'], 2, ',', '.') }} MMBTU
+                                            </span>
+                                            <span class="badge badge-{{ $saldo_mmbtu['usd'] >= 0 ? 'success' : 'danger' }} p-2">
+                                                $ {{ number_format($saldo_mmbtu['usd'], 2, ',', '.') }}
+                                            </span>
+                                            @else
                                             <span class="badge badge-{{ $saldo_per_tanggal >= 0 ? 'success' : 'danger' }} p-2">
                                                 Rp {{ number_format($saldo_per_tanggal, 0, ',', '.') }}
                                             </span>
+                                            @endif
                                         </td>
                                     </tr>
                                 </table>
@@ -157,13 +166,13 @@
                                                     <small class="text-warning d-block font-weight-bold">(ESTIMASI)</small>
                                                 </td>
                                                 <td class="text-right font-weight-bold">
-                                                    {{ number_format($proformaInvoice->volume_mmbtu, 4, ',', '.') }}
+                                                    {{ number_format($proformaInvoice->volume_mmbtu, 2, ',', '.') }}
                                                 </td>
                                                 <td class="text-right">
-                                                    $ {{ number_format($proformaInvoice->price_per_mmbtu_usd, 4, ',', '.') }}
+                                                    $ {{ number_format($proformaInvoice->price_per_mmbtu_usd, 2, ',', '.') }}
                                                 </td>
                                                 <td class="text-right font-weight-bold">
-                                                    $ {{ number_format($proformaInvoice->total_usd, 4, ',', '.') }}
+                                                    $ {{ number_format($proformaInvoice->total_usd, 2, ',', '.') }}
                                                 </td>
                                                 <td class="text-right">
                                                     Rp {{ number_format($proformaInvoice->kurs_usd, 0, ',', '.') }}
@@ -239,7 +248,7 @@
                                             <td>:</td>
                                             <td class="text-right font-weight-bold">
                                                 @if($isMmbtu)
-                                                $ {{ number_format($proformaInvoice->total_usd, 4, ',', '.') }} (Rp {{ number_format($total_biaya, 0, ',', '.') }})
+                                                $ {{ number_format($proformaInvoice->total_usd, 2, ',', '.') }} (Rp {{ number_format($total_biaya, 0, ',', '.') }})
                                                 @else
                                                 Rp {{ number_format($total_biaya, 0, ',', '.') }}
                                                 @endif

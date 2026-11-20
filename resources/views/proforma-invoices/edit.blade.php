@@ -252,13 +252,13 @@
                             @if($isMmbtu)
                             <div class="row">
                                 <div class="col-md-3">
-                                    <p class="mb-1"><strong>Volume MMBTU:</strong> <span id="preview_volume_mmbtu">{{ number_format($proformaInvoice->volume_mmbtu ?? 0, 4) }}</span> MMBTU</p>
+                                    <p class="mb-1"><strong>Volume MMBTU:</strong> <span id="preview_volume_mmbtu">{{ number_format($proformaInvoice->volume_mmbtu ?? 0, 2, ',', '.') }}</span> MMBTU</p>
                                 </div>
                                 <div class="col-md-3">
-                                    <p class="mb-1"><strong>Harga/MMBTU:</strong> $ <span id="preview_price_mmbtu">{{ number_format($proformaInvoice->price_per_mmbtu_usd ?? 0, 4) }}</span></p>
+                                    <p class="mb-1"><strong>Harga/MMBTU:</strong> $ <span id="preview_price_mmbtu">{{ number_format($proformaInvoice->price_per_mmbtu_usd ?? 0, 2, ',', '.') }}</span></p>
                                 </div>
                                 <div class="col-md-3">
-                                    <p class="mb-1"><strong>Total USD:</strong> $ <span id="preview_total_usd">{{ number_format($proformaInvoice->total_usd ?? 0, 4) }}</span></p>
+                                    <p class="mb-1"><strong>Total USD:</strong> $ <span id="preview_total_usd">{{ number_format($proformaInvoice->total_usd ?? 0, 2, ',', '.') }}</span></p>
                                 </div>
                                 <div class="col-md-3">
                                     <p class="mb-1"><strong>Total IDR:</strong> Rp <span id="preview_total_idr">{{ number_format($proformaInvoice->total_amount ?? 0, 0, ',', '.') }}</span></p>
@@ -364,9 +364,10 @@ $(document).ready(function() {
         const kurs = parseFloat($('#kurs_usd').val()) || 0;
         const totalUsd = volume * price;
         const totalIdr = totalUsd * kurs;
-        $('#preview_volume_mmbtu').text(volume.toFixed(4));
-        $('#preview_price_mmbtu').text(price.toFixed(4));
-        $('#preview_total_usd').text(new Intl.NumberFormat('en-US', {minimumFractionDigits: 4}).format(totalUsd));
+        const fmt2 = new Intl.NumberFormat('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        $('#preview_volume_mmbtu').text(fmt2.format(volume));
+        $('#preview_price_mmbtu').text(fmt2.format(price));
+        $('#preview_total_usd').text(fmt2.format(totalUsd));
         $('#preview_total_idr').text(new Intl.NumberFormat('id-ID').format(Math.round(totalIdr)));
     });
     @else

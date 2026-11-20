@@ -46,6 +46,17 @@
                                 <h6 class="mb-2">
                                     <i class="fas fa-wallet mr-2"></i>Saldo Customer
                                 </h6>
+                                @if($isMmbtu)
+                                <div id="saldoInfo">
+                                    <strong>Saldo per {{ now()->format('d M Y') }}:</strong><br>
+                                    <span class="badge badge-{{ $saldoMmbtu['mmbtu'] >= 0 ? 'success' : 'danger' }} p-2 mr-1">
+                                        {{ number_format($saldoMmbtu['mmbtu'], 2, ',', '.') }} MMBTU
+                                    </span>
+                                    <span class="badge badge-{{ $saldoMmbtu['usd'] >= 0 ? 'success' : 'danger' }} p-2">
+                                        $ {{ number_format($saldoMmbtu['usd'], 2, ',', '.') }}
+                                    </span>
+                                </div>
+                                @else
                                 <div id="saldoInfo">
                                     <strong>Saldo per <span id="saldoDate">{{ now()->format('d M Y') }}</span>:</strong><br>
                                     <span class="badge badge-{{ $currentBalance >= 0 ? 'success' : 'danger' }} p-2" id="saldoBadge">
@@ -56,6 +67,7 @@
                                     <i class="fas fa-info-circle mr-1"></i>
                                     Saldo akan update otomatis sesuai tanggal awal periode
                                 </small>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -466,9 +478,10 @@ $(document).ready(function() {
         const totalUsd = volume * price;
         const totalIdr = totalUsd * kurs;
 
-        $('#preview_volume_mmbtu').text(volume.toFixed(4));
-        $('#preview_price_mmbtu').text(price.toFixed(4));
-        $('#preview_total_usd').text(new Intl.NumberFormat('en-US', {minimumFractionDigits: 4}).format(totalUsd));
+        const fmt2 = new Intl.NumberFormat('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        $('#preview_volume_mmbtu').text(fmt2.format(volume));
+        $('#preview_price_mmbtu').text(fmt2.format(price));
+        $('#preview_total_usd').text(fmt2.format(totalUsd));
         $('#preview_total_idr').text(new Intl.NumberFormat('id-ID').format(Math.round(totalIdr)));
     }
     calculateMmbtuPreview();
