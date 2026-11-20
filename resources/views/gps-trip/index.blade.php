@@ -69,6 +69,7 @@
 
 <div class="row">
     <div class="col-12">
+        @include('gps-trip._lembur_manual')
         @if (session('success'))
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 {{ session('success') }}
@@ -131,7 +132,6 @@
                     <button type="submit" class="btn btn-primary btn-sm mb-1 mr-2"><i class="fas fa-filter mr-1"></i> Terapkan</button>
 
                     <div class="ml-auto mb-1">
-                        <a href="{{ route('gps-trip.lembur', ['bulan' => $bulan]) }}" class="btn btn-primary btn-sm"><i class="fas fa-user-clock mr-1"></i> Terapkan ke Lembur</a>
                         <a href="{{ route('gps-trip.upload') }}" class="btn btn-outline-secondary btn-sm" title="Cadangan bila data Cartrack tidak tersedia"><i class="fas fa-file-upload mr-1"></i> Import Excel</a>
                     </div>
                 </form>

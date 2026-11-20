@@ -24,6 +24,7 @@
         <span class="jp-badge {{ $kelasStatus[$jadwal->status] ?? '' }}">{{ $jadwal->status_label }}</span>
     </div>
 
+    @include('gps-trip._lembur_manual')
     @if (session('success'))
         <div class="alert alert-success alert-dismissible fade show">{{ session('success') }}
             <button type="button" class="close" data-dismiss="alert" aria-label="Tutup"><span>&times;</span></button></div>

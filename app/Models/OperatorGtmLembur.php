@@ -28,6 +28,11 @@ class OperatorGtmLembur extends Model
         'total_jam_kerja',
         'total_jam_lembur',
         'upah_lembur',
+        'sumber_gps',
+    ];
+
+    protected $casts = [
+        'sumber_gps' => 'boolean',
     ];
 
     /**

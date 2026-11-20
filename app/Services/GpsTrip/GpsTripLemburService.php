@@ -38,11 +38,12 @@ class GpsTripLemburService
         // berstatus tervalidasi; trip dari Cartrack baru masuk setelah divalidasi staff operasional/admin.
         $this->bukti = GpsHentiBukti::himpunan($awal->copy()->subDay(), $akhir->copy()->addDay());
 
+        // Mulai sehari lebih awal: trip yang melewati tengah malam dari hari sebelumnya ikut mengisi hari pertama
         $trips = GpsTrip::with('operator')
             ->where('dihitung', true)
             ->where('divalidasi', true)
             ->whereNotNull('waktu_selesai')
-            ->whereBetween('waktu_mulai', [$awal, $akhir])
+            ->whereBetween('waktu_mulai', [$awal->copy()->subDay(), $akhir])
             ->when($operatorId, fn ($q) => $q->where('operator_gtm_id', $operatorId))
             ->orderBy('waktu_mulai')
             ->get();
@@ -53,7 +54,9 @@ class GpsTripLemburService
             ->whereBetween('waktu_mulai', [$awal, $akhir])
             ->count();
 
-        $tanpaDriver = $trips->whereNull('operator_gtm_id')->count();
+        $tanpaDriver = $trips->whereNull('operator_gtm_id')->filter(fn ($t) => $t->waktu_mulai->gte($awal))->count();
+        $tglAwal = $awal->toDateString();
+        $tglAkhir = $akhir->toDateString();
         $baris = [];
 
         foreach ($trips->whereNotNull('operator_gtm_id')->groupBy('operator_gtm_id') as $operatorId => $tripOperator) {
@@ -63,16 +66,21 @@ class GpsTripLemburService
             }
 
             $perTanggal = [];
-            foreach ($this->gabungkanTumpang($this->kumpulkanBlok($tripOperator)) as $blok) {
+            // Blok yang melewati tengah malam dipecah per hari: 20:00-04:00 -> 20:00-00:00 (hari ini) + 00:00-04:00 (besok)
+            foreach ($this->potongTengahMalam($this->gabungkanTumpang($this->kumpulkanBlok($tripOperator))) as $blok) {
                 $perTanggal[date('Y-m-d', $blok['mulai'])][] = $blok;
             }
 
             foreach ($perTanggal as $tanggal => $bloks) {
+                if ($tanggal < $tglAwal || $tanggal > $tglAkhir) {
+                    continue;
+                }
                 $bloks = $this->ringkasKeMaksimal($bloks);
 
                 $sesi = array_map(fn ($b) => [
                     'masuk' => $this->jam($b['mulai']),
-                    'keluar' => $this->jam($b['selesai']),
+                    // Satu hari penuh (00:00 s/d 00:00 besok) tidak bisa ditulis sebagai jam: pakai 23:59
+                    'keluar' => $b['selesai'] - $b['mulai'] >= 86400 ? '23:59' : $this->jam($b['selesai']),
                 ], $bloks);
 
                 $totalMenit = 0;
@@ -84,8 +92,12 @@ class GpsTripLemburService
                 $dipotong = [];
                 foreach (array_unique(array_merge(...array_column($bloks, 'trip_ids'))) as $tripId) {
                     $trip = $tripOperator->firstWhere('id', $tripId);
+                    $hariMulai = strtotime($tanggal.' 00:00:00');
+                    $hariAkhir = strtotime($tanggal.' 00:00:00 +1 day');
                     foreach ($trip ? $trip->hentiDenganBukti($this->bukti) : [] as $h) {
-                        $dipotong[] = $h + ['nopol' => $trip->nopol];
+                        if ($h['selesai'] > $hariMulai && $h['mulai'] < $hariAkhir) {
+                            $dipotong[] = $h + ['nopol' => $trip->nopol];
+                        }
                     }
                 }
 
@@ -192,10 +204,14 @@ class GpsTripLemburService
 
                 foreach ($daftar as $tgl) {
                     $ada = OperatorGtmLembur::where('operator_gtm_id', $operatorId)->where('tanggal', $tgl)->first();
-                    $asalGps = $ada && (isset($dariGps[$ada->id]) || GpsTrip::where('operator_gtm_lembur_id', $ada->id)->exists());
+                    $asalGps = $ada && ($ada->sumber_gps || isset($dariGps[$ada->id]) || GpsTrip::where('operator_gtm_lembur_id', $ada->id)->exists());
 
                     if ($ada && !$asalGps) {
                         $hasil['manual'][] = ($ada->operator->nama ?? 'Operator #'.$operatorId).' '.Carbon::parse($tgl)->format('d/m');
+                        $hasil['manual_detail'][] = [
+                            'label' => ($ada->operator->nama ?? 'Operator #'.$operatorId).' '.Carbon::parse($tgl)->format('d/m'),
+                            'bulan' => PeriodeLembur::bulanUntuk(Carbon::parse($tgl)),
+                        ];
                         continue;
                     }
 
@@ -212,6 +228,11 @@ class GpsTripLemburService
                 }
             }
         });
+
+        // Tampilkan peringatan (dengan tautan ke halaman pembanding) di halaman berikutnya
+        if (!empty($hasil['manual_detail']) && app()->bound('session')) {
+            session()->flash('lembur_manual', $hasil['manual_detail']);
+        }
 
         return $hasil;
     }
@@ -243,9 +264,7 @@ class GpsTripLemburService
         }
         $teks = $bagian ? ' '.ucfirst(implode(', ', $bagian)).'.' : '';
         if ($hasil['manual']) {
-            $teks .= ' '.count($hasil['manual']).' hari TIDAK diubah karena sudah ada input lembur manual ('
-                .implode(', ', array_slice($hasil['manual'], 0, 5)).(count($hasil['manual']) > 5 ? ', …' : '')
-                .'); cek di halaman Terapkan ke Lembur.';
+            $teks .= ' '.count($hasil['manual']).' hari tidak diubah karena sudah ada input lembur manual (lihat peringatan kuning).';
         }
 
         return $teks;
@@ -272,11 +291,14 @@ class GpsTripLemburService
         $lembur->total_jam_kerja = $baris['total_menit'];
         $lembur->total_jam_lembur = $baris['lembur_menit'];
         $lembur->upah_lembur = $baris['upah'];
+        $lembur->sumber_gps = true;
         $lembur->save();
 
-        // Lepas trip yang tidak lagi termasuk (mis. batal validasi), lalu tautkan yang termasuk
-        GpsTrip::where('operator_gtm_lembur_id', $lembur->id)->whereNotIn('id', $baris['trip_ids'])->update(['operator_gtm_lembur_id' => null]);
-        GpsTrip::whereIn('id', $baris['trip_ids'])->update(['operator_gtm_lembur_id' => $lembur->id]);
+        // Satu trip hanya bisa tertaut ke satu data lembur: tautkan ke hari MULAI trip. Trip yang melewati
+        // tengah malam tetap mengisi hari berikutnya (lewat sesi), tanpa ditautkan ke data lembur hari itu.
+        $tautkan = GpsTrip::whereIn('id', $baris['trip_ids'])->whereDate('waktu_mulai', $baris['tanggal'])->pluck('id')->all();
+        GpsTrip::where('operator_gtm_lembur_id', $lembur->id)->whereNotIn('id', $tautkan)->update(['operator_gtm_lembur_id' => null]);
+        GpsTrip::whereIn('id', $tautkan)->update(['operator_gtm_lembur_id' => $lembur->id]);
 
         return $baru;
     }
@@ -304,6 +326,23 @@ class GpsTripLemburService
         }
 
         return $bloks;
+    }
+
+    /** Pecah blok yang melewati tengah malam menjadi potongan per hari kalender. */
+    private function potongTengahMalam(array $bloks): array
+    {
+        $hasil = [];
+        foreach ($bloks as $b) {
+            $mulai = $b['mulai'];
+            while ($mulai < $b['selesai']) {
+                $tengahMalam = strtotime(date('Y-m-d', $mulai).' 00:00:00 +1 day');
+                $selesai = min($b['selesai'], $tengahMalam);
+                $hasil[] = array_merge($b, ['mulai' => $mulai, 'selesai' => $selesai]);
+                $mulai = $selesai;
+            }
+        }
+
+        return $hasil;
     }
 
     private function gabungkanTumpang(array $bloks): array
