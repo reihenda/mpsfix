@@ -353,10 +353,6 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
 
         // Route statis dulu, dinamis belakangan
         Route::get('/', [$c, 'index'])->name('index');
-        Route::get('/upload', [$c, 'upload'])->name('upload');
-        Route::post('/upload', [$c, 'prosesUpload'])->name('upload.proses');
-        Route::get('/review/{token}', [$c, 'review'])->name('review');
-        Route::post('/review/{token}', [$c, 'konfirmasiImport'])->name('review.konfirmasi');
         Route::get('/geofence', [$c, 'geofence'])->name('geofence');
         Route::put('/geofence/{geofence}', [$c, 'updateGeofence'])->name('geofence.update')->where('geofence', '[0-9]+');
         Route::post('/aksi', [$c, 'aksiMassal'])->name('aksi');

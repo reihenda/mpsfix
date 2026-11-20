@@ -30,8 +30,8 @@
             </div>
             <div class="card-body p-0 table-responsive">
                 <div class="callout callout-warning m-3 small">
-                    Mengubah klasifikasi tidak langsung mengubah trip yang sudah ada. Setelah mengubah, <strong>upload ulang file laporan</strong>
-                    agar trip dihitung ulang (trip yang sudah Anda edit atau sudah diberi driver tidak ditimpa).
+                    Mengubah klasifikasi tidak langsung mengubah trip yang sudah ada. Setelah mengubah, klik <strong>Sinkron periode ini</strong> di Trip GPS
+                    agar trip dihitung ulang (trip yang sudah Anda edit tidak ditimpa).
                 </div>
                 <table class="table table-hover mb-0">
                     <thead>
@@ -70,7 +70,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="text-center text-muted py-4">Belum ada geofence. Upload laporan GPS terlebih dahulu.</td></tr>
+                            <tr><td colspan="4" class="text-center text-muted py-4">Belum ada geofence. Geofence terdaftar otomatis saat trip ditarik dari Cartrack.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

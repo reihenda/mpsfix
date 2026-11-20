@@ -7,7 +7,6 @@ use App\Models\GpsHentiBukti;
 use App\Models\GpsSinkronPeriode;
 use App\Models\GpsTrip;
 use App\Models\GpsTripDibuang;
-use App\Models\GpsTripImport;
 use App\Models\NomorPolisi;
 use App\Models\OperatorGtm;
 use App\Models\User;
@@ -19,18 +18,11 @@ use App\Services\GpsTrip\PeriodeLembur;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class GpsTripController extends Controller
 {
-    private const DIR_UPLOAD = 'gps-trip-uploads';
-
-    public function __construct(private GpsTripParser $parser, private GpsTripImporter $importer)
-    {
-    }
-
     // ------------------------------------------------------------------
     // Daftar trip
     // ------------------------------------------------------------------
@@ -116,8 +108,6 @@ class GpsTripController extends Controller
             ->get()
             ->mapWithKeys(fn ($g) => [GpsTripParser::normalisasiNama($g->nama) => $g->customer->name ?? null]);
 
-        // Riwayat upload Excel saja; tarikan Cartrack (satu baris per hari) punya status sendiri
-        $importTerakhir = GpsTripImport::with('user:id,name')->where('nama_file', 'not like', 'Cartrack%')->latest()->first();
 
         // Periode ini sudah pernah ditarik penuh dari Cartrack? Bila belum, admin diminta menyinkronkan dulu
         $periodeSinkron = GpsSinkronPeriode::where('periode', $bulan)->first();
@@ -178,7 +168,7 @@ class GpsTripController extends Controller
         return view('gps-trip.index', compact(
             'hentiLama', 'buktiSet',
             'bulan', 'perKendaraan', 'nomorTrip', 'rekapDriver', 'ringkasan', 'daftarNopol',
-            'operators', 'kunciTerdaftar', 'geofenceCustomer', 'importTerakhir', 'tampil', 'driver', 'noise',
+            'operators', 'kunciTerdaftar', 'geofenceCustomer', 'tampil', 'driver', 'noise',
             'validasi', 'belumValidasi', 'sinkronTerakhir', 'sinkronMenunggu', 'periodeSinkron', 'periodeLabel', 'periodeBerjalan'
         ) + ['nopolDipilih' => $request->query('nopol')]);
     }
@@ -297,127 +287,6 @@ class GpsTripController extends Controller
     }
 
     // ------------------------------------------------------------------
-    // Upload & klasifikasi geofence
-    // ------------------------------------------------------------------
-
-    public function upload()
-    {
-        $riwayat = GpsTripImport::with('user:id,name')->where('nama_file', 'not like', 'Cartrack%')->latest()->limit(10)->get();
-
-        return view('gps-trip.upload', compact('riwayat'));
-    }
-
-    public function prosesUpload(Request $request)
-    {
-        $request->validate([
-            'file' => 'required|file|mimes:xls,xlsx,csv,txt|max:20480',
-        ], [
-            'file.required' => 'Pilih file Excel terlebih dahulu.',
-            'file.mimes' => 'File harus berformat .xls atau .xlsx.',
-            'file.max' => 'Ukuran file maksimal 20 MB.',
-        ]);
-
-        $file = $request->file('file');
-
-        try {
-            $parsed = $this->parser->parse($file->getRealPath());
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Gagal membaca file: ' . $e->getMessage());
-        }
-
-        $namaFile = $file->getClientOriginalName();
-        $geofenceFile = GpsTripParser::hitungGeofence($parsed);
-
-        $dikenal = GpsGeofence::pluck('nama')->map(fn ($n) => GpsTripParser::normalisasiNama($n))->flip();
-        $baru = array_filter($geofenceFile, fn ($jumlah, $nama) => !isset($dikenal[GpsTripParser::normalisasiNama($nama)]), ARRAY_FILTER_USE_BOTH);
-
-        // Semua geofence sudah dikenal -> langsung import
-        if (empty($baru)) {
-            $stat = $this->importer->import($parsed, $namaFile, $request->user()->id);
-
-            return $this->redirectSetelahImport($parsed, $stat);
-        }
-
-        // Ada geofence baru -> simpan sementara & minta admin mengklasifikasi dulu
-        $this->bersihkanUploadLama();
-        $token = (string) \Illuminate\Support\Str::uuid();
-        Storage::disk('local')->put(self::DIR_UPLOAD . "/{$token}.json", json_encode([
-            'nama_file' => $namaFile,
-            'user_id' => $request->user()->id,
-            'parsed' => $parsed,
-        ]));
-
-        return redirect()->route('gps-trip.review', $token);
-    }
-
-    public function review(string $token)
-    {
-        $data = $this->bacaUpload($token);
-        if (!$data) {
-            return redirect()->route('gps-trip.upload')->with('error', 'Sesi upload sudah kedaluwarsa, silakan upload ulang file.');
-        }
-
-        $geofenceFile = GpsTripParser::hitungGeofence($data['parsed']);
-        $dikenal = GpsGeofence::pluck('nama')->map(fn ($n) => GpsTripParser::normalisasiNama($n))->flip();
-        $customers = $this->daftarCustomer();
-
-        $baru = [];
-        foreach ($geofenceFile as $nama => $jumlah) {
-            if (isset($dikenal[GpsTripParser::normalisasiNama($nama)])) {
-                continue;
-            }
-            $baru[] = [
-                'nama' => $nama,
-                'jumlah' => $jumlah,
-                'tipe' => GpsTripImporter::sarankanTipe($nama),
-                'customer_id' => GpsTripImporter::sarankanCustomer($nama, $customers),
-            ];
-        }
-
-        $jumlahSegmen = array_sum(array_map(fn ($k) => count($k['segmen']), $data['parsed']['kendaraan']));
-
-        return view('gps-trip.review', [
-            'token' => $token,
-            'namaFile' => $data['nama_file'],
-            'periode' => $data['parsed']['periode'],
-            'jumlahKendaraan' => count($data['parsed']['kendaraan']),
-            'jumlahSegmen' => $jumlahSegmen,
-            'geofenceBaru' => $baru,
-            'customers' => $customers,
-        ]);
-    }
-
-    public function konfirmasiImport(Request $request, string $token)
-    {
-        $data = $this->bacaUpload($token);
-        if (!$data) {
-            return redirect()->route('gps-trip.upload')->with('error', 'Sesi upload sudah kedaluwarsa, silakan upload ulang file.');
-        }
-
-        $validated = $request->validate([
-            'geofence' => 'required|array',
-            'geofence.*.nama' => 'required|string|max:255',
-            'geofence.*.tipe' => ['required', Rule::in(array_keys(GpsGeofence::TIPE_LABEL))],
-            'geofence.*.customer_id' => 'nullable|integer|exists:users,id',
-        ]);
-
-        foreach ($validated['geofence'] as $g) {
-            GpsGeofence::firstOrCreate(
-                ['nama' => $g['nama']],
-                [
-                    'tipe' => $g['tipe'],
-                    'customer_id' => $g['tipe'] === GpsGeofence::TIPE_CUSTOMER ? ($g['customer_id'] ?? null) : null,
-                ]
-            );
-        }
-
-        $stat = $this->importer->import($data['parsed'], $data['nama_file'], $request->user()->id);
-        Storage::disk('local')->delete(self::DIR_UPLOAD . "/{$token}.json");
-
-        return $this->redirectSetelahImport($data['parsed'], $stat);
-    }
-
-    // ------------------------------------------------------------------
     // Master geofence
     // ------------------------------------------------------------------
 
@@ -442,7 +311,7 @@ class GpsTripController extends Controller
         ]);
 
         return redirect()->route('gps-trip.geofence')
-            ->with('success', "Geofence \"{$geofence->nama}\" diperbarui. Upload ulang file laporan untuk menghitung ulang trip.");
+            ->with('success', "Geofence \"{$geofence->nama}\" diperbarui. Klik \"Sinkron periode ini\" di Trip GPS untuk menghitung ulang trip.");
     }
 
     // ------------------------------------------------------------------
@@ -549,15 +418,13 @@ class GpsTripController extends Controller
     }
 
     /**
-     * Validasi / batal validasi trip hasil Cartrack (hanya trip Cartrack; validasi butuh driver).
+     * Validasi / batal validasi trip (validasi butuh driver).
      * Validasi = menyetujui trip masuk lembur: hari-hari yang tersentuh langsung diterapkan ke data lembur.
      * Batal validasi mengeluarkan trip dari data lembur (hari itu dihitung ulang).
      */
     private function validasiMassal(array $ids, bool $validasi, int $userId): string
     {
-        $trips = GpsTrip::whereIn('id', $ids)
-            ->where('sumber', GpsTrip::SUMBER_CARTRACK)
-            ->get();
+        $trips = GpsTrip::whereIn('id', $ids)->get();
 
         $lewat = count($ids) - $trips->count();
         $berubah = 0;
@@ -583,7 +450,7 @@ class GpsTripController extends Controller
 
         $pesan = $berubah.' trip '.($validasi ? 'divalidasi' : 'dibatalkan validasinya').'.';
         if ($lewat > 0) {
-            $pesan .= " {$lewat} trip dilewati (tanpa driver atau bukan dari Cartrack).";
+            $pesan .= " {$lewat} trip dilewati karena belum punya driver.";
         }
 
         return $pesan.GpsTripLemburService::ringkasan(app(GpsTripLemburService::class)->terapkanHari($hari, $lemburLama));
@@ -592,7 +459,7 @@ class GpsTripController extends Controller
     /**
      * Hapus trip noise yang dicentang. Noise yang TIDAK dicentang dipertahankan (ditandai "bukan noise",
      * ikut dihitung bila trip selesai) dan tidak ditanyakan lagi. Noise yang dihapus dicatat agar tidak
-     * dibuat lagi saat file yang sama di-upload ulang.
+     * dibuat lagi saat sinkron Cartrack berikutnya.
      */
     public function hapusNoise(Request $request)
     {
@@ -613,7 +480,7 @@ class GpsTripController extends Controller
                 if (isset($hapus[$trip->id])) {
                     GpsTripDibuang::firstOrCreate([
                         'nopol' => $trip->nopol,
-                        // waktu mulai asli GPS, agar cocok dengan hasil deteksi saat upload ulang
+                        // waktu mulai asli GPS, agar cocok dengan hasil deteksi saat sinkron ulang
                         'waktu_mulai' => ($trip->kunci_waktu_mulai ?? $trip->waktu_mulai)->format('Y-m-d H:i:s'),
                     ]);
                     $trip->delete();
@@ -706,80 +573,5 @@ class GpsTripController extends Controller
     private function daftarCustomer()
     {
         return User::whereIn('role', [User::ROLE_CUSTOMER, User::ROLE_MMBTU])->orderBy('name')->get(['id', 'name']);
-    }
-
-    private function bulanDari(array $parsed): string
-    {
-        return $parsed['periode'][0]
-            ? PeriodeLembur::bulanUntuk(Carbon::parse($parsed['periode'][0]))
-            : PeriodeLembur::bulanUntuk(now());
-    }
-
-    /**
-     * Setelah import: arahkan ke daftar trip bulan file, loncat ke panel noise bila ada trip < 5 menit.
-     */
-    private function redirectSetelahImport(array $parsed, array $stat)
-    {
-        $bulan = $this->bulanDari($parsed);
-        [$awal, $akhir] = PeriodeLembur::rentang($bulan);
-        $jumlahNoise = GpsTrip::noise()->whereBetween('waktu_mulai', [$awal, $akhir])->count();
-
-        $pesan = $this->pesanHasil($stat);
-        if ($jumlahNoise > 0) {
-            $pesan .= " Terdeteksi {$jumlahNoise} trip noise (kurang dari 5 menit), silakan tinjau di panel noise.";
-        }
-
-        return redirect(route('gps-trip.index', ['bulan' => $bulan]) . ($jumlahNoise > 0 ? '#panel-noise' : ''))
-            ->with('success', $pesan);
-    }
-
-    private function pesanHasil(array $stat): string
-    {
-        $pesan = "Import selesai: {$stat['total']} trip dari {$stat['kendaraan']} kendaraan ({$stat['baru']} baru, {$stat['diperbarui']} diperbarui";
-        if ($stat['dilewati']) {
-            $pesan .= ", {$stat['dilewati']} dilewati karena sudah disesuaikan manual";
-        }
-        if ($stat['dihapus']) {
-            $pesan .= ", {$stat['dihapus']} dihapus karena tidak terdeteksi lagi";
-        }
-        if ($stat['dipertahankan']) {
-            $pesan .= ", {$stat['dipertahankan']} trip lengkap dipertahankan karena file ini berakhir sebelum trip selesai";
-        }
-        if ($stat['dibuang']) {
-            $pesan .= ", {$stat['dibuang']} noise yang sudah pernah dihapus tidak dibuat lagi";
-        }
-
-        return $pesan . ').';
-    }
-
-    private function bacaUpload(string $token): ?array
-    {
-        if (!preg_match('/^[0-9a-f-]{36}$/', $token)) {
-            return null;
-        }
-
-        $path = self::DIR_UPLOAD . "/{$token}.json";
-        if (!Storage::disk('local')->exists($path)) {
-            return null;
-        }
-
-        $data = json_decode(Storage::disk('local')->get($path), true);
-
-        // Hanya pengunggah yang boleh melanjutkan
-        return ($data && ($data['user_id'] ?? null) === auth()->id()) ? $data : null;
-    }
-
-    private function bersihkanUploadLama(): void
-    {
-        $dir = Storage::disk('local')->path(self::DIR_UPLOAD);
-        if (!File::isDirectory($dir)) {
-            return;
-        }
-
-        foreach (File::files($dir) as $f) {
-            if ($f->getMTime() < now()->subDay()->getTimestamp()) {
-                File::delete($f->getPathname());
-            }
-        }
     }
 }

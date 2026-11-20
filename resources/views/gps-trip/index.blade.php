@@ -132,7 +132,6 @@
                     <button type="submit" class="btn btn-primary btn-sm mb-1 mr-2"><i class="fas fa-filter mr-1"></i> Terapkan</button>
 
                     <div class="ml-auto mb-1">
-                        <a href="{{ route('gps-trip.upload') }}" class="btn btn-outline-secondary btn-sm" title="Cadangan bila data Cartrack tidak tersedia"><i class="fas fa-file-upload mr-1"></i> Import Excel</a>
                     </div>
                 </form>
             </div>
@@ -305,7 +304,7 @@
                     </div>
                     <div class="card-footer d-flex align-items-center">
                         <button type="submit" class="btn btn-danger" id="btn-hapus-noise"><i class="fas fa-trash mr-1"></i> Hapus yang dicentang (<span id="jumlah-noise-hapus">{{ $noise->count() }}</span>)</button>
-                        <small class="text-muted ml-3">Trip noise yang dihapus tidak akan muncul lagi walau file yang sama di-upload ulang.</small>
+                        <small class="text-muted ml-3">Trip noise yang dihapus tidak akan muncul lagi saat sinkron berikutnya.</small>
                     </div>
                 </div>
             </form>
@@ -402,7 +401,6 @@
                 <div class="card-body text-center text-muted py-5">
                     <i class="fas fa-satellite-dish fa-2x mb-3"></i>
                     <p class="mb-3">Belum ada data trip untuk filter ini. Trip dari Cartrack masuk otomatis tiap 15 menit.</p>
-                    <a href="{{ route('gps-trip.upload') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-upload mr-1"></i> Import Excel GPS</a>
                 </div>
             </div>
         @else
@@ -456,7 +454,7 @@
                              (js/responsive.js) menonaktifkan tombol submit saat submit, sehingga nilainya tidak terkirim. --}}
                         <input type="hidden" name="aksi" id="aksi-nilai" value="">
                         <button type="submit" data-aksi="driver" class="btn btn-primary btn-sm mr-3"><i class="fas fa-user-check mr-1"></i> Set Driver</button>
-                        <button type="submit" data-aksi="validasi" class="btn btn-outline-primary btn-sm mr-1" title="Menyetujui trip: langsung masuk data lembur driver di hari itu. Hanya trip Cartrack yang sudah punya driver."><i class="fas fa-check-double mr-1"></i> Validasi</button>
+                        <button type="submit" data-aksi="validasi" class="btn btn-outline-primary btn-sm mr-1" title="Menyetujui trip: langsung masuk data lembur driver di hari itu. Hanya trip yang sudah punya driver."><i class="fas fa-check-double mr-1"></i> Validasi</button>
                         <button type="submit" data-aksi="batal_validasi" class="btn btn-outline-secondary btn-sm mr-3" title="Mengeluarkan trip dari data lembur; hari itu dihitung ulang">Batal validasi</button>
                         <button type="submit" data-aksi="hapus" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash mr-1"></i> Hapus</button>
                     </div>
@@ -632,12 +630,12 @@
                                                 @if (!$t->dihitung)
                                                     <span class="badge badge-secondary">tidak dihitung</span>
                                                 @endif
+                                                @if ($t->divalidasi)
+                                                    <span class="badge badge-success" title="Sudah divalidasi: masuk data lembur driver">valid</span>
+                                                @else
+                                                    <span class="badge badge-warning" title="Belum divalidasi: belum ikut hitungan lembur">belum valid</span>
+                                                @endif
                                                 @if ($t->sumber === GpsTrip::SUMBER_CARTRACK)
-                                                    @if ($t->divalidasi)
-                                                        <span class="badge badge-success" title="Sudah divalidasi, layak masuk halaman Lembur">valid</span>
-                                                    @else
-                                                        <span class="badge badge-warning" title="Belum divalidasi: belum ikut hitungan lembur">belum valid</span>
-                                                    @endif
                                                     @if ($t->jadwal_perjalanan_id)
                                                         <a href="{{ route('jadwal-perjalanan.show', $t->jadwal_perjalanan_id) }}" class="badge badge-info" title="Trip ini bagian dari jadwal perjalanan">jadwal #{{ $t->jadwal_perjalanan_id }}</a>
                                                     @else
@@ -648,7 +646,7 @@
                                                     <span class="badge badge-success" title="Sudah dipakai untuk data lembur operator">lembur</span>
                                                 @endif
                                                 @if ($t->diedit)
-                                                    <span class="badge badge-light border" title="Sudah disesuaikan manual, tidak ditimpa saat upload ulang">diedit</span>
+                                                    <span class="badge badge-light border" title="Sudah disesuaikan manual, tidak ditimpa saat sinkron ulang">diedit</span>
                                                 @endif
                                             </td>
                                             <td class="text-right">
@@ -677,12 +675,6 @@
             @endforeach
         @endif
 
-        @if ($importTerakhir)
-            <p class="text-muted small">
-                Upload terakhir: {{ $importTerakhir->nama_file }} · {{ $importTerakhir->created_at->format('d/m/Y H:i') }}
-                oleh {{ optional($importTerakhir->user)->name ?? '-' }}
-            </p>
-        @endif
     </div>
 </div>
 
@@ -883,7 +875,7 @@
                 alert('Pilih minimal satu trip terlebih dahulu.');
                 return;
             }
-            if (aksi === 'hapus' && !confirm('Hapus ' + n + ' trip terpilih? Trip dari Cartrack tidak akan dibuat lagi; trip dari Excel muncul lagi bila file laporannya di-upload ulang.')) {
+            if (aksi === 'hapus' && !confirm('Hapus ' + n + ' trip terpilih? Trip yang dihapus tidak akan dibuat lagi saat sinkron Cartrack berikutnya.')) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
             }
