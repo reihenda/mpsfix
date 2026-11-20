@@ -236,7 +236,8 @@ class GpsTripController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Bukti foto tersimpan. Jam kerja untuk berhenti lama ini kini dipotong; terapkan ulang di Terapkan ke Lembur bila data lemburnya sudah ada.');
+        return back()->with('success', 'Bukti foto tersimpan. Jam kerja untuk berhenti lama ini kini dipotong.'
+            .$this->terapkanUlangHenti($data['nopol'], $kejadian['mulai_teks']));
     }
 
     public function fotoBukti(GpsHentiBukti $bukti)
@@ -249,9 +250,30 @@ class GpsTripController extends Controller
     public function hapusBukti(GpsHentiBukti $bukti)
     {
         Storage::disk(GpsHentiBukti::DISK)->delete($bukti->path);
+        $nopol = $bukti->nopol;
+        $mulai = $bukti->waktu_mulai->format('Y-m-d H:i:s');
         $bukti->delete();
 
-        return back()->with('success', 'Foto bukti dihapus. Bila itu foto terakhir, jam kerja untuk berhenti lama ini tidak lagi dipotong.');
+        return back()->with('success', 'Foto bukti dihapus. Bila itu foto terakhir, jam kerja untuk berhenti lama ini tidak lagi dipotong.'
+            .$this->terapkanUlangHenti($nopol, $mulai));
+    }
+
+    /** Foto bukti berubah: hitung ulang data lembur hari trip valid yang memuat kejadian berhenti itu. */
+    private function terapkanUlangHenti(string $nopol, string $mulai): string
+    {
+        $trips = GpsTrip::where('nopol', $nopol)
+            ->where('divalidasi', true)
+            ->where('waktu_mulai', '<=', $mulai)
+            ->where('waktu_selesai', '>=', $mulai)
+            ->get();
+        if ($trips->isEmpty()) {
+            return '';
+        }
+
+        return GpsTripLemburService::ringkasan(app(GpsTripLemburService::class)->terapkanHari(
+            $trips->flatMap(fn ($t) => GpsTripLemburService::hariTrip($t))->all(),
+            $trips->pluck('operator_gtm_lembur_id')->all()
+        ));
     }
 
     // ------------------------------------------------------------------
@@ -448,6 +470,9 @@ class GpsTripController extends Controller
             return back()->withInput()->with('error', 'Sudah ada trip lain untuk kendaraan ini dengan waktu mulai yang sama.');
         }
 
+        $hariLama = $gpsTrip->divalidasi ? GpsTripLemburService::hariTrip($gpsTrip) : [];
+        $lemburLama = $gpsTrip->operator_gtm_lembur_id;
+
         $gpsTrip->update([
             'waktu_mulai' => $mulai,
             'waktu_selesai' => $validated['waktu_selesai'] ?? null,
@@ -459,7 +484,13 @@ class GpsTripController extends Controller
             'diedit' => true,
         ]);
 
-        return back()->with('success', 'Trip berhasil diperbarui.');
+        $pesan = 'Trip berhasil diperbarui.';
+        if ($gpsTrip->divalidasi || $hariLama) {
+            $hari = array_merge($hariLama, $gpsTrip->divalidasi ? GpsTripLemburService::hariTrip($gpsTrip->fresh()) : []);
+            $pesan .= GpsTripLemburService::ringkasan(app(GpsTripLemburService::class)->terapkanHari($hari, [$lemburLama]));
+        }
+
+        return back()->with('success', $pesan);
     }
 
     /**
@@ -477,6 +508,11 @@ class GpsTripController extends Controller
         $query = GpsTrip::whereIn('id', $validated['ids']);
         $jumlah = (clone $query)->count();
 
+        // Trip valid yang berubah driver / dihapus menyentuh data lembur: catat harinya sebelum diubah
+        $tripValid = (clone $query)->where('divalidasi', true)->get();
+        $hari = $tripValid->flatMap(fn ($t) => GpsTripLemburService::hariTrip($t))->all();
+        $lemburLama = $tripValid->pluck('operator_gtm_lembur_id')->all();
+
         switch ($validated['aksi']) {
             case 'validasi':
             case 'batal_validasi':
@@ -485,6 +521,9 @@ class GpsTripController extends Controller
             case 'driver':
                 $query->update(['operator_gtm_id' => $validated['operator_gtm_id'] ?? null]);
                 $pesan = "Driver diperbarui untuk {$jumlah} trip.";
+                foreach ($tripValid as $t) {
+                    array_push($hari, ...GpsTripLemburService::hariTrip($t, $validated['operator_gtm_id'] ?? null));
+                }
                 break;
             default:
                 // Trip hasil sinkron Cartrack yang dihapus dicatat agar tidak dibuat lagi oleh sinkron berikutnya
@@ -498,6 +537,10 @@ class GpsTripController extends Controller
                 $pesan = "{$jumlah} trip dihapus.";
         }
 
+        if (in_array($validated['aksi'], ['driver', 'hapus'], true) && $hari) {
+            $pesan .= GpsTripLemburService::ringkasan(app(GpsTripLemburService::class)->terapkanHari($hari, $lemburLama));
+        }
+
         if ($request->expectsJson()) {
             return response()->json(['ok' => true, 'pesan' => $pesan]);
         }
@@ -506,18 +549,20 @@ class GpsTripController extends Controller
     }
 
     /**
-     * Validasi / batal validasi trip hasil Cartrack. Aturannya sama dengan validasi di halaman jadwal:
-     * hanya trip Cartrack, yang belum masuk lembur, dan (untuk validasi) sudah punya driver.
+     * Validasi / batal validasi trip hasil Cartrack (hanya trip Cartrack; validasi butuh driver).
+     * Validasi = menyetujui trip masuk lembur: hari-hari yang tersentuh langsung diterapkan ke data lembur.
+     * Batal validasi mengeluarkan trip dari data lembur (hari itu dihitung ulang).
      */
     private function validasiMassal(array $ids, bool $validasi, int $userId): string
     {
         $trips = GpsTrip::whereIn('id', $ids)
             ->where('sumber', GpsTrip::SUMBER_CARTRACK)
-            ->whereNull('operator_gtm_lembur_id')
             ->get();
 
         $lewat = count($ids) - $trips->count();
         $berubah = 0;
+        $hari = [];
+        $lemburLama = [];
 
         foreach ($trips as $trip) {
             if ($trip->divalidasi === $validasi) {
@@ -528,18 +573,20 @@ class GpsTripController extends Controller
                 continue;
             }
 
+            $lemburLama[] = $trip->operator_gtm_lembur_id;
             $trip->update($validasi
                 ? ['divalidasi' => true, 'divalidasi_oleh' => $userId, 'divalidasi_pada' => now()]
                 : ['divalidasi' => false, 'divalidasi_oleh' => null, 'divalidasi_pada' => null]);
+            array_push($hari, ...GpsTripLemburService::hariTrip($trip));
             $berubah++;
         }
 
         $pesan = $berubah.' trip '.($validasi ? 'divalidasi' : 'dibatalkan validasinya').'.';
         if ($lewat > 0) {
-            $pesan .= " {$lewat} trip dilewati (tanpa driver, bukan dari Cartrack, atau sudah masuk lembur).";
+            $pesan .= " {$lewat} trip dilewati (tanpa driver atau bukan dari Cartrack).";
         }
 
-        return $pesan;
+        return $pesan.GpsTripLemburService::ringkasan(app(GpsTripLemburService::class)->terapkanHari($hari, $lemburLama));
     }
 
     /**

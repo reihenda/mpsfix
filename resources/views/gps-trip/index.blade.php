@@ -132,7 +132,6 @@
 
                     <div class="ml-auto mb-1">
                         <a href="{{ route('gps-trip.lembur', ['bulan' => $bulan]) }}" class="btn btn-primary btn-sm"><i class="fas fa-user-clock mr-1"></i> Terapkan ke Lembur</a>
-                        <a href="{{ route('gps-trip.geofence') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-map-pin mr-1"></i> Master Geofence</a>
                         <a href="{{ route('gps-trip.upload') }}" class="btn btn-outline-secondary btn-sm" title="Cadangan bila data Cartrack tidak tersedia"><i class="fas fa-file-upload mr-1"></i> Import Excel</a>
                     </div>
                 </form>
@@ -457,8 +456,8 @@
                              (js/responsive.js) menonaktifkan tombol submit saat submit, sehingga nilainya tidak terkirim. --}}
                         <input type="hidden" name="aksi" id="aksi-nilai" value="">
                         <button type="submit" data-aksi="driver" class="btn btn-primary btn-sm mr-3"><i class="fas fa-user-check mr-1"></i> Set Driver</button>
-                        <button type="submit" data-aksi="validasi" class="btn btn-outline-primary btn-sm mr-1" title="Hanya trip Cartrack yang sudah punya driver"><i class="fas fa-check-double mr-1"></i> Validasi</button>
-                        <button type="submit" data-aksi="batal_validasi" class="btn btn-outline-secondary btn-sm mr-3">Batal validasi</button>
+                        <button type="submit" data-aksi="validasi" class="btn btn-outline-primary btn-sm mr-1" title="Menyetujui trip: langsung masuk data lembur driver di hari itu. Hanya trip Cartrack yang sudah punya driver."><i class="fas fa-check-double mr-1"></i> Validasi</button>
+                        <button type="submit" data-aksi="batal_validasi" class="btn btn-outline-secondary btn-sm mr-3" title="Mengeluarkan trip dari data lembur; hari itu dihitung ulang">Batal validasi</button>
                         <button type="submit" data-aksi="hapus" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash mr-1"></i> Hapus</button>
                     </div>
                 </div>

@@ -32,7 +32,7 @@ class GpsTripLemburService
     /**
      * @return array{baris: array<int, array>, tanpa_driver: int, belum_validasi: int}
      */
-    public function susun(Carbon $awal, Carbon $akhir): array
+    public function susun(Carbon $awal, Carbon $akhir, ?int $operatorId = null): array
     {
         // Hanya trip yang sudah divalidasi yang ikut hitungan lembur. Trip Excel lama otomatis
         // berstatus tervalidasi; trip dari Cartrack baru masuk setelah divalidasi staff operasional/admin.
@@ -43,6 +43,7 @@ class GpsTripLemburService
             ->where('divalidasi', true)
             ->whereNotNull('waktu_selesai')
             ->whereBetween('waktu_mulai', [$awal, $akhir])
+            ->when($operatorId, fn ($q) => $q->where('operator_gtm_id', $operatorId))
             ->orderBy('waktu_mulai')
             ->get();
 
@@ -140,29 +141,144 @@ class GpsTripLemburService
                     continue;
                 }
 
-                $lembur = OperatorGtmLembur::firstOrNew([
-                    'operator_gtm_id' => $baris['operator_id'],
-                    'tanggal' => $baris['tanggal'],
-                ]);
-                $baru = !$lembur->exists;
-
-                for ($i = 1; $i <= self::MAKS_SESI; $i++) {
-                    $s = $baris['sesi'][$i - 1] ?? null;
-                    $lembur->{"jam_masuk_sesi_{$i}"} = $s['masuk'] ?? null;
-                    $lembur->{"jam_keluar_sesi_{$i}"} = $s['keluar'] ?? null;
-                }
-                $lembur->total_jam_kerja = $baris['total_menit'];
-                $lembur->total_jam_lembur = $baris['lembur_menit'];
-                $lembur->upah_lembur = $baris['upah'];
-                $lembur->save();
-
-                GpsTrip::whereIn('id', $baris['trip_ids'])->update(['operator_gtm_lembur_id' => $lembur->id]);
+                $baru = $this->tulis($baris);
 
                 $hasil[$baru ? 'dibuat' : 'diperbarui']++;
             }
         });
 
         return $hasil;
+    }
+
+    /**
+     * Terapkan otomatis ke data lembur untuk hari-hari yang tersentuh perubahan trip (validasi, batal validasi,
+     * ganti driver, edit / hapus trip, tambah / hapus foto bukti). Tiap hari dihitung ulang dari SEMUA trip
+     * driver itu yang valid di hari tersebut, jadi hasilnya sama dengan menerapkan lewat halaman Terapkan ke Lembur.
+     *
+     * Data lembur yang diisi manual (tidak berasal dari trip GPS) TIDAK ditimpa; hari itu dilaporkan supaya
+     * bisa dicek di halaman Terapkan ke Lembur. Hari yang tidak lagi punya trip valid dan datanya berasal dari
+     * trip GPS dihapus dari data lembur.
+     *
+     * @param iterable<array{0:int|null, 1:string}> $hari          pasangan [operator_gtm_id, 'Y-m-d']
+     * @param int[]                                 $lemburDariGps id data lembur yang diketahui berasal dari trip GPS
+     *                                                             (ditangkap sebelum trip diubah / dihapus)
+     * @return array{diterapkan:int, dihapus:int, manual:array<int, string>}
+     */
+    public function terapkanHari(iterable $hari, array $lemburDariGps = []): array
+    {
+        $perOperator = [];
+        foreach ($hari as [$operatorId, $tanggal]) {
+            if ($operatorId) {
+                $perOperator[(int) $operatorId][$tanggal] = true;
+            }
+        }
+
+        $hasil = ['diterapkan' => 0, 'dihapus' => 0, 'manual' => []];
+        if (!$perOperator) {
+            return $hasil;
+        }
+        $dariGps = array_flip(array_filter($lemburDariGps));
+
+        DB::transaction(function () use ($perOperator, $dariGps, &$hasil) {
+            foreach ($perOperator as $operatorId => $tanggal) {
+                $daftar = array_keys($tanggal);
+                sort($daftar);
+                // Diperlebar sehari di kedua sisi: blok kerja bisa jatuh di tanggal lain dari mulai trip
+                $baris = collect($this->susun(
+                    Carbon::parse($daftar[0])->subDay()->startOfDay(),
+                    Carbon::parse(end($daftar))->addDay()->endOfDay(),
+                    $operatorId
+                )['baris'])->keyBy('tanggal');
+
+                foreach ($daftar as $tgl) {
+                    $ada = OperatorGtmLembur::where('operator_gtm_id', $operatorId)->where('tanggal', $tgl)->first();
+                    $asalGps = $ada && (isset($dariGps[$ada->id]) || GpsTrip::where('operator_gtm_lembur_id', $ada->id)->exists());
+
+                    if ($ada && !$asalGps) {
+                        $hasil['manual'][] = ($ada->operator->nama ?? 'Operator #'.$operatorId).' '.Carbon::parse($tgl)->format('d/m');
+                        continue;
+                    }
+
+                    if ($b = $baris->get($tgl)) {
+                        $this->tulis($b);
+                        if ($b['status'] !== 'sama') {
+                            $hasil['diterapkan']++;
+                        }
+                    } elseif ($ada) {
+                        GpsTrip::where('operator_gtm_lembur_id', $ada->id)->update(['operator_gtm_lembur_id' => null]);
+                        $ada->delete();
+                        $hasil['dihapus']++;
+                    }
+                }
+            }
+        });
+
+        return $hasil;
+    }
+
+    /** Pasangan [operator, tanggal] yang disentuh sebuah trip (tanggal mulai & selesai). */
+    public static function hariTrip(GpsTrip $trip, ?int $operatorId = null): array
+    {
+        $op = $operatorId ?? $trip->operator_gtm_id;
+        if (!$op || !$trip->waktu_mulai) {
+            return [];
+        }
+        $hari = [[$op, $trip->waktu_mulai->toDateString()]];
+        if ($trip->waktu_selesai && $trip->waktu_selesai->toDateString() !== $trip->waktu_mulai->toDateString()) {
+            $hari[] = [$op, $trip->waktu_selesai->toDateString()];
+        }
+
+        return $hari;
+    }
+
+    /** Kalimat ringkas hasil terapkanHari() untuk pesan ke admin. */
+    public static function ringkasan(array $hasil): string
+    {
+        $bagian = [];
+        if ($hasil['diterapkan']) {
+            $bagian[] = "data lembur {$hasil['diterapkan']} hari diperbarui";
+        }
+        if ($hasil['dihapus']) {
+            $bagian[] = "{$hasil['dihapus']} hari dihapus dari data lembur (tidak ada lagi trip valid)";
+        }
+        $teks = $bagian ? ' '.ucfirst(implode(', ', $bagian)).'.' : '';
+        if ($hasil['manual']) {
+            $teks .= ' '.count($hasil['manual']).' hari TIDAK diubah karena sudah ada input lembur manual ('
+                .implode(', ', array_slice($hasil['manual'], 0, 5)).(count($hasil['manual']) > 5 ? ', …' : '')
+                .'); cek di halaman Terapkan ke Lembur.';
+        }
+
+        return $teks;
+    }
+
+    /**
+     * Tulis satu baris hasil susun() ke operator_gtm_lembur dan tautkan ulang trip-tripnya.
+     *
+     * @return bool true bila data lembur baru dibuat
+     */
+    private function tulis(array $baris): bool
+    {
+        $lembur = OperatorGtmLembur::firstOrNew([
+            'operator_gtm_id' => $baris['operator_id'],
+            'tanggal' => $baris['tanggal'],
+        ]);
+        $baru = !$lembur->exists;
+
+        for ($i = 1; $i <= self::MAKS_SESI; $i++) {
+            $s = $baris['sesi'][$i - 1] ?? null;
+            $lembur->{"jam_masuk_sesi_{$i}"} = $s['masuk'] ?? null;
+            $lembur->{"jam_keluar_sesi_{$i}"} = $s['keluar'] ?? null;
+        }
+        $lembur->total_jam_kerja = $baris['total_menit'];
+        $lembur->total_jam_lembur = $baris['lembur_menit'];
+        $lembur->upah_lembur = $baris['upah'];
+        $lembur->save();
+
+        // Lepas trip yang tidak lagi termasuk (mis. batal validasi), lalu tautkan yang termasuk
+        GpsTrip::where('operator_gtm_lembur_id', $lembur->id)->whereNotIn('id', $baris['trip_ids'])->update(['operator_gtm_lembur_id' => null]);
+        GpsTrip::whereIn('id', $baris['trip_ids'])->update(['operator_gtm_lembur_id' => $lembur->id]);
+
+        return $baru;
     }
 
     /**

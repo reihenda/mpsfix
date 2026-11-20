@@ -25,7 +25,7 @@
             <div class="card-header">
                 <h3 class="card-title">Klasifikasi Geofence ({{ $geofence->count() }})</h3>
                 <div class="card-tools">
-                    <a href="{{ route('gps-trip.index') }}" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left mr-1"></i> Kembali ke Trip</a>
+                    <a href="{{ route('pemetaan-cartrack.index') }}" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left mr-1"></i> Kembali ke Sinkronasi Cartrack dan MPS</a>
                 </div>
             </div>
             <div class="card-body p-0 table-responsive">

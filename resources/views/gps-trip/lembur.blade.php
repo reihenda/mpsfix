@@ -53,6 +53,12 @@
             </div>
         </div>
 
+        <div class="callout callout-success small">
+            <strong>Validasi di Trip GPS / Jadwal Perjalanan sudah langsung menerapkan trip ke data lembur.</strong>
+            Halaman ini untuk <em>mengecek</em> dan memperbaiki: hari yang tidak diterapkan otomatis karena sudah ada input lembur
+            manual (status "Berbeda"), atau hari yang tripnya berubah setelah sinkron ulang dari Cartrack.
+        </div>
+
         <div class="callout callout-info small">
             <strong>Cara kerja:</strong> tiap trip yang <em>dihitung</em> dan sudah punya driver menjadi satu sesi lembur driver itu di tanggal trip dimulai
             (jam masuk = mulai trip, jam keluar = selesai trip). Jeda antar sesi tidak dihitung. Trip yang bertumpuk jamnya digabung, dan

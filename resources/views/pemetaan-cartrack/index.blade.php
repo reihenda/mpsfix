@@ -22,8 +22,12 @@
     @endif
 
     <div class="jp-head">
-        <p>Cocokkan driver di sistem ini dengan driver di Cartrack. Pemetaan dipakai saat jadwal mengirim driver ke kendaraan.</p>
+        <p>Cocokkan driver di sistem ini dengan driver di Cartrack. Pemetaan dipakai saat jadwal mengirim driver ke kendaraan.
+            Jenis tiap geofence Cartrack (customer/PT, SPBG, dll.) dan tautannya ke customer MPS diatur di Master Geofence.</p>
         <div class="jp-head-actions">
+            @if (auth()->user()->isAdmin() || auth()->user()->isSuperAdmin())
+                <a href="{{ route('gps-trip.geofence') }}" class="btn btn-ghost"><i class="fas fa-map-pin"></i>Master Geofence</a>
+            @endif
             <a href="{{ route('jadwal-perjalanan.index') }}" class="btn btn-ghost"><i class="fas fa-arrow-left"></i>Jadwal perjalanan</a>
         </div>
     </div>

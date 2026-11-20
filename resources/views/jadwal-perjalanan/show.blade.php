@@ -200,7 +200,7 @@
                                             && GpsTripParser::normalisasiNama($t->driver_gps) !== $namaOperator;
                                     @endphp
                                     <tr class="{{ !$t->dihitung ? 'text-muted' : '' }}">
-                                        <td><input type="checkbox" name="trip_ids[]" value="{{ $t->id }}" class="js-pilih" aria-label="Pilih trip" @disabled($terkunci)></td>
+                                        <td><input type="checkbox" name="trip_ids[]" value="{{ $t->id }}" class="js-pilih" aria-label="Pilih trip"></td>
                                         <td class="text-nowrap">
                                             <strong>{{ $t->waktu_mulai->format('d/m H:i') }} – {{ $t->waktu_selesai?->format('H:i') ?? '?' }}</strong>
                                             <span class="jp-sub">{{ GpsTrip::formatDurasi($t->durasi_trip_detik) }} jam</span>
@@ -248,7 +248,7 @@
                                 <button name="aksi" value="hitung" class="btn btn-sm btn-ghost js-aksi">Tandai dihitung</button>
                                 <button name="aksi" value="batal_validasi" class="btn btn-sm btn-outline-danger js-aksi">Batalkan validasi</button>
                             </div>
-                            <span class="form-hint mt-2">Trip yang sudah divalidasi otomatis masuk perhitungan lembur driver jadwal ini (halaman Lembur oleh admin).</span>
+                            <span class="form-hint mt-2">Validasi = menyetujui trip masuk lembur: data lembur driver di hari itu langsung diperbarui. Batal validasi mengeluarkannya lagi.</span>
                         </div>
                     @endif
                 </div>

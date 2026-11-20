@@ -272,7 +272,8 @@ class JadwalPerjalananController extends Controller
     }
 
     /**
-     * Validasi massal trip hasil tarikan Cartrack. Hanya trip yang belum masuk lembur yang bisa diubah.
+     * Validasi massal trip hasil tarikan Cartrack. Validasi = menyetujui trip masuk lembur: hari-hari yang
+     * tersentuh langsung diterapkan ke data lembur (begitu juga batal validasi dan ubah hitung pada trip valid).
      */
     public function validasi(Request $request)
     {
@@ -284,13 +285,17 @@ class JadwalPerjalananController extends Controller
 
         $trips = GpsTrip::whereIn('id', $data['trip_ids'])
             ->where('sumber', GpsTrip::SUMBER_CARTRACK)
-            ->whereNull('operator_gtm_lembur_id')
             ->get();
 
         $lewat = count($data['trip_ids']) - $trips->count();
         $berubah = 0;
+        $hari = [];
+        $lemburLama = [];
 
         foreach ($trips as $trip) {
+            $sebelumValid = $trip->divalidasi;
+            $lemburSebelum = $trip->operator_gtm_lembur_id;
+            $ubahSebelum = $berubah;
             switch ($data['aksi']) {
                 case 'validasi':
                     if ($trip->divalidasi) {
@@ -322,12 +327,23 @@ class JadwalPerjalananController extends Controller
                     }
                     break;
             }
+
+            // Trip yang berubah dan (pernah) valid menyentuh data lembur
+            if ($berubah > $ubahSebelum && ($sebelumValid || $trip->divalidasi)) {
+                array_push($hari, ...\App\Services\GpsTrip\GpsTripLemburService::hariTrip($trip));
+                $lemburLama[] = $lemburSebelum;
+            }
         }
 
         $label = ['validasi' => 'divalidasi', 'batal_validasi' => 'dibatalkan validasinya', 'tidak_dihitung' => 'ditandai tidak dihitung', 'hitung' => 'ditandai dihitung'][$data['aksi']];
         $pesan = "{$berubah} trip {$label}.";
         if ($lewat > 0) {
-            $pesan .= " {$lewat} trip dilewati (tanpa driver, bukan dari Cartrack, atau sudah masuk lembur).";
+            $pesan .= " {$lewat} trip dilewati (tanpa driver atau bukan dari Cartrack).";
+        }
+        if ($hari) {
+            $pesan .= \App\Services\GpsTrip\GpsTripLemburService::ringkasan(
+                app(\App\Services\GpsTrip\GpsTripLemburService::class)->terapkanHari($hari, $lemburLama)
+            );
         }
 
         return back()->with('success', $pesan);
