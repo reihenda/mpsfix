@@ -16,7 +16,7 @@ class KursUsdBulanan extends Model
 {
     protected $table = 'kurs_usd_bulanan';
 
-    protected $fillable = ['periode', 'kurs', 'sumber', 'catatan', 'diinput_oleh'];
+    protected $fillable = ['periode', 'kurs', 'sumber', 'sumber_keterangan', 'catatan', 'diinput_oleh'];
 
     protected $casts = ['kurs' => 'float'];
 
@@ -77,6 +77,16 @@ class KursUsdBulanan extends Model
     public static function terbaru(): array
     {
         return self::untuk(now());
+    }
+
+    /** Label singkat sumber: Manual / ECB (frankfurter.dev) / Real-time lama. */
+    public function getSumberLabelAttribute(): string
+    {
+        return match ($this->sumber) {
+            'api' => 'ECB',
+            'realtime' => 'Real-time',
+            default => 'Manual',
+        };
     }
 
     public function getPeriodeLabelAttribute(): string

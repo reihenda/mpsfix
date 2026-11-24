@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\KursUsdBulanan;
 use App\Models\User;
-use App\Services\CurrencyService;
+use App\Services\KursHistorisService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,15 +32,19 @@ class KursUsdController extends Controller
         $data = $request->validate([
             'periode' => 'required|date_format:Y-m',
             'kurs' => 'required|numeric|min:1',
-            'sumber' => 'nullable|in:manual,realtime',
+            'sumber' => 'nullable|in:manual,api,realtime',
+            'sumber_keterangan' => 'nullable|string|max:255',
             'catatan' => 'nullable|string|max:255',
         ]);
+        $sumber = $data['sumber'] ?? 'manual';
 
         KursUsdBulanan::updateOrCreate(
             ['periode' => $data['periode']],
             [
                 'kurs' => $data['kurs'],
-                'sumber' => $data['sumber'] ?? 'manual',
+                'sumber' => $sumber,
+                // Keterangan asal kurs hanya disimpan untuk kurs dari sumber otomatis
+                'sumber_keterangan' => $sumber === 'manual' ? null : ($data['sumber_keterangan'] ?? null),
                 'catatan' => $data['catatan'] ?? null,
                 'diinput_oleh' => Auth::id(),
             ]
@@ -60,14 +64,26 @@ class KursUsdController extends Controller
         return redirect()->route('kurs-usd.index')->with('success', "Kurs {$label} dihapus.");
     }
 
-    /** Kurs real-time (USD -> IDR) untuk tombol bantu di form. */
-    public function realtime(CurrencyService $currency)
+    /**
+     * Kurs bulan terpilih dari kurs referensi ECB (frankfurter.dev):
+     * rata-rata harian dalam bulan itu, atau kurs hari kerja terakhirnya.
+     */
+    public function realtime(Request $request, KursHistorisService $kursHistoris)
     {
+        $data = $request->validate([
+            'periode' => 'required|date_format:Y-m',
+            'metode' => 'nullable|in:rata,akhir',
+        ]);
+
         try {
-            $rate = $currency->refreshRate();
-            return response()->json(['success' => true, 'rate' => round((float) $rate, 2)]);
+            $hasil = $kursHistoris->untukBulan($data['periode'], $data['metode'] ?? 'rata');
+            return response()->json(['success' => true] + $hasil);
         } catch (\Throwable $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal mengambil kurs real-time.'], 500);
+            report($e);
+            return response()->json([
+                'success' => false,
+                'message' => $e instanceof \RuntimeException ? $e->getMessage() : 'Gagal mengambil kurs dari sumber ECB. Isi kurs secara manual.',
+            ], 422);
         }
     }
 

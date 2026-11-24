@@ -39,6 +39,7 @@
                 <form method="POST" action="{{ route('kurs-usd.store') }}">
                     @csrf
                     <input type="hidden" name="sumber" id="sumber" value="{{ old('sumber', $edit->sumber ?? 'manual') }}">
+                    <input type="hidden" name="sumber_keterangan" id="sumber_keterangan" value="{{ old('sumber_keterangan', $edit->sumber_keterangan ?? '') }}">
                     <div class="card-body">
                         <p class="text-muted small mb-3">
                             Kurs dipakai untuk menghitung <strong>Rupiah</strong> pemakaian dan saldo customer MMBTU
@@ -55,13 +56,26 @@
                                 <div class="input-group-prepend"><span class="input-group-text">Rp</span></div>
                                 <input type="number" step="0.01" min="1" class="form-control" id="kurs" name="kurs"
                                        value="{{ old('kurs', $edit->kurs ?? '') }}" placeholder="mis. 16250" required>
-                                <div class="input-group-append">
-                                    <button type="button" class="btn btn-outline-info" id="btnRealtime" title="Ambil kurs real-time">
-                                        <i class="fas fa-sync-alt mr-1"></i> Real-time
-                                    </button>
-                                </div>
                             </div>
-                            <small class="text-muted" id="infoRealtime">Ketik manual, atau klik Real-time untuk mengisi kurs saat ini.</small>
+                            <div class="d-flex flex-wrap align-items-center mt-2" style="gap: .5rem;">
+                                <select class="custom-select custom-select-sm w-auto" id="metode" aria-label="Metode kurs otomatis" title="Cara menghitung kurs bulan dari kurs harian">
+                                    <option value="rata">Rata-rata bulan</option>
+                                    <option value="akhir">Kurs akhir bulan</option>
+                                </select>
+                                <button type="button" class="btn btn-sm btn-outline-info" id="btnAmbilKurs">
+                                    <i class="fas fa-cloud-download-alt mr-1"></i> <span id="labelAmbilKurs">Ambil kurs</span>
+                                </button>
+                            </div>
+                            <small class="d-block mt-2" id="infoSumber">
+                                @php $ketAwal = old('sumber_keterangan', $edit->sumber_keterangan ?? ''); $sumberAwal = old('sumber', $edit->sumber ?? 'manual'); @endphp
+                                @if ($sumberAwal !== 'manual' && $ketAwal)
+                                    <span class="text-info"><i class="fas fa-info-circle mr-1"></i>Sumber: {{ $ketAwal }}</span>
+                                @elseif ($sumberAwal === 'realtime')
+                                    <span class="text-info"><i class="fas fa-info-circle mr-1"></i>Sumber: real-time (ExchangeRate-API), diisi sebelum ada keterangan sumber</span>
+                                @else
+                                    <span class="text-muted">Ketik manual, atau klik "Ambil kurs" untuk mengisi kurs bulan yang dipilih dari kurs referensi ECB.</span>
+                                @endif
+                            </small>
                         </div>
                         <div class="form-group mb-0">
                             <label for="catatan">Catatan</label>
@@ -102,7 +116,12 @@
                                 <tr>
                                     <td>{{ $k->periode_label }}</td>
                                     <td class="text-right">Rp {{ number_format($k->kurs, 2, ',', '.') }}</td>
-                                    <td><span class="badge badge-{{ $k->sumber === 'realtime' ? 'info' : 'secondary' }}">{{ $k->sumber === 'realtime' ? 'Real-time' : 'Manual' }}</span></td>
+                                    <td>
+                                        <span class="badge badge-{{ $k->sumber === 'manual' ? 'secondary' : 'info' }}">{{ $k->sumber_label }}</span>
+                                        @if ($k->sumber_keterangan)
+                                            <small class="d-block text-muted" style="max-width: 260px;">{{ $k->sumber_keterangan }}</small>
+                                        @endif
+                                    </td>
                                     <td class="text-muted small">{{ $k->catatan ?: '-' }}</td>
                                     <td class="text-right text-nowrap">
                                         <a href="{{ route('kurs-usd.index', ['edit' => $k->periode]) }}" class="btn btn-sm btn-outline-primary" title="Ubah"><i class="fas fa-edit"></i></a>
@@ -132,26 +151,58 @@ function isiPeriode(p) {
     document.getElementById('kurs').focus();
 }
 document.addEventListener('DOMContentLoaded', function () {
-    var btn = document.getElementById('btnRealtime');
-    var info = document.getElementById('infoRealtime');
-    document.getElementById('kurs').addEventListener('input', function () {
-        document.getElementById('sumber').value = 'manual';
+    var btn = document.getElementById('btnAmbilKurs');
+    var label = document.getElementById('labelAmbilKurs');
+    var periode = document.getElementById('periode');
+    var metode = document.getElementById('metode');
+    var kurs = document.getElementById('kurs');
+    var sumber = document.getElementById('sumber');
+    var ket = document.getElementById('sumber_keterangan');
+    var info = document.getElementById('infoSumber');
+    var namaBulan = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+    function setInfo(teks, kelas) {
+        info.innerHTML = '';
+        var span = document.createElement('span');
+        span.className = kelas;
+        span.textContent = teks;
+        info.appendChild(span);
+    }
+    function perbaruiLabel() {
+        var p = (periode.value || '').split('-');
+        label.textContent = p.length === 2 ? 'Ambil kurs ' + namaBulan[parseInt(p[1], 10) - 1] + ' ' + p[0] : 'Ambil kurs';
+    }
+    function jadiManual() {
+        sumber.value = 'manual';
+        ket.value = '';
+        setInfo('Sumber: input manual.', 'text-muted');
+    }
+
+    periode.addEventListener('change', function () {
+        perbaruiLabel();
+        if (sumber.value !== 'manual') { kurs.value = ''; jadiManual(); }
     });
+    kurs.addEventListener('input', jadiManual);
+    perbaruiLabel();
+
     btn.addEventListener('click', function () {
+        if (!periode.value) { periode.focus(); return; }
         btn.disabled = true;
-        info.textContent = 'Mengambil kurs real-time...';
-        fetch(@json(route('kurs-usd.realtime')), { headers: { 'Accept': 'application/json' } })
+        setInfo('Mengambil kurs ' + label.textContent.replace('Ambil kurs ', '') + ' dari sumber ECB...', 'text-muted');
+        var url = @json(route('kurs-usd.realtime')) + '?periode=' + encodeURIComponent(periode.value) + '&metode=' + encodeURIComponent(metode.value);
+        fetch(url, { headers: { 'Accept': 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 if (d.success) {
-                    document.getElementById('kurs').value = d.rate;
-                    document.getElementById('sumber').value = 'realtime';
-                    info.textContent = 'Kurs real-time terisi. Periksa lagi sebelum disimpan.';
+                    kurs.value = d.kurs;
+                    sumber.value = 'api';
+                    ket.value = d.keterangan;
+                    setInfo('Sumber: ' + d.keterangan + '. Periksa lagi sebelum disimpan.', 'text-info');
                 } else {
-                    info.textContent = d.message || 'Gagal mengambil kurs real-time.';
+                    setInfo(d.message || 'Gagal mengambil kurs. Isi kurs secara manual.', 'text-danger');
                 }
             })
-            .catch(function () { info.textContent = 'Gagal mengambil kurs real-time.'; })
+            .catch(function () { setInfo('Gagal mengambil kurs. Isi kurs secara manual.', 'text-danger'); })
             .finally(function () { btn.disabled = false; });
     });
 });
