@@ -13,6 +13,7 @@
         </thead>
         <tbody>
             @forelse ($invoices as $index => $invoice)
+                    @php $mataUang = Auth::user()->isMmbtu() ? '$' : 'Rp'; $desimal = Auth::user()->isMmbtu() ? 2 : 0; @endphp
                 <tr>
                     <td>{{ $index + $invoices->firstItem() }}</td>
                     <td>{{ $invoice->invoice_number }}</td>
@@ -25,7 +26,7 @@
                         @endif
                     </td>
                     <td>{{ number_format($invoice->total_volume, 2, ',', '.') }} SM3</td>
-                    <td>Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</td>
+                    <td>{{ $mataUang }} {{ number_format($invoice->total_amount, $desimal, ',', '.') }}</td>
                     <td>
                         <div class="btn-group">
                             <a href="{{ route('invoices.show', $invoice) }}" class="btn btn-sm btn-info" title="Lihat Detail">

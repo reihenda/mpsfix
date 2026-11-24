@@ -16,6 +16,7 @@
         </thead>
         <tbody>
             @forelse ($billings as $index => $billing)
+                    @php $mataUang = Auth::user()->isMmbtu() ? '$' : 'Rp'; $desimal = Auth::user()->isMmbtu() ? 2 : 0; @endphp
                 <tr>
                     <td>{{ $index + $billings->firstItem() }}</td>
                     <td>{{ $billing->billing_number }}</td>
@@ -28,18 +29,18 @@
                         @endif
                     </td>
                     <td>{{ number_format($billing->total_volume, 2, ',', '.') }} SM3</td>
-                    <td>Rp {{ number_format($billing->total_amount, 0, ',', '.') }}</td>
-                    <td>Rp {{ number_format($billing->total_deposit, 0, ',', '.') }}</td>
+                    <td>{{ $mataUang }} {{ number_format($billing->total_amount, $desimal, ',', '.') }}</td>
+                    <td>{{ $mataUang }} {{ number_format($billing->total_deposit, $desimal, ',', '.') }}</td>
                     <td>
                         @if($billing->current_balance < 0)
-                            <span class="text-danger">Rp {{ number_format(abs($billing->current_balance), 0, ',', '.') }}</span>
+                            <span class="text-danger">{{ $mataUang }} {{ number_format(abs($billing->current_balance), $desimal, ',', '.') }}</span>
                         @else
-                            <span class="text-success">Rp {{ number_format($billing->current_balance, 0, ',', '.') }}</span>
+                            <span class="text-success">{{ $mataUang }} {{ number_format($billing->current_balance, $desimal, ',', '.') }}</span>
                         @endif
                     </td>
                     <td>
                         @if($billing->amount_to_pay > 0)
-                            <span class="text-danger font-weight-bold">Rp {{ number_format($billing->amount_to_pay, 0, ',', '.') }}</span>
+                            <span class="text-danger font-weight-bold">{{ $mataUang }} {{ number_format($billing->amount_to_pay, $desimal, ',', '.') }}</span>
                         @else
                             <span class="text-success">-</span>
                         @endif

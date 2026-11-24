@@ -112,7 +112,7 @@ class ProformaInvoiceController extends Controller
         // Get current balance (saldo per hari ini)
         // Customer MMBTU: saldo dalam MMBTU & USD, bukan Rupiah
         $currentBalance = $isMmbtu ? 0 : $this->getCustomerBalanceOnDate($customer, now());
-        $saldoMmbtu = $isMmbtu ? $this->getCustomerBalanceMmbtuOnDate($customer, now()) : null;
+        $saldoMmbtu = $isMmbtu ? $customer->saldoMmbtu(now()) : null;
 
         return view('proforma-invoices.create', compact('customer', 'proformaNumber', 'startDate', 'endDate', 'currentBalance', 'isMmbtu', 'saldoMmbtu'));
     }
@@ -229,7 +229,7 @@ class ProformaInvoiceController extends Controller
         // Ambil saldo customer
         $balanceDate = $isMmbtu ? now() : ($proformaInvoice->period_start_date ?? now());
         $saldoPerTanggal = $isMmbtu ? 0 : $this->getCustomerBalanceOnDate($customer, $balanceDate);
-        $saldoMmbtu = $isMmbtu ? $this->getCustomerBalanceMmbtuOnDate($customer, $balanceDate) : null;
+        $saldoMmbtu = $isMmbtu ? $customer->saldoMmbtu($balanceDate) : null;
 
         // Data untuk tampilan
         $pemakaianGas = [];
@@ -460,66 +460,6 @@ class ProformaInvoiceController extends Controller
         return $totalDeposits - $totalPurchases;
     }
 
-    /**
-     * Saldo customer MMBTU per tanggal, dalam MMBTU dan USD.
-     * Logika sama dengan perhitungan saldo MMBTU di halaman customer-detail:
-     *  - deposit: hanya entri is_mmbtu (mmbtu_amount, USD = mmbtu_amount x harga_satuan_usd)
-     *  - pemakaian: M3 x koreksi_meter = Sm3, / pembagi Sm3->MMBTU = MMBTU, x harga_per_mmbtu_usd = USD
-     *
-     * @return array{mmbtu: float, usd: float}
-     */
-    private function getCustomerBalanceMmbtuOnDate(User $customer, $date): array
-    {
-        $targetDate = Carbon::parse($date)->endOfDay();
-
-        $depositMmbtu = 0;
-        $depositUsd = 0;
-        foreach ($this->ensureArray($customer->deposit_history) as $deposit) {
-            if (empty($deposit['is_mmbtu']) || empty($deposit['date'])) {
-                continue;
-            }
-            if (Carbon::parse($deposit['date'])->gt($targetDate)) {
-                continue;
-            }
-            $mmbtuAmt = floatval($deposit['mmbtu_amount'] ?? 0);
-            $usdAmt = $mmbtuAmt * floatval($deposit['harga_satuan_usd'] ?? 0);
-            if (($deposit['keterangan'] ?? 'penambahan') === 'pengurangan') {
-                $depositMmbtu -= $mmbtuAmt;
-                $depositUsd -= $usdAmt;
-            } else {
-                $depositMmbtu += $mmbtuAmt;
-                $depositUsd += $usdAmt;
-            }
-        }
-
-        $consumedMmbtu = 0;
-        $consumedUsd = 0;
-        foreach ($customer->dataPencatatan()->get() as $item) {
-            $dataInput = $this->ensureArray($item->data_input);
-            if (empty($dataInput) || empty($dataInput['pembacaan_awal']['waktu'])) {
-                continue;
-            }
-            $waktuAwal = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
-            if ($waktuAwal->gt($targetDate)) {
-                continue;
-            }
-            $pricing = $customer->getPricingForYearMonth($waktuAwal->format('Y-m'), $waktuAwal);
-
-            $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
-            $koreksiMeter = floatval($pricing['koreksi_meter'] ?? $customer->koreksi_meter ?? 1);
-            $pembagi = floatval($pricing['pembaji_sm3_ke_mmbtu'] ?? $pricing['pembagi_sm3_ke_mmbtu'] ?? 1);
-            $hargaUsd = floatval($pricing['harga_per_mmbtu_usd'] ?? 0);
-
-            $volumeMmbtu = $pembagi > 0 ? ($volumeFlowMeter * $koreksiMeter) / $pembagi : 0;
-            $consumedMmbtu += $volumeMmbtu;
-            $consumedUsd += $volumeMmbtu * $hargaUsd;
-        }
-
-        return [
-            'mmbtu' => $depositMmbtu - $consumedMmbtu,
-            'usd' => $depositUsd - $consumedUsd,
-        ];
-    }
     private function terbilang($angka) {
         $angka = abs($angka);
         $baca = array('', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas');

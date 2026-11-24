@@ -29,7 +29,7 @@ class RekapPenjualanController extends Controller
         $yearMonth = $selectedTahun . '-' . str_pad($selectedBulan, 2, '0', STR_PAD_LEFT);
 
         // Mendapatkan semua customer (biasa dan FOB)
-        $customersDb = User::where('role', 'customer')->get()->toArray();
+        $customersDb = User::whereIn('role', ['customer', 'mmbtu'])->get()->toArray();
         $fobDb = User::where('role', 'fob')->get()->toArray();
 
         // Gabungkan customer biasa dan FOB menggunakan array_merge
@@ -122,6 +122,9 @@ class RekapPenjualanController extends Controller
                     // Gunakan harga per meter kubik yang sesuai untuk FOB
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -187,6 +190,9 @@ class RekapPenjualanController extends Controller
                         // Gunakan harga per meter kubik yang sesuai untuk FOB
                         $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                         $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                    } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                        // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                        [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                     } else {
                         // Customer biasa format data
                         $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -260,6 +266,9 @@ class RekapPenjualanController extends Controller
                     // Gunakan harga per meter kubik yang sesuai untuk FOB
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -307,6 +316,9 @@ class RekapPenjualanController extends Controller
                     // Gunakan harga per meter kubik yang sesuai untuk FOB
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -435,6 +447,9 @@ class RekapPenjualanController extends Controller
                     $volumeSm3 = floatval($dataInput['volume_sm3']);
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -532,6 +547,9 @@ class RekapPenjualanController extends Controller
                     $volumeSm3 = floatval($dataInput['volume_sm3']);
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -575,14 +593,14 @@ class RekapPenjualanController extends Controller
         // Mendapatkan customer berdasarkan type
         switch ($type) {
             case 'customer':
-                $customers = User::where('role', 'customer')->get()->toArray();
+                $customers = User::whereIn('role', ['customer', 'mmbtu'])->get()->toArray();
                 break;
             case 'fob':
                 $customers = User::where('role', 'fob')->get()->toArray();
                 break;
             case 'total':
             default:
-                $customersDb = User::where('role', 'customer')->get()->toArray();
+                $customersDb = User::whereIn('role', ['customer', 'mmbtu'])->get()->toArray();
                 $fobDb = User::where('role', 'fob')->get()->toArray();
                 $customers = array_merge($customersDb, $fobDb);
                 break;
@@ -680,6 +698,9 @@ class RekapPenjualanController extends Controller
                         // Gunakan harga per meter kubik yang sesuai untuk FOB
                         $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                         $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                    } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                        // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                        [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                     } else {
                         // Customer biasa format data
                         $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);

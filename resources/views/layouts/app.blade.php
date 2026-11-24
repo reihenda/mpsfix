@@ -361,6 +361,12 @@
                                             <p>Kelola Deskripsi</p>
                                         </a>
                                     </li>
+                                    <li class="nav-item">
+                                        <a href="{{ route('kurs-usd.index') }}" class="nav-link {{ request()->routeIs('kurs-usd.*') ? 'active' : '' }}">
+                                            <i class="fas fa-dollar-sign nav-icon"></i>
+                                            <p>Kurs USD Bulanan</p>
+                                        </a>
+                                    </li>
                                 </ul>
                             </li>
                             <li class="nav-item has-treeview">
@@ -471,6 +477,12 @@
                                             <p>Kelola Deskripsi</p>
                                         </a>
                                     </li>
+                                    <li class="nav-item">
+                                        <a href="{{ route('kurs-usd.index') }}" class="nav-link {{ request()->routeIs('kurs-usd.*') ? 'active' : '' }}">
+                                            <i class="fas fa-dollar-sign nav-icon"></i>
+                                            <p>Kurs USD Bulanan</p>
+                                        </a>
+                                    </li>
                                 </ul>
                             </li>
                             <li class="nav-item has-treeview">
@@ -576,9 +588,9 @@
                             </li>
                         @endif
 
-                        @if (Auth::user()->isCustomer() || Auth::user()->isFOB())
+                        @if (Auth::user()->isCustomer() || Auth::user()->isFOB() || Auth::user()->isMmbtu())
                             <li class="nav-item">
-                                <a href="{{ Auth::user()->isCustomer() ? route('customer.dashboard') : route('fob.dashboard') }}" class="nav-link">
+                                <a href="{{ Auth::user()->isFOB() ? route('fob.dashboard') : route('customer.dashboard') }}" class="nav-link">
                                     <i class="nav-icon fas fa-tachometer-alt"></i>
                                     <p>Dashboard</p>
                                 </a>

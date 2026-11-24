@@ -41,6 +41,7 @@
                     </thead>
                     <tbody>
                         @forelse ($billings as $index => $billing)
+                    @php $mataUang = optional($billing->customer)->isMmbtu() ? '$' : 'Rp'; $desimal = optional($billing->customer)->isMmbtu() ? 2 : 0; @endphp
                             <tr>
                                 <td>{{ $index + $billings->firstItem() }}</td>
                                 <td>{{ $billing->billing_number }}</td>
@@ -48,14 +49,13 @@
                                 <td>{{ \Carbon\Carbon::parse($billing->billing_date)->format('d/m/Y') }}</td>
                                 <td>{{ \Carbon\Carbon::createFromDate($billing->period_year, $billing->period_month, 1)->format('F Y') }}
                                 </td>
-                                <td>Rp {{ number_format($billing->total_amount, 0, ',', '.') }}</td>
+                                <td>{{ $mataUang }} {{ number_format($billing->total_amount, $desimal, ',', '.') }}</td>
                                 <td class="{{ $billing->current_balance < 0 ? 'text-danger' : 'text-success' }}">
-                                    Rp {{ number_format($billing->current_balance, 0, ',', '.') }}
+                                    {{ $mataUang }} {{ number_format($billing->current_balance, $desimal, ',', '.') }}
                                 </td>
                                 <td>
                                     @if ($billing->amount_to_pay > 0)
-                                        <span class="text-danger">Rp
-                                            {{ number_format($billing->amount_to_pay, 0, ',', '.') }}</span>
+                                        <span class="text-danger">{{ $mataUang }} {{ number_format($billing->amount_to_pay, $desimal, ',', '.') }}</span>
                                     @else
                                         <span>-</span>
                                     @endif

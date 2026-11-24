@@ -130,6 +130,21 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        @if($isMmbtu && (count($mmRp['semua']['kurs_belum_diisi']) || !$mmRp['semua']['kurs_terbaru']))
+                            <div class="alert alert-warning py-2">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                @if (!$mmRp['semua']['kurs_terbaru'])
+                                    Belum ada kurs USD sama sekali, jadi nilai Rupiah belum bisa dihitung.
+                                @else
+                                    Kurs USD bulan
+                                    {{ collect($mmRp['semua']['kurs_belum_diisi'])->map(fn ($p) => \Carbon\Carbon::createFromFormat('Y-m', $p)->locale('id')->translatedFormat('M Y'))->implode(', ') }}
+                                    belum diisi; Rupiah bulan tsb sementara memakai kurs bulan terdekat sebelumnya.
+                                @endif
+                                @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isKeuangan())
+                                    <a href="{{ route('kurs-usd.index') }}" class="alert-link ml-1">Isi kurs</a>
+                                @endif
+                            </div>
+                        @endif
                         <div class="row">
                             <div class="col-md-3 col-sm-6">
                                 <div class="mobile-summary-card">
@@ -147,7 +162,8 @@
                                     <strong><i class="fas fa-money-bill-wave mr-1"></i> Total Pembelian</strong>
                                     <p class="text-muted mb-0">
                                         @if($isMmbtu)
-                                            $ {{ number_format($filteredTotalPurchasesUsd, 2) }}
+                                            $ {{ number_format($mmRp['semua']['pakai_usd'], 2) }}
+                                            <small class="d-block text-info">Rp {{ number_format($mmRp['semua']['pakai_idr'], 0) }}</small>
                                         @else
                                             Rp {{ number_format($customer->total_purchases ?? 0, 0) }}
                                         @endif
@@ -161,6 +177,7 @@
                                         @if($isMmbtu)
                                             {{ number_format($totalDepositMmbtu, 2) }} MMBTU
                                             <br><small class="text-success">$ {{ number_format($totalDepositUsd, 2) }} USD</small>
+                                            <small class="d-block text-info">Rp {{ number_format($mmRp['semua']['deposit_idr'], 0) }}</small>
                                         @else
                                             Rp {{ number_format($customer->total_deposit ?? 0, 0) }}
                                         @endif
@@ -175,6 +192,14 @@
                                     <p class="text-muted mb-0">
                                         @if($isMmbtu)
                                             {{ number_format($totalDepositMmbtu - $totalConsumedMmbtu, 2) }} MMBTU
+                                            <small class="d-block text-success">$ {{ number_format($mmRp['semua']['saldo_usd'], 2) }}</small>
+                                            <small class="d-block text-info" title="Rupiah deposit (kurs saat bayar) dikurangi Rupiah pemakaian (kurs bulan pemakaian)">Rp {{ number_format($mmRp['semua']['saldo_idr'], 0) }} <span class="text-muted">(historis)</span></small>
+                                            @if ($mmRp['semua']['kurs_terbaru'])
+                                            <small class="d-block text-muted" title="Saldo USD x kurs {{ $mmRp['semua']['kurs_terbaru_periode'] }}">
+                                                Setara hari ini: Rp {{ number_format($mmRp['semua']['saldo_idr_setara'], 0) }}
+                                                <br>Selisih kurs: {{ abs($mmRp['semua']['selisih_kurs']) < 0.5 ? '' : ($mmRp['semua']['selisih_kurs'] > 0 ? '+' : '-') }}Rp {{ number_format(abs($mmRp['semua']['selisih_kurs']), 0) }}
+                                            </small>
+                                            @endif
                                         @else
                                             Rp
                                             {{ number_format(($customer->total_deposit ?? 0) - ($customer->total_purchases ?? 0), 0) }}
@@ -291,6 +316,7 @@
                                     <p class="text-muted mb-0">
                                         @if($isMmbtu)
                                             $ {{ number_format($totalPembelianTahunan, 2) }} USD
+                                            <small class="d-block text-info">Rp {{ number_format($mmRp['tahun']['pakai_idr'], 0) }}</small>
                                         @else
                                             Rp {{ number_format($totalPembelianTahunan, 0) }}
                                         @endif
@@ -377,6 +403,7 @@
                                     <p class="text-muted mb-0">
                                         @if($isMmbtu)
                                             $ {{ number_format($filteredTotalPurchasesUsd, 2) }}
+                                            <small class="d-block text-info">Rp {{ number_format($mmRp['periode']['pakai_idr'], 0) }}</small>
                                         @else
                                             Rp {{ number_format($filteredTotalPurchases, 0) }}
                                         @endif
@@ -389,6 +416,8 @@
                                     <p class="text-muted mb-0">
                                         @if($isMmbtu)
                                             {{ number_format($filteredTotalDepositsMmbtu, 2) }} MMBTU
+                                            <small class="d-block text-success">$ {{ number_format($filteredTotalDepositsUsd, 2) }}</small>
+                                            <small class="d-block text-info">Rp {{ number_format($mmRp['periode']['deposit_idr'], 0) }}</small>
                                         @else
                                             Rp {{ number_format($filteredTotalDeposits, 0) }}
                                         @endif
@@ -401,6 +430,8 @@
                                     <p class="text-muted mb-0">
                                         @if($isMmbtu)
                                             {{ number_format($currentMonthBalanceMmbtu, 2) }} MMBTU
+                                            <small class="d-block text-success">$ {{ number_format($currentMonthBalanceUsd, 2) }}</small>
+                                            <small class="d-block text-info">Rp {{ number_format($mmRp['s_d_bulan']['saldo_idr'], 0) }}</small>
                                         @else
                                             Rp
                                             {{ number_format($realTimeCurrentMonthBalance, 0) }}
@@ -438,16 +469,19 @@
                                                     <td width="50%">Saldo Bulan Sebelumnya</td>
                                                     <td>{{ number_format($prevMonthBalanceMmbtu, 2) }} MMBTU</td>
                                                     <td class="text-success">$ {{ number_format($prevMonthBalanceUsd, 2) }}</td>
+                                                    <td class="text-info">Rp {{ number_format($mmRp['lalu']['saldo_idr'], 0) }}</td>
                                                 </tr>
                                                 <tr>
                                                     <td>+ Deposit Bulan Ini</td>
                                                     <td>{{ number_format($filteredTotalDepositsMmbtu, 2) }} MMBTU</td>
                                                     <td class="text-success">$ {{ number_format($filteredTotalDepositsUsd, 2) }}</td>
+                                                    <td class="text-info">Rp {{ number_format($mmRp['periode']['deposit_idr'], 0) }}</td>
                                                 </tr>
                                                 <tr>
                                                     <td>- Pemakaian Bulan Ini</td>
                                                     <td>{{ number_format($filteredVolumeMmbtu, 2) }} MMBTU</td>
                                                     <td class="text-danger">$ {{ number_format($filteredTotalPurchasesUsd, 2) }}</td>
+                                                    <td class="text-info">Rp {{ number_format($mmRp['periode']['pakai_idr'], 0) }}</td>
                                                 </tr>
                                                 @else
                                                 <tr>
@@ -651,12 +685,13 @@
                                                     @if($isMmbtu)
                                                     <td>{{ number_format($currentMonthBalanceMmbtu, 2) }} MMBTU</td>
                                                     <td class="text-primary">$ {{ number_format($currentMonthBalanceUsd, 2) }}</td>
+                                                    <td class="text-info">Rp {{ number_format($mmRp['s_d_bulan']['saldo_idr'], 0) }}</td>
                                                     @else
                                                     <td colspan="2">Rp {{ number_format($realTimeCurrentMonthBalance, 0) }}</td>
                                                     @endif
                                                 </tr>
                                                 <tr>
-                                                    <td colspan="2" class="text-muted"><small>* Saldo ini hanya
+                                                    <td colspan="{{ $isMmbtu ? 4 : 2 }}" class="text-muted"><small>* Saldo ini hanya
                                                             menunjukkan saldo untuk periode
                                                             {{ \Carbon\Carbon::createFromDate($selectedTahun, $selectedBulan, 1)->format('F Y') }}
                                                             saja (Perhitungan Real-time)</small></td>
@@ -1137,9 +1172,9 @@
                         <div class="row mb-3">
                             <div class="col-md-6 col-sm-12 mb-3">
                                 @if($isMmbtu)
-                                <h5>Total Deposit: <span class="text-success">{{ number_format($totalDepositMmbtu, 4) }} MMBTU <small class="text-muted">($ {{ number_format($totalDepositUsd, 2) }})</small></span></h5>
-                                <h5>Total Pemakaian: <span class="text-danger">{{ number_format($totalConsumedMmbtu, 4) }} MMBTU</span></h5>
-                                <h5>Saldo MMBTU: <span class="text-primary">{{ number_format($totalDepositMmbtu - $totalConsumedMmbtu, 4) }} MMBTU</span></h5>
+                                <h5>Total Deposit: <span class="text-success">{{ number_format($totalDepositMmbtu, 2) }} MMBTU <small class="text-muted">($ {{ number_format($totalDepositUsd, 2) }} · Rp {{ number_format($mmRp['semua']['deposit_idr'], 0) }})</small></span></h5>
+                                <h5>Total Pemakaian: <span class="text-danger">{{ number_format($totalConsumedMmbtu, 2) }} MMBTU <small class="text-muted">($ {{ number_format($mmRp['semua']['pakai_usd'], 2) }} · Rp {{ number_format($mmRp['semua']['pakai_idr'], 0) }})</small></span></h5>
+                                <h5>Saldo: <span class="text-primary">{{ number_format($totalDepositMmbtu - $totalConsumedMmbtu, 2) }} MMBTU <small class="text-muted">($ {{ number_format($mmRp['semua']['saldo_usd'], 2) }} · Rp {{ number_format($mmRp['semua']['saldo_idr'], 0) }})</small></span></h5>
                                 @else
                                 <h5>Total Deposit: <span class="text-success">Rp
                                         {{ number_format($customer->total_deposit, 2) }}</span></h5>
@@ -1175,6 +1210,8 @@
                                         <th>Volume (MMBTU)</th>
                                         <th>Harga Satuan</th>
                                         <th>Total USD</th>
+                                        <th>Kurs</th>
+                                        <th>Rupiah</th>
                                         @else
                                         <th>Jumlah Deposit</th>
                                         @endif
@@ -1200,6 +1237,8 @@
                                                     'mmbtu_amount' => $deposit['mmbtu_amount'] ?? null,
                                                     'harga_satuan_usd' => $deposit['harga_satuan_usd'] ?? null,
                                                     'is_mmbtu' => $deposit['is_mmbtu'] ?? false,
+                                                    'idr_amount' => $deposit['idr_amount'] ?? null,
+                                                    'raw' => $deposit,
                                                     'keterangan' => $deposit['keterangan'] ?? 'penambahan',
                                                     'deskripsi' =>
                                                         $deposit['deskripsi'] ?? ($deposit['description'] ?? '-'),
@@ -1227,13 +1266,32 @@
                                                 @endif
                                             </td>
                                             @if($isMmbtu)
-                                            <td>{{ number_format($deposit['mmbtu_amount'] ?? 0, 2) }} MMBTU</td>
+                                            @php $nDep = $customer->nilaiDepositMmbtu($deposit['raw']); @endphp
+                                            <td>{{ number_format(abs($deposit['mmbtu_amount'] ?? 0), 2) }} MMBTU</td>
                                             <td>$ {{ number_format($deposit['harga_satuan_usd'] ?? 0, 2) }}</td>
                                             <td>
-                                                @php $totalUsdDeposit = ($deposit['mmbtu_amount'] ?? 0) * ($deposit['harga_satuan_usd'] ?? 0); @endphp
-                                                <span class="{{ $totalUsdDeposit >= 0 ? 'text-success' : 'text-danger' }}">
-                                                    $ {{ number_format($totalUsdDeposit, 2) }}
+                                                <span class="{{ $nDep['usd'] >= 0 ? 'text-success' : 'text-danger' }}">
+                                                    {{ $nDep['usd'] < 0 ? '-' : '' }}$ {{ number_format(abs($nDep['usd']), 2) }}
                                                 </span>
+                                            </td>
+                                            <td class="text-nowrap">
+                                                @if ($nDep['kurs'])
+                                                    {{ number_format($nDep['kurs'], 2) }}
+                                                    <small class="d-block text-muted">
+                                                        @if ($nDep['kurs_sumber'] === 'diterima')
+                                                            dari Rupiah diterima
+                                                        @elseif ($nDep['kurs_pas'])
+                                                            kurs bulanan
+                                                        @else
+                                                            kurs {{ $nDep['kurs_periode'] }} (bulan ini belum diisi)
+                                                        @endif
+                                                    </small>
+                                                @else
+                                                    <span class="text-muted">belum ada kurs</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-nowrap {{ $nDep['idr'] >= 0 ? 'text-info' : 'text-danger' }}">
+                                                {{ $nDep['idr'] < 0 ? '-' : '' }}Rp {{ number_format(abs($nDep['idr']), 0) }}
                                             </td>
                                             @else
                                             <td>
@@ -1256,6 +1314,7 @@
                                             data-deskripsi="{{ $deposit['deskripsi'] ?? '' }}"
                                             data-mmbtu-amount="{{ $deposit['mmbtu_amount'] ?? '' }}"
                                             data-harga-satuan-usd="{{ $deposit['harga_satuan_usd'] ?? '' }}"
+                                            data-idr-amount="{{ $deposit['idr_amount'] ?? '' }}"
                                             title="Edit Deposit">
                                             <i class="fas fa-edit"></i>
                                             </button>
@@ -1331,6 +1390,17 @@
                                         <input type="text" id="depositPreviewUsd" class="form-control bg-light"
                                             placeholder="0.00" readonly>
                                     </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Rupiah Diterima <small class="text-muted">(internal, sesuai bukti transfer)</small></label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">Rp</span>
+                                        </div>
+                                        <input type="number" step="0.01" min="0" name="idr_amount" id="depositIdrAmount"
+                                            class="form-control" placeholder="mis. 279500000">
+                                    </div>
+                                    <small class="text-muted" id="depositKursInfo">Kosongkan bila belum tahu; Rupiah akan dihitung dari kurs bulanan.</small>
                                 </div>
                                 <div class="form-group">
                                     <label>Tanggal Deposit <span class="text-danger">*</span></label>
@@ -1446,6 +1516,17 @@
                                     <input type="text" id="edit_preview_usd" class="form-control" readonly placeholder="0.00">
                                 </div>
                             </div>
+                            <div class="form-group">
+                                <label>Rupiah Diterima <small class="text-muted">(internal, sesuai bukti transfer)</small></label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">Rp</span>
+                                    </div>
+                                    <input type="number" step="0.01" min="0" name="idr_amount" id="edit_idr_amount"
+                                        class="form-control" placeholder="mis. 279500000">
+                                </div>
+                                <small class="text-muted" id="edit_kurs_info">Kosongkan bila belum tahu; Rupiah akan dihitung dari kurs bulanan.</small>
+                            </div>
                             @else
                             <div class="form-group">
                                 <label>Jumlah <span class="text-danger">*</span></label>
@@ -1493,6 +1574,37 @@
                             id="penguranganSaldoForm">
                             @csrf
                             <div class="modal-body">
+                                @if ($isMmbtu)
+                                @php $saldoMmbtuSekarang = $customer->saldoMmbtu(now()); @endphp
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    <strong>Saldo Saat Ini:</strong>
+                                    {{ number_format($saldoMmbtuSekarang['mmbtu'], 2) }} MMBTU
+                                    ($ {{ number_format($saldoMmbtuSekarang['usd'], 2) }})
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Jumlah Pengurangan (MMBTU) <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <input type="number" step="0.0001" min="0.0001" name="amount" class="form-control"
+                                            placeholder="Volume MMBTU yang dikurangi" required>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">MMBTU</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Harga Satuan (USD/MMBTU) <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">$</span>
+                                        </div>
+                                        <input type="number" step="0.0001" min="0" name="harga_satuan_usd" class="form-control"
+                                            value="{{ $pricingInfo['harga_per_mmbtu_usd'] ?? '' }}" required>
+                                    </div>
+                                    <small class="text-muted">Nilai USD yang dikurangi = MMBTU × harga satuan.</small>
+                                </div>
+                                @else
                                 <div class="alert alert-info">
                                     <i class="fas fa-info-circle mr-2"></i>
                                     <strong>Saldo Saat Ini:</strong> Rp
@@ -1509,6 +1621,7 @@
                                             placeholder="Jumlah yang akan dikurangi" required>
                                     </div>
                                 </div>
+                                @endif
                                 <div class="form-group">
                                     <label>Tanggal Pengurangan <span class="text-danger">*</span></label>
                                     <input type="datetime-local" name="reduction_date" class="form-control"
@@ -1557,8 +1670,13 @@
                                 <div class="alert alert-warning">
                                     <i class="fas fa-exclamation-triangle mr-2"></i>
                                     <strong>Peringatan!</strong> Tindakan ini akan membuat saldo menjadi nol (0).
-                                    <br><strong>Saldo Saat Ini:</strong> Rp
-                                    {{ number_format($customer->getCurrentBalance(), 2) }}
+                                    <br><strong>Saldo Saat Ini:</strong>
+                                    @if ($isMmbtu)
+                                        @php $saldoMmbtuNol = $customer->saldoMmbtu(now()); @endphp
+                                        {{ number_format($saldoMmbtuNol['mmbtu'], 2) }} MMBTU ($ {{ number_format($saldoMmbtuNol['usd'], 2) }})
+                                    @else
+                                        Rp {{ number_format($customer->getCurrentBalance(), 2) }}
+                                    @endif
                                 </div>
 
                                 <div class="form-group">
@@ -2880,8 +2998,10 @@
                 // MMBTU fields
                 $('#edit_mmbtu_amount').val(mmbtuAmount);
                 $('#edit_harga_satuan_usd').val(hargaSatuanUsd);
+                $('#edit_idr_amount').val($(this).attr('data-idr-amount') || '');
                 var previewUsd = (parseFloat(mmbtuAmount) || 0) * (parseFloat(hargaSatuanUsd) || 0);
                 $('#edit_preview_usd').val(previewUsd.toFixed(2));
+                infoKursMmbtu('#edit_mmbtu_amount', '#edit_harga_satuan_usd', '#edit_idr_amount', '#edit_kurs_info');
                 @else
                 $('#edit_amount').val(amount);
                 @endif
@@ -2900,6 +3020,23 @@
                 var mmbtu = parseFloat($('#edit_mmbtu_amount').val()) || 0;
                 var harga = parseFloat($('#edit_harga_satuan_usd').val()) || 0;
                 $('#edit_preview_usd').val((mmbtu * harga).toFixed(2));
+            });
+
+            // Kurs historis = Rupiah diterima / total USD
+            window.infoKursMmbtu = function (mmbtuSel, hargaSel, idrSel, infoSel) {
+                var usd = (parseFloat($(mmbtuSel).val()) || 0) * (parseFloat($(hargaSel).val()) || 0);
+                var idr = parseFloat($(idrSel).val()) || 0;
+                if (idr > 0 && usd > 0) {
+                    $(infoSel).html('Kurs historis: <strong>Rp ' + (idr / usd).toLocaleString('id-ID', {maximumFractionDigits: 2}) + '</strong> per USD');
+                } else {
+                    $(infoSel).text('Kosongkan bila belum tahu; Rupiah akan dihitung dari kurs bulanan.');
+                }
+            };
+            $(document).on('input', '#depositMmbtuAmount, #depositHargaUsd, #depositIdrAmount', function () {
+                infoKursMmbtu('#depositMmbtuAmount', '#depositHargaUsd', '#depositIdrAmount', '#depositKursInfo');
+            });
+            $(document).on('input', '#edit_mmbtu_amount, #edit_harga_satuan_usd, #edit_idr_amount', function () {
+                infoKursMmbtu('#edit_mmbtu_amount', '#edit_harga_satuan_usd', '#edit_idr_amount', '#edit_kurs_info');
             });
             @endif
         });

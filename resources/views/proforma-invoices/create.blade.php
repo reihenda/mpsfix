@@ -257,7 +257,7 @@
                             </div>
                             <input type="number" step="0.01" class="form-control @error('kurs_usd') is-invalid @enderror"
                                    id="kurs_usd" name="kurs_usd"
-                                   value="{{ old('kurs_usd', '0') }}" required>
+                                   value="{{ old('kurs_usd', \App\Models\KursUsdBulanan::terbaru()['kurs'] ?? '0') }}" required>
                             <div class="input-group-append">
                                 <span class="input-group-text">/USD</span>
                             </div>

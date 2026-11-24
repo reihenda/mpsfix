@@ -14,14 +14,14 @@ alur: Buka detail customer | Klik History Deposit | Tambah Deposit / Pengurangan
 2. Klik **Tambah Deposit**.
 3. Isi:
    - Customer biasa: **Jumlah Deposit** (Rupiah).
-   - Customer MMBTU: **Volume Deposit (MMBTU)** dan **Harga Satuan (USD/MMBTU)**. **Preview Total USD** muncul otomatis.
+   - Customer MMBTU: **Volume Deposit (MMBTU)** dan **Harga Satuan (USD/MMBTU)**. **Preview Total USD** muncul otomatis. Isi juga **Rupiah Diterima** sesuai bukti transfer; kurs historisnya dihitung otomatis (Rupiah ÷ USD). Rupiah hanya terlihat oleh internal.
 4. Isi **Tanggal Deposit** dan **Deskripsi** (opsional).
 5. Klik **Simpan**. Saldo langsung bertambah.
 
 ## Mengurangi saldo
 
 1. Klik **Pengurangan Saldo**.
-2. Isi **Jumlah Pengurangan** dan **Tanggal Pengurangan**, lalu klik **Kurangi Saldo**.
+2. Isi **Jumlah Pengurangan** dan **Tanggal Pengurangan**, lalu klik **Kurangi Saldo**. Untuk customer MMBTU, jumlahnya dalam **MMBTU** dengan **harga satuan USD**.
 3. Untuk membuat saldo jadi nol, klik **Nol-kan Saldo**, lalu **Ya, Nol-kan Saldo**.
 
 ## Mengubah atau menghapus deposit

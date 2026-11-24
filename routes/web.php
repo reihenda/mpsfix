@@ -174,6 +174,12 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
     // Dashboard untuk Keuangan
     Route::get('/keuangan', [KeuanganController::class, 'index'])->name('keuangan.index');
 
+    // Kurs USD bulanan (kurs historis untuk Rupiah customer MMBTU)
+    Route::get('/kurs-usd', [App\Http\Controllers\KursUsdController::class, 'index'])->name('kurs-usd.index');
+    Route::post('/kurs-usd', [App\Http\Controllers\KursUsdController::class, 'store'])->name('kurs-usd.store');
+    Route::delete('/kurs-usd/{kurs}', [App\Http\Controllers\KursUsdController::class, 'destroy'])->name('kurs-usd.destroy');
+    Route::get('/kurs-usd/realtime', [App\Http\Controllers\KursUsdController::class, 'realtime'])->name('kurs-usd.realtime');
+
     // Operator GTM - View Only (routes dipindah ke grup role:...,staff_operasional di atas
     // agar bisa diakses juga oleh Staff Operasional tanpa duplikasi nama route)
 

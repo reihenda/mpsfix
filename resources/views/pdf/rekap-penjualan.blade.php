@@ -331,7 +331,9 @@
                     <td class="text-center">{{ $index + 1 }}</td>
                     <td>{{ $customer['nama'] }}</td>
                     <td class="text-center">
-                        @if($customer['role'] == 'customer')
+                        @if($customer['role'] == 'mmbtu')
+                            <span class="badge badge-info">M</span>
+                        @elseif($customer['role'] == 'customer')
                             <span class="badge badge-primary">C</span>
                         @else
                             <span class="badge badge-warning">F</span>
@@ -381,7 +383,9 @@
                     <td class="text-center">{{ $index + 1 }}</td>
                     <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         {{ $customer['nama'] }}
-                        @if($customer['role'] == 'customer')
+                        @if($customer['role'] == 'mmbtu')
+                            <span class="badge badge-info">M</span>
+                        @elseif($customer['role'] == 'customer')
                             <span class="badge badge-primary">C</span>
                         @else
                             <span class="badge badge-warning">F</span>
@@ -444,7 +448,9 @@
                     <td class="text-center">{{ $index + 1 }}</td>
                     <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         {{ $customer['nama'] }}
-                        @if($customer['role'] == 'customer')
+                        @if($customer['role'] == 'mmbtu')
+                            <span class="badge badge-info">M</span>
+                        @elseif($customer['role'] == 'customer')
                             <span class="badge badge-primary">C</span>
                         @else
                             <span class="badge badge-warning">F</span>

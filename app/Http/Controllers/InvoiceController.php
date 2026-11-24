@@ -596,7 +596,15 @@ class InvoiceController extends Controller
                 $monthlyBalances = $customer->monthly_balances ?: [];
                 $prevMonthBalance = isset($monthlyBalances[$prevMonthYear]) ?
                     floatval($monthlyBalances[$prevMonthYear]) : 0;
-                
+
+                // Customer MMBTU: deposit & saldo dihitung dalam USD dari history MMBTU
+                // (monthly_balances hanya mengenal harga Rupiah sehingga pemakaian MMBTU terhitung 0)
+                if ($isMmbtu) {
+                    $awalBulan = Carbon::createFromDate($request->year, $request->month, 1)->startOfDay();
+                    $totalDeposit = $customer->ringkasanMmbtu($awalBulan, $awalBulan->copy()->endOfMonth())['deposit_usd'];
+                    $prevMonthBalance = $customer->saldoMmbtu($awalBulan->copy()->subDay())['usd'];
+                }
+
                 $currentMonthBalance = $prevMonthBalance + $totalDeposit - $totalBiaya;
                 $amountToPay = $currentMonthBalance < 0 ? abs($currentMonthBalance) : 0;
             } else {

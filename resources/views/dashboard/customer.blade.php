@@ -55,6 +55,43 @@
                         </h3>
                     </div>
                     <div class="card-body">
+                        @if ($isMmbtu)
+                        <div class="row">
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-tachometer-alt mr-1"></i> Total Pemakaian</strong>
+                                    <p class="text-muted mb-0">
+                                        {{ number_format($mmbtu['semua']['pakai_mmbtu'], 2) }} MMBTU
+                                        <small class="d-block">{{ number_format($mmbtu['semua']['pakai_sm3'], 2) }} Sm³</small>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-money-bill-wave mr-1"></i> Total Pembelian</strong>
+                                    <p class="text-muted mb-0">$ {{ number_format($mmbtu['semua']['pakai_usd'], 2) }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-wallet mr-1"></i> Jumlah Deposit</strong>
+                                    <p class="text-muted mb-0">
+                                        {{ number_format($mmbtu['semua']['deposit_mmbtu'], 2) }} MMBTU
+                                        <small class="d-block">$ {{ number_format($mmbtu['semua']['deposit_usd'], 2) }}</small>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-wallet mr-1"></i> Saldo</strong>
+                                    <p class="mb-0 {{ $mmbtu['semua']['saldo_mmbtu'] < 0 ? 'text-danger' : 'text-muted' }}">
+                                        {{ number_format($mmbtu['semua']['saldo_mmbtu'], 2) }} MMBTU
+                                        <small class="d-block">$ {{ number_format($mmbtu['semua']['saldo_usd'], 2) }}</small>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        @else
                         <div class="row">
                             <div class="col-md-3 col-sm-6">
                                 <div class="mobile-summary-card">
@@ -90,6 +127,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
                         <div class="row mt-3">
                             <div class="col-12">
                                 <button class="btn btn-success btn-block" data-toggle="modal" data-target="#depositHistoryModal">
@@ -138,6 +176,17 @@
                                     </p>
                                 </div>
                             </div>
+                            @if ($isMmbtu)
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-money-bill-wave mr-1"></i> Harga per MMBTU</strong>
+                                    <p class="text-muted mb-0">
+                                        $ {{ number_format($pricingInfo['harga_per_mmbtu_usd'] ?? 0, 2) }}
+                                        <small class="d-block">Pembagi Sm³→MMBTU: {{ number_format($pricingInfo['pembagi_sm3_ke_mmbtu'] ?? ($pricingInfo['pembaji_sm3_ke_mmbtu'] ?? 0), 2) }}</small>
+                                    </p>
+                                </div>
+                            </div>
+                            @else
                             <div class="col-md-3 col-sm-6">
                                 <div class="mobile-summary-card">
                                     <strong><i class="fas fa-money-bill-wave mr-1"></i> Harga per Sm³</strong>
@@ -147,7 +196,46 @@
                                     </p>
                                 </div>
                             </div>
+                            @endif
                         </div>
+                        @if ($isMmbtu)
+                        <div class="row mt-3">
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-gas-pump mr-1"></i> Volume Periode Ini</strong>
+                                    <p class="text-muted mb-0">
+                                        {{ number_format($mmbtu['periode']['pakai_mmbtu'], 2) }} MMBTU
+                                        <small class="d-block">{{ number_format($mmbtu['periode']['pakai_sm3'], 2) }} Sm³</small>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-money-bill-wave mr-1"></i> Pembelian Periode Ini</strong>
+                                    <p class="text-muted mb-0">$ {{ number_format($mmbtu['periode']['pakai_usd'], 2) }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-wallet mr-1"></i> Deposit Periode Ini</strong>
+                                    <p class="text-muted mb-0">
+                                        {{ number_format($mmbtu['periode']['deposit_mmbtu'], 2) }} MMBTU
+                                        <small class="d-block">$ {{ number_format($mmbtu['periode']['deposit_usd'], 2) }}</small>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="mobile-summary-card">
+                                    <strong><i class="fas fa-balance-scale mr-1"></i> Saldo Periode Bulan Ini</strong>
+                                    <p class="text-muted mb-0">
+                                        {{ number_format($mmbtu['saldo_periode']['mmbtu'], 2) }} MMBTU
+                                        <span class="badge badge-success" title="Saldo real-time untuk periode bulan yang dipilih"><i class="fas fa-sync-alt"></i> Real-time</span>
+                                        <small class="d-block">$ {{ number_format($mmbtu['saldo_periode']['usd'], 2) }}</small>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        @else
                         <div class="row mt-3">
                             <div class="col-md-3 col-sm-6">
                                 <div class="mobile-summary-card">
@@ -186,6 +274,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
                         <div class="row mt-3">
                             <div class="col-md-6 col-sm-12">
                                 <div class="info-box enhanced-info-box"
@@ -197,6 +286,33 @@
                                                 {{ \Carbon\Carbon::createFromDate($selectedTahun, $selectedBulan, 1)->format('F Y') }}</span>
                                         </span>
                                         <div class="table-responsive mt-2">
+                                            @if ($isMmbtu)
+                                            <table class="table table-sm table-bordered">
+                                                <tr class="text-muted">
+                                                    <td width="46%"></td><td>MMBTU</td><td>USD</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>Saldo Bulan Sebelumnya</td>
+                                                    <td>{{ number_format($mmbtu['saldo_lalu']['mmbtu'], 2) }}</td>
+                                                    <td>$ {{ number_format($mmbtu['saldo_lalu']['usd'], 2) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>+ Deposit Bulan Ini</td>
+                                                    <td>{{ number_format($mmbtu['periode']['deposit_mmbtu'], 2) }}</td>
+                                                    <td>$ {{ number_format($mmbtu['periode']['deposit_usd'], 2) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>- Pemakaian Bulan Ini</td>
+                                                    <td>{{ number_format($mmbtu['periode']['pakai_mmbtu'], 2) }}</td>
+                                                    <td>$ {{ number_format($mmbtu['periode']['pakai_usd'], 2) }}</td>
+                                                </tr>
+                                                <tr class="font-weight-bold">
+                                                    <td>= Sisa Saldo Periode Bulan Ini</td>
+                                                    <td>{{ number_format($mmbtu['saldo_periode']['mmbtu'], 2) }}</td>
+                                                    <td>$ {{ number_format($mmbtu['saldo_periode']['usd'], 2) }}</td>
+                                                </tr>
+                                            </table>
+                                            @else
                                             <table class="table table-sm table-bordered">
                                                 <tr>
                                                     <td width="60%">Saldo Bulan Sebelumnya</td>
@@ -221,6 +337,7 @@
                                                             saja (Perhitungan Real-time)</small></td>
                                                 </tr>
                                             </table>
+                                            @endif
                                         </div>
                                     </div>
                                 </div>
@@ -309,7 +426,12 @@
                                     <th colspan="2">Pembacaan Akhir</th>
                                     <th>Volume</th>
                                     <th>Sm³</th>
+                                    @if ($isMmbtu)
+                                    <th>MMBTU</th>
+                                    <th>Biaya (USD)</th>
+                                    @else
                                     <th>Harga</th>
+                                    @endif
                                 </tr>
                                 <tr>
                                     <th></th>
@@ -320,6 +442,7 @@
                                     <th></th>
                                     <th></th>
                                     <th></th>
+                                    @if ($isMmbtu)<th></th>@endif
                                 </tr>
                             </thead>
                             <tbody>
@@ -375,8 +498,15 @@
                                         </td>
                                         <td>{{ number_format($pembacaanAkhir['volume'] ?? 0, 2) }} m³</td>
                                         <td>{{ number_format($volumeFlowMeter, 2) }} m³</td>
+                                        @if ($isMmbtu)
+                                        @php $mmItem = Auth::user()->hitungPencatatanMmbtu($item); @endphp
+                                        <td>{{ number_format($mmItem['sm3'], 2) }}</td>
+                                        <td>{{ number_format($mmItem['mmbtu'], 2) }}</td>
+                                        <td>$ {{ number_format($mmItem['usd'], 2) }}</td>
+                                        @else
                                         <td>{{ number_format($volumeSm3, 2) }}</td>
                                         <td>Rp {{ number_format($pembelian, 2) }}</td>
+                                        @endif
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -402,9 +532,15 @@
                 <div class="modal-body">
                     <div class="row mb-3">
                         <div class="col-md-6 col-sm-12 mb-3">
+                            @if ($isMmbtu)
+                            <h5>Total Deposit: <span class="text-success">{{ number_format($mmbtu['semua']['deposit_mmbtu'], 2) }} MMBTU <small class="text-muted">($ {{ number_format($mmbtu['semua']['deposit_usd'], 2) }})</small></span></h5>
+                            <h5>Total Pemakaian: <span class="text-danger">{{ number_format($mmbtu['semua']['pakai_mmbtu'], 2) }} MMBTU <small class="text-muted">($ {{ number_format($mmbtu['semua']['pakai_usd'], 2) }})</small></span></h5>
+                            <h5>Saldo Tersisa: <span class="text-primary">{{ number_format($mmbtu['semua']['saldo_mmbtu'], 2) }} MMBTU <small class="text-muted">($ {{ number_format($mmbtu['semua']['saldo_usd'], 2) }})</small></span></h5>
+                            @else
                             <h5>Total Deposit: <span class="text-success">Rp {{ number_format(Auth::user()->total_deposit, 2) }}</span></h5>
                             <h5>Total Pembelian: <span class="text-danger">Rp {{ number_format(Auth::user()->total_purchases, 2) }}</span></h5>
                             <h5>Saldo Tersisa: <span class="text-primary">Rp {{ number_format(Auth::user()->total_deposit - Auth::user()->total_purchases, 2) }}</span></h5>
+                            @endif
                         </div>
                         <div class="col-md-6 col-sm-12">
                             <button class="btn btn-info w-100" data-toggle="modal" data-target="#printDepositFilterModal">
@@ -419,7 +555,13 @@
                                     <th>No</th>
                                     <th>Tanggal</th>
                                     <th>Keterangan</th>
+                                    @if ($isMmbtu)
+                                    <th>Volume (MMBTU)</th>
+                                    <th>Harga Satuan</th>
+                                    <th>Total USD</th>
+                                    @else
                                     <th>Jumlah Deposit</th>
+                                    @endif
                                     <th>Deskripsi</th>
                                 </tr>
                             </thead>
@@ -458,18 +600,29 @@
                                                 <span class="badge badge-danger">Pengurangan</span>
                                             @endif
                                         </td>
+                                        @if ($isMmbtu)
+                                        @php
+                                            $tandaDep = $deposit['keterangan'] === 'penambahan' ? '+' : '-';
+                                            $mmDep = abs(floatval($deposit['mmbtu_amount'] ?? 0));
+                                            $hargaDep = floatval($deposit['harga_satuan_usd'] ?? 0);
+                                        @endphp
+                                        <td>{{ $tandaDep }} {{ number_format($mmDep, 2) }}</td>
+                                        <td>$ {{ number_format($hargaDep, 2) }}</td>
+                                        <td class="{{ $tandaDep === '+' ? 'text-success' : 'text-danger' }} font-weight-bold">{{ $tandaDep }} $ {{ number_format($mmDep * $hargaDep, 2) }}</td>
+                                        @else
                                         <td>
                                             @if($deposit['keterangan'] === 'penambahan')
-                                                <span class="text-success font-weight-bold">+ Rp {{ number_format($deposit['amount'] ?? 0, 2) }}</span>
+                                                <span class="text-success font-weight-bold">+ Rp {{ number_format(abs($deposit['amount'] ?? 0), 2) }}</span>
                                             @else
-                                                <span class="text-danger font-weight-bold">- Rp {{ number_format($deposit['amount'] ?? 0, 2) }}</span>
+                                                <span class="text-danger font-weight-bold">- Rp {{ number_format(abs($deposit['amount'] ?? 0), 2) }}</span>
                                             @endif
                                         </td>
+                                        @endif
                                         <td>{{ $deposit['deskripsi'] ?? '-' }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center text-muted">Tidak ada history deposit</td>
+                                        <td colspan="{{ $isMmbtu ? 7 : 5 }}" class="text-center text-muted">Tidak ada history deposit</td>
                                     </tr>
                                 @endforelse
                             </tbody>

@@ -14,6 +14,7 @@
         </thead>
         <tbody>
             @forelse ($invoices as $index => $invoice)
+                    @php $mataUang = optional($invoice->customer)->isMmbtu() ? '$' : 'Rp'; $desimal = optional($invoice->customer)->isMmbtu() ? 2 : 0; @endphp
                 <tr>
                     <td>{{ $index + $invoices->firstItem() }}</td>
                     <td>{{ $invoice->invoice_number }}</td>
@@ -25,7 +26,7 @@
                             {{ \Carbon\Carbon::createFromDate($invoice->period_year, $invoice->period_month, 1)->format('F Y') }}
                         @endif
                     </td>
-                    <td>Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</td>
+                    <td>{{ $mataUang }} {{ number_format($invoice->total_amount, $desimal, ',', '.') }}</td>
                     <td>
                         @if($invoice->status == 'paid')
                             <span class="badge badge-success">Lunas</span>

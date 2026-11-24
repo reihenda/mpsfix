@@ -206,7 +206,9 @@
                                     <tr>
                                         <td>{{ $data['nama'] }}</td>
                                         <td>
-                                            @if ($data['role'] == 'customer')
+                                            @if($data['role'] == 'mmbtu')
+                                                <span class="badge badge-info">MMBTU</span>
+                                            @elseif($data['role'] == 'customer')
                                                 <span class="badge badge-primary">Customer</span>
                                             @else
                                                 <span class="badge badge-warning">FOB</span>

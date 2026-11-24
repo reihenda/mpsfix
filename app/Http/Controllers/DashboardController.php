@@ -51,7 +51,7 @@ class DashboardController extends Controller
 
         // 1. Data dari Rekap Penjualan
         // Mendapatkan semua customer (biasa dan FOB)
-        $customersDb = User::where('role', 'customer')->get()->toArray();
+        $customersDb = User::whereIn('role', ['customer', 'mmbtu'])->get()->toArray();
         $fobDb = User::where('role', 'fob')->get()->toArray();
         $customers = array_merge($customersDb, $fobDb);
 
@@ -209,6 +209,9 @@ class DashboardController extends Controller
                     // Gunakan harga per meter kubik yang sesuai untuk FOB
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -279,6 +282,9 @@ class DashboardController extends Controller
                     // Gunakan harga per meter kubik yang sesuai untuk FOB
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -351,6 +357,9 @@ class DashboardController extends Controller
                     // Gunakan harga per meter kubik yang sesuai untuk FOB
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -398,6 +407,9 @@ class DashboardController extends Controller
                     // Gunakan harga per meter kubik yang sesuai untuk FOB
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -662,7 +674,29 @@ class DashboardController extends Controller
         $totalTagihan = $allDataPencatatan->sum('harga_final');
         $belumLunas = $allDataPencatatan->where('status_pembayaran', 'belum_lunas')->count();
 
+        // Customer MMBTU: semua angka dalam MMBTU & USD (bukan Rupiah)
+        $isMmbtu = $user->isMmbtu();
+        $mmbtu = null;
+        if ($isMmbtu) {
+            $awalBulan = Carbon::createFromDate($selectedTahun, $selectedBulan, 1)->startOfDay();
+            $akhirBulan = $awalBulan->copy()->endOfMonth();
+            $semua = $user->ringkasanMmbtu();
+            $periode = $user->ringkasanMmbtu($awalBulan, $akhirBulan);
+            $saldoLalu = $user->saldoMmbtu($awalBulan->copy()->subDay());
+            $mmbtu = [
+                'semua' => $semua,
+                'periode' => $periode,
+                'saldo_lalu' => $saldoLalu,
+                'saldo_periode' => [
+                    'mmbtu' => $saldoLalu['mmbtu'] + $periode['deposit_mmbtu'] - $periode['pakai_mmbtu'],
+                    'usd' => $saldoLalu['usd'] + $periode['deposit_usd'] - $periode['pakai_usd'],
+                ],
+            ];
+        }
+
         return view('dashboard.customer', compact(
+            'isMmbtu',
+            'mmbtu',
             'dataPencatatan',
             'totalTagihan',
             'belumLunas',
@@ -892,6 +926,9 @@ class DashboardController extends Controller
                     $volumeSm3 = floatval($dataInput['volume_sm3']);
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);
@@ -989,6 +1026,9 @@ class DashboardController extends Controller
                     $volumeSm3 = floatval($dataInput['volume_sm3']);
                     $hargaPerMeterKubik = floatval($customer['harga_per_meter_kubik'] ?? 0);
                     $pembelian = $volumeSm3 * $hargaPerMeterKubik;
+                } elseif (($customer['role'] ?? null) === 'mmbtu') {
+                    // Customer MMBTU: Rupiah = USD x kurs bulan pemakaian
+                    [$volumeSm3, $pembelian] = \App\Support\PenjualanMmbtu::hitung((int) $customer['id'], $item);
                 } else {
                     // Customer biasa format data
                     $volumeFlowMeter = floatval($dataInput['volume_flow_meter'] ?? 0);

@@ -867,6 +867,8 @@ class User extends Authenticatable
 
             DB::commit();
 
+            $this->sinkronTotalMmbtu();
+
             return true;
         } catch (\Exception $e) {
             DB::rollBack();
@@ -1039,6 +1041,12 @@ class User extends Authenticatable
      */
     private function refreshTotalBalancesQuietly()
     {
+        // Customer MMBTU: total dihitung dalam USD dari history (lihat sinkronTotalMmbtu)
+        if ($this->isMmbtu()) {
+            $this->sinkronTotalMmbtu();
+            return true;
+        }
+
         try {
             DB::beginTransaction();
             
@@ -1128,6 +1136,11 @@ class User extends Authenticatable
      */
     private function calculateItemPrice($item)
     {
+        // Customer MMBTU: pembelian dalam USD (MMBTU x harga USD/MMBTU), bukan Rupiah
+        if ($this->isMmbtu()) {
+            return $this->hitungPencatatanMmbtu($item)['usd'];
+        }
+
         if ($item->harga_final > 0) {
             return floatval($item->harga_final);
         }
@@ -1486,6 +1499,8 @@ class User extends Authenticatable
 
             DB::commit();
 
+            $this->sinkronTotalMmbtu();
+
             return $result;
         } catch (\Exception $e) {
             DB::rollBack();
@@ -1501,7 +1516,7 @@ class User extends Authenticatable
      * Tambah deposit untuk MMBTU customer
      * Deposit disimpan dalam USD (mmbtu_amount * harga_satuan_usd)
      */
-    public function addDepositMmbtu($mmbtuAmount, $hargaSatuanUsd, $description = null, $customDate = null, $keterangan = 'penambahan')
+    public function addDepositMmbtu($mmbtuAmount, $hargaSatuanUsd, $description = null, $customDate = null, $keterangan = 'penambahan', $idrAmount = null)
     {
         try {
             DB::beginTransaction();
@@ -1515,21 +1530,28 @@ class User extends Authenticatable
             $depositEntry = [
                 'date' => $depositDate->format('Y-m-d H:i:s'),
                 'mmbtu_amount' => round($mmbtuAmount, 4),
-                'harga_satuan_usd' => round($hargaSatuanUsd, 4),
+                'harga_satuan_usd' => round($hargaSatuanUsd, 8),
                 'amount' => round($totalUsd, 4), // total USD
                 'keterangan' => $keterangan,
                 'deskripsi' => $description,
                 'is_mmbtu' => true,
             ];
+            // Rupiah yang benar-benar diterima (internal); kurs historis = Rupiah / USD
+            if ($idrAmount !== null && $idrAmount !== '' && floatval($idrAmount) > 0) {
+                $depositEntry['idr_amount'] = round(floatval($idrAmount), 2);
+                $depositEntry['kurs'] = $totalUsd > 0 ? round(floatval($idrAmount) / $totalUsd, 4) : null;
+            }
 
             $depositHistory = $this->ensureArray($this->deposit_history);
             $depositHistory[] = $depositEntry;
 
-            $this->total_deposit += $totalUsd;
             $this->deposit_history = $depositHistory;
             $this->save();
 
             DB::commit();
+
+            // total_deposit/total_purchases dihitung ulang dari history (USD), bukan ditambah relatif
+            $this->sinkronTotalMmbtu();
 
             return true;
         } catch (\Exception $e) {
@@ -1607,5 +1629,206 @@ class User extends Authenticatable
         // Ambil periode terbaru
         $latestPeriod = max(array_keys($monthlyBalances));
         return floatval($monthlyBalances[$latestPeriod] ?? 0);
+    }
+
+    /**
+     * ==================================================
+     * CUSTOMER MMBTU — satu sumber perhitungan
+     * Rantai: M3 x koreksi meter = Sm3 -> / pembagi = MMBTU -> x harga USD/MMBTU = USD
+     * Deposit MMBTU: hanya entri is_mmbtu; USD = mmbtu_amount x harga_satuan_usd.
+     * ==================================================
+     */
+
+    /** Volume & biaya satu data pencatatan customer MMBTU. */
+    public function hitungPencatatanMmbtu($item): array
+    {
+        $dataInput = $this->ensureArray($item->data_input);
+        if (empty($dataInput['pembacaan_awal']['waktu'])) {
+            return ['waktu' => null, 'sm3' => 0.0, 'mmbtu' => 0.0, 'usd' => 0.0, 'harga_usd' => 0.0, 'pembagi' => 0.0, 'koreksi' => 0.0,
+                'idr' => 0.0, 'kurs' => null, 'kurs_periode' => null, 'kurs_pas' => false];
+        }
+
+        $waktu = Carbon::parse($dataInput['pembacaan_awal']['waktu']);
+        $pricing = $this->getPricingForYearMonth($waktu->format('Y-m'), $waktu);
+
+        $koreksi = floatval($pricing['koreksi_meter'] ?? $this->koreksi_meter ?? 1);
+        $pembagi = floatval($pricing['pembagi_sm3_ke_mmbtu'] ?? $pricing['pembaji_sm3_ke_mmbtu'] ?? $this->pembagi_sm3_ke_mmbtu ?? 0);
+        $hargaUsd = floatval($pricing['harga_per_mmbtu_usd'] ?? 0);
+
+        $sm3 = floatval($dataInput['volume_flow_meter'] ?? 0) * $koreksi;
+        $mmbtu = $pembagi > 0 ? $sm3 / $pembagi : 0.0;
+
+        $usd = $mmbtu * $hargaUsd;
+        // Rupiah (internal): USD x kurs bulan pemakaian
+        $kurs = \App\Models\KursUsdBulanan::untuk($waktu);
+
+        return [
+            'waktu' => $waktu,
+            'sm3' => $sm3,
+            'mmbtu' => $mmbtu,
+            'usd' => $usd,
+            'harga_usd' => $hargaUsd,
+            'pembagi' => $pembagi,
+            'koreksi' => $koreksi,
+            'idr' => $usd * ($kurs['kurs'] ?? 0),
+            'kurs' => $kurs['kurs'],
+            'kurs_periode' => $kurs['periode'],
+            'kurs_pas' => $kurs['pas'],
+        ];
+    }
+
+    /**
+     * Nilai satu entri deposit MMBTU: MMBTU, USD, dan Rupiah historis.
+     * Rupiah = jumlah Rupiah yang diterima (idr_amount) bila diisi admin,
+     * selain itu USD x kurs bulan deposit. Tanda negatif untuk pengurangan.
+     */
+    public function nilaiDepositMmbtu(array $deposit): array
+    {
+        $mmbtu = abs(floatval($deposit['mmbtu_amount'] ?? 0));
+        $usd = $mmbtu * floatval($deposit['harga_satuan_usd'] ?? 0);
+        $tanda = (($deposit['keterangan'] ?? 'penambahan') === 'pengurangan') ? -1 : 1;
+
+        $idrDiterima = isset($deposit['idr_amount']) && $deposit['idr_amount'] !== '' && $deposit['idr_amount'] !== null
+            ? abs(floatval($deposit['idr_amount'])) : null;
+
+        if ($idrDiterima !== null) {
+            $idr = $idrDiterima;
+            $kurs = $usd > 0 ? $idrDiterima / $usd : null;
+            $sumber = 'diterima';
+            $kursPas = true;
+            $kursPeriode = null;
+        } else {
+            $k = !empty($deposit['date']) ? \App\Models\KursUsdBulanan::untuk($deposit['date']) : ['kurs' => null, 'periode' => null, 'pas' => false];
+            $kurs = $k['kurs'];
+            $idr = $usd * ($kurs ?? 0);
+            $sumber = 'kurs_bulanan';
+            $kursPas = $k['pas'];
+            $kursPeriode = $k['periode'];
+        }
+
+        return [
+            'mmbtu' => $tanda * $mmbtu,
+            'usd' => $tanda * $usd,
+            'idr' => $tanda * $idr,
+            'kurs' => $kurs,
+            'kurs_sumber' => $sumber,
+            'kurs_pas' => $kursPas,
+            'kurs_periode' => $kursPeriode,
+        ];
+    }
+
+    /** Bulan-bulan (Y-m) yang punya deposit atau pemakaian MMBTU. */
+    public function bulanTransaksiMmbtu(): array
+    {
+        $bulan = [];
+        foreach ($this->ensureArray($this->deposit_history) as $deposit) {
+            if (!empty($deposit['is_mmbtu']) && !empty($deposit['date']) && !isset($deposit['idr_amount'])) {
+                $bulan[Carbon::parse($deposit['date'])->format('Y-m')] = true;
+            }
+        }
+        foreach ($this->dataPencatatan()->get() as $item) {
+            $dataInput = $this->ensureArray($item->data_input);
+            if (!empty($dataInput['pembacaan_awal']['waktu'])) {
+                $bulan[Carbon::parse($dataInput['pembacaan_awal']['waktu'])->format('Y-m')] = true;
+            }
+        }
+        $bulan = array_keys($bulan);
+        sort($bulan);
+        return $bulan;
+    }
+
+    /**
+     * Ringkasan deposit & pemakaian customer MMBTU dalam rentang waktu (inklusif).
+     * $dari/$sampai null = tanpa batas.
+     */
+    public function ringkasanMmbtu($dari = null, $sampai = null): array
+    {
+        $dari = $dari ? Carbon::parse($dari) : null;
+        $sampai = $sampai ? Carbon::parse($sampai) : null;
+        $dalamRentang = fn (Carbon $t) => (!$dari || $t->gte($dari)) && (!$sampai || $t->lte($sampai));
+
+        $hasil = [
+            'deposit_mmbtu' => 0.0, 'deposit_usd' => 0.0, 'deposit_idr' => 0.0,
+            'pakai_sm3' => 0.0, 'pakai_mmbtu' => 0.0, 'pakai_usd' => 0.0, 'pakai_idr' => 0.0,
+        ];
+        // Bulan yang Rupiah-nya memakai kurs bulan lain karena kurs bulan itu belum diisi
+        $kursBelumDiisi = [];
+        $kursKosong = false;
+
+        foreach ($this->ensureArray($this->deposit_history) as $deposit) {
+            if (empty($deposit['is_mmbtu']) || empty($deposit['date'])) {
+                continue;
+            }
+            $tanggal = Carbon::parse($deposit['date']);
+            if (!$dalamRentang($tanggal)) {
+                continue;
+            }
+            $n = $this->nilaiDepositMmbtu($deposit);
+            $hasil['deposit_mmbtu'] += $n['mmbtu'];
+            $hasil['deposit_usd'] += $n['usd'];
+            $hasil['deposit_idr'] += $n['idr'];
+            if ($n['kurs_sumber'] === 'kurs_bulanan' && !$n['kurs_pas']) {
+                $kursBelumDiisi[$tanggal->format('Y-m')] = true;
+                $kursKosong = $kursKosong || $n['kurs'] === null;
+            }
+        }
+
+        foreach ($this->dataPencatatan()->get() as $item) {
+            $p = $this->hitungPencatatanMmbtu($item);
+            if (!$p['waktu'] || !$dalamRentang($p['waktu'])) {
+                continue;
+            }
+            $hasil['pakai_sm3'] += $p['sm3'];
+            $hasil['pakai_mmbtu'] += $p['mmbtu'];
+            $hasil['pakai_usd'] += $p['usd'];
+            $hasil['pakai_idr'] += $p['idr'];
+            if (!$p['kurs_pas']) {
+                $kursBelumDiisi[$p['waktu']->format('Y-m')] = true;
+                $kursKosong = $kursKosong || $p['kurs'] === null;
+            }
+        }
+
+        $hasil['saldo_mmbtu'] = $hasil['deposit_mmbtu'] - $hasil['pakai_mmbtu'];
+        $hasil['saldo_usd'] = $hasil['deposit_usd'] - $hasil['pakai_usd'];
+
+        // Rupiah historis: Rupiah deposit (kurs saat bayar) - Rupiah pemakaian (kurs bulan pemakaian)
+        $hasil['saldo_idr'] = $hasil['deposit_idr'] - $hasil['pakai_idr'];
+        // Setara hari ini: saldo USD x kurs terbaru; selisihnya = efek perubahan kurs
+        $terbaru = \App\Models\KursUsdBulanan::terbaru();
+        $hasil['kurs_terbaru'] = $terbaru['kurs'];
+        $hasil['kurs_terbaru_periode'] = $terbaru['periode'];
+        $hasil['saldo_idr_setara'] = $hasil['saldo_usd'] * ($terbaru['kurs'] ?? 0);
+        $hasil['selisih_kurs'] = $hasil['saldo_idr_setara'] - $hasil['saldo_idr'];
+
+        ksort($kursBelumDiisi);
+        $hasil['kurs_belum_diisi'] = array_keys($kursBelumDiisi);
+        $hasil['kurs_kosong'] = $kursKosong;
+
+        return $hasil;
+    }
+
+    /** Saldo customer MMBTU sampai tanggal tertentu (akhir hari), dalam MMBTU dan USD. */
+    public function saldoMmbtu($sampai = null): array
+    {
+        $sampai = $sampai ? Carbon::parse($sampai)->endOfDay() : null;
+        $r = $this->ringkasanMmbtu(null, $sampai);
+
+        return ['mmbtu' => $r['saldo_mmbtu'], 'usd' => $r['saldo_usd']];
+    }
+
+    /**
+     * Samakan kolom total_deposit & total_purchases customer MMBTU dengan history (USD).
+     * Dipanggil setiap deposit/harga/pencatatan customer MMBTU berubah.
+     */
+    public function sinkronTotalMmbtu(): void
+    {
+        if (!$this->isMmbtu()) {
+            return;
+        }
+        $r = $this->ringkasanMmbtu();
+        $this->forceFill([
+            'total_deposit' => round($r['deposit_usd'], 2),
+            'total_purchases' => round($r['pakai_usd'], 2),
+        ])->saveQuietly();
     }
 }

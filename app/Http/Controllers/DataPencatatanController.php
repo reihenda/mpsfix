@@ -824,7 +824,27 @@ class DataPencatatanController extends Controller
             'prevMonthBalanceUsd' => $prevMonthBalanceUsd ?? 0,
             'currentMonthBalanceMmbtu' => $currentMonthBalanceMmbtu,
             'currentMonthBalanceUsd' => $currentMonthBalanceUsd ?? 0,
+            // Rupiah internal customer MMBTU (kurs historis) — hanya untuk halaman internal
+            'mmRp' => $isMmbtu ? $this->ringkasanRupiahMmbtu($customer, (int) $tahun, (int) $bulan) : null,
         ]);
+    }
+
+    /**
+     * Ringkasan MMBTU/USD/Rupiah customer MMBTU untuk halaman internal:
+     * semua waktu, tahun & bulan terpilih, dan saldo s.d. akhir bulan sebelumnya.
+     */
+    private function ringkasanRupiahMmbtu(User $customer, int $tahun, int $bulan): array
+    {
+        $awalBulan = Carbon::createFromDate($tahun, $bulan, 1)->startOfDay();
+        $awalTahun = Carbon::createFromDate($tahun, 1, 1)->startOfDay();
+
+        return [
+            'semua' => $customer->ringkasanMmbtu(),
+            'tahun' => $customer->ringkasanMmbtu($awalTahun, $awalTahun->copy()->endOfYear()),
+            'periode' => $customer->ringkasanMmbtu($awalBulan, $awalBulan->copy()->endOfMonth()),
+            'lalu' => $customer->ringkasanMmbtu(null, $awalBulan->copy()->subDay()->endOfDay()),
+            's_d_bulan' => $customer->ringkasanMmbtu(null, $awalBulan->copy()->endOfMonth()),
+        ];
     }
     // Fungsi untuk menghitung informasi tahunan
     // Fungsi untuk menghitung informasi tahunan
@@ -1933,15 +1953,36 @@ class DataPencatatanController extends Controller
 
         // Calculate balance
         $saldoTersisa = $customer->total_deposit - $customer->total_purchases;
+        $totalDepositOverall = $customer->total_deposit;
+        $totalPurchaseOverall = $customer->total_purchases;
+        $isMmbtu = $customer->isMmbtu();
+
+        // Customer MMBTU: semua nilai dalam USD (MMBTU x harga satuan), hanya entri MMBTU
+        if ($isMmbtu) {
+            $filteredDeposits = $filteredDeposits
+                ->filter(fn ($d) => !empty($d['is_mmbtu']))
+                ->map(function ($d) {
+                    $d['mmbtu_amount'] = abs(floatval($d['mmbtu_amount'] ?? 0));
+                    $d['amount'] = $d['mmbtu_amount'] * floatval($d['harga_satuan_usd'] ?? 0);
+                    return $d;
+                })->values();
+            $ringkasan = $customer->ringkasanMmbtu();
+            $totalDepositOverall = $ringkasan['deposit_usd'];
+            $totalPurchaseOverall = $ringkasan['pakai_usd'];
+            $saldoTersisa = $ringkasan['saldo_usd'];
+        }
 
         // Prepare data for view
         $data = [
             'customer' => $customer,
+            'isMmbtu' => $isMmbtu,
+            'mataUang' => $isMmbtu ? '$' : 'Rp',
+            'saldoMmbtu' => $isMmbtu ? $ringkasan['saldo_mmbtu'] : null,
             'depositHistory' => $filteredDeposits,
             'tanggalMulai' => $startDate->format('d F Y'),
             'tanggalAkhir' => $endDate->format('d F Y'),
-            'totalDepositOverall' => $customer->total_deposit,
-            'totalPurchaseOverall' => $customer->total_purchases,
+            'totalDepositOverall' => $totalDepositOverall,
+            'totalPurchaseOverall' => $totalPurchaseOverall,
             'saldoTersisa' => $saldoTersisa,
             'totalDepositInRange' => $totalDepositInRange,
             'tanggalCetak' => Carbon::now()->format('d F Y H:i'),

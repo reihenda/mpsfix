@@ -149,6 +149,21 @@ class UserController extends Controller
         
         $reductionDate = Carbon::parse($request->reduction_date);
 
+        // Customer MMBTU: pengurangan dalam MMBTU, dicatat sebagai entri MMBTU (USD = MMBTU x harga satuan)
+        if ($user->isMmbtu()) {
+            $request->validate(['harga_satuan_usd' => 'required|numeric|min:0']);
+            $ok = $user->addDepositMmbtu(
+                $request->amount,
+                $request->harga_satuan_usd,
+                $request->description ?: 'Pengurangan saldo',
+                $reductionDate,
+                'pengurangan'
+            );
+            return $ok
+                ? redirect()->back()->with('success', 'Saldo MMBTU berhasil dikurangi')
+                : redirect()->back()->with('error', 'Gagal mengurangi saldo MMBTU');
+        }
+
         // Reduce balance
         if ($user->reduceBalance($request->amount, $request->description, $reductionDate)) {
             return redirect()->back()->with('success', 'Saldo berhasil dikurangi');
@@ -175,6 +190,27 @@ class UserController extends Controller
         }
         
         $zeroDate = Carbon::parse($request->zero_date);
+
+        // Customer MMBTU: nol-kan saldo MMBTU sekaligus USD-nya
+        if ($user->isMmbtu()) {
+            $saldo = $user->saldoMmbtu($zeroDate);
+            if (abs($saldo['mmbtu']) < 0.0001 && abs($saldo['usd']) < 0.01) {
+                return redirect()->back()->with('success', 'Saldo MMBTU sudah nol');
+            }
+            $mmbtu = abs($saldo['mmbtu']);
+            // Harga satuan dipilih supaya saldo USD juga ikut nol
+            $harga = $mmbtu > 0 ? abs($saldo['usd']) / $mmbtu : 0;
+            $ok = $user->addDepositMmbtu(
+                $mmbtu,
+                $harga,
+                $request->description ?: 'Nol-kan saldo',
+                $zeroDate,
+                $saldo['mmbtu'] > 0 ? 'pengurangan' : 'penambahan'
+            );
+            return $ok
+                ? redirect()->back()->with('success', 'Saldo MMBTU berhasil dinolkan')
+                : redirect()->back()->with('error', 'Gagal menolkan saldo MMBTU');
+        }
 
         // Zero balance
         if ($user->zeroBalance($request->description, $zeroDate)) {
@@ -267,6 +303,7 @@ class UserController extends Controller
             'deposit_date'     => 'required|date',
             'keterangan'       => 'required|in:penambahan,pengurangan',
             'description'      => 'nullable|string|max:255',
+            'idr_amount'       => 'nullable|numeric|min:0',
         ]);
 
         $user = User::findOrFail($userId);
@@ -290,9 +327,17 @@ class UserController extends Controller
         $depositHistory[$index]['date']             = Carbon::parse($request->deposit_date)->toIso8601String();
         $depositHistory[$index]['keterangan']       = $request->keterangan;
         $depositHistory[$index]['deskripsi']        = $request->description ?? '';
+        // Rupiah diterima (internal). Dikosongkan = pakai kurs bulanan.
+        if ($request->filled('idr_amount') && floatval($request->idr_amount) > 0) {
+            $depositHistory[$index]['idr_amount'] = round(floatval($request->idr_amount), 2);
+            $depositHistory[$index]['kurs'] = $totalUsd > 0 ? round(floatval($request->idr_amount) / $totalUsd, 4) : null;
+        } else {
+            unset($depositHistory[$index]['idr_amount'], $depositHistory[$index]['kurs']);
+        }
 
         $user->deposit_history = $depositHistory;
         $user->save();
+        $user->sinkronTotalMmbtu();
 
         return redirect()->back()->with('success', 'Deposit MMBTU berhasil diperbarui');
     }
@@ -528,6 +573,12 @@ class UserController extends Controller
      */
     public function rekalkulasiTotalDeposit($customer)
     {
+        // Customer MMBTU: total deposit dalam USD dari entri MMBTU saja
+        if ($customer->isMmbtu()) {
+            $customer->sinkronTotalMmbtu();
+            return floatval($customer->total_deposit);
+        }
+
         try {
             DB::beginTransaction();
             
@@ -621,6 +672,12 @@ class UserController extends Controller
      */
     public function rekalkulasiTotalPembelian($customer)
     {
+        // Customer MMBTU: pembelian dalam USD (MMBTU x harga USD), bukan Sm3 x harga Rupiah
+        if ($customer->isMmbtu()) {
+            $customer->sinkronTotalMmbtu();
+            return floatval($customer->total_purchases);
+        }
+
         try {
             DB::beginTransaction();
 
@@ -951,6 +1008,12 @@ class UserController extends Controller
      */
     public function syncBalanceSilent($customer)
     {
+        // Customer MMBTU: semua total dalam USD dari history MMBTU
+        if ($customer->isMmbtu()) {
+            $customer->sinkronTotalMmbtu();
+            return true;
+        }
+
         try {
             DB::beginTransaction();
             
@@ -1356,6 +1419,7 @@ class UserController extends Controller
             'harga_satuan_usd' => 'required|numeric|min:0.0001',
             'deposit_date' => 'required|date',
             'description' => 'nullable|string|max:255',
+            'idr_amount' => 'nullable|numeric|min:0',
         ]);
 
         $user = User::findOrFail($userId);
@@ -1365,7 +1429,9 @@ class UserController extends Controller
             $request->mmbtu_amount,
             $request->harga_satuan_usd,
             $request->description,
-            $depositDate
+            $depositDate,
+            'penambahan',
+            $request->idr_amount
         )) {
             return redirect()->back()->with('success', 'Deposit MMBTU berhasil ditambahkan');
         } else {

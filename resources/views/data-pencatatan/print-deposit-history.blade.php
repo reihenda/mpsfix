@@ -1,3 +1,8 @@
+@php
+    // Dipakai juga oleh FobController (tanpa variabel MMBTU)
+    $isMmbtu = $isMmbtu ?? false;
+    $mataUang = $mataUang ?? 'Rp';
+@endphp
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -320,15 +325,18 @@
         <div class="summary-box">
             <div class="summary-row">
                 <span class="summary-label">Total Deposit (Keseluruhan):</span>
-                <span class="summary-value positive">Rp {{ number_format($totalDepositOverall, 2, ',', '.') }}</span>
+                <span class="summary-value positive">{{ $mataUang }} {{ number_format($totalDepositOverall, 2, ',', '.') }}</span>
             </div>
             <div class="summary-row">
                 <span class="summary-label">Total Pembelian (Keseluruhan):</span>
-                <span class="summary-value negative">Rp {{ number_format($totalPurchaseOverall, 2, ',', '.') }}</span>
+                <span class="summary-value negative">{{ $mataUang }} {{ number_format($totalPurchaseOverall, 2, ',', '.') }}</span>
             </div>
             <div class="summary-row">
                 <span class="summary-label">Saldo Tersisa:</span>
-                <span class="summary-value primary">Rp {{ number_format($saldoTersisa, 2, ',', '.') }}</span>
+                <span class="summary-value primary">{{ $mataUang }} {{ number_format($saldoTersisa, 2, ',', '.') }}</span>
+                @if($isMmbtu)
+                    <span class="summary-value primary">({{ number_format($saldoMmbtu, 2, ',', '.') }} MMBTU)</span>
+                @endif
             </div>
         </div>
 
@@ -366,9 +374,12 @@
                     </td>
                     <td class="text-right">
                         @if($deposit['keterangan'] === 'penambahan')
-                            <span class="amount-positive">Rp {{ number_format($deposit['amount'] ?? 0, 2, ',', '.') }}</span>
+                            <span class="amount-positive">{{ $mataUang }} {{ number_format(abs($deposit['amount'] ?? 0), 2, ',', '.') }}</span>
                         @else
-                            <span class="amount-negative">Rp {{ number_format($deposit['amount'] ?? 0, 2, ',', '.') }}</span>
+                            <span class="amount-negative">{{ $mataUang }} {{ number_format(abs($deposit['amount'] ?? 0), 2, ',', '.') }}</span>
+                        @endif
+                        @if($isMmbtu)
+                            <br><small>{{ number_format($deposit['mmbtu_amount'] ?? 0, 2, ',', '.') }} MMBTU × $ {{ number_format($deposit['harga_satuan_usd'] ?? 0, 2, ',', '.') }}</small>
                         @endif
                     </td>
                     <td>{{ $deposit['deskripsi'] ?? '-' }}</td>
@@ -435,16 +446,16 @@
                     <tr>
                         <td>{{ \Carbon\Carbon::parse($monthly['yearMonth'] . '-01')->format('F Y') }}</td>
                         <td class="text-right">
-                            <span class="amount-positive">Rp {{ number_format($monthly['penambahan'], 2, ',', '.') }}</span>
+                            <span class="amount-positive">{{ $mataUang }} {{ number_format($monthly['penambahan'], 2, ',', '.') }}</span>
                         </td>
                         <td class="text-right">
-                            <span class="amount-negative">Rp {{ number_format($monthly['pengurangan'], 2, ',', '.') }}</span>
+                            <span class="amount-negative">{{ $mataUang }} {{ number_format($monthly['pengurangan'], 2, ',', '.') }}</span>
                         </td>
                         <td class="text-right">
                             @if($monthly['netto'] >= 0)
-                                <span class="amount-positive">Rp {{ number_format($monthly['netto'], 2, ',', '.') }}</span>
+                                <span class="amount-positive">{{ $mataUang }} {{ number_format($monthly['netto'], 2, ',', '.') }}</span>
                             @else
-                                <span class="amount-negative">Rp {{ number_format($monthly['netto'], 2, ',', '.') }}</span>
+                                <span class="amount-negative">{{ $mataUang }} {{ number_format($monthly['netto'], 2, ',', '.') }}</span>
                             @endif
                         </td>
                     </tr>
@@ -454,16 +465,16 @@
                     <tr>
                         <td><strong>TOTAL</strong></td>
                         <td class="text-right">
-                            <span class="amount-positive">Rp {{ number_format($grandTotalPenambahan, 2, ',', '.') }}</span>
+                            <span class="amount-positive">{{ $mataUang }} {{ number_format($grandTotalPenambahan, 2, ',', '.') }}</span>
                         </td>
                         <td class="text-right">
-                            <span class="amount-negative">Rp {{ number_format($grandTotalPengurangan, 2, ',', '.') }}</span>
+                            <span class="amount-negative">{{ $mataUang }} {{ number_format($grandTotalPengurangan, 2, ',', '.') }}</span>
                         </td>
                         <td class="text-right">
                             @if($grandTotalNetto >= 0)
-                                <span class="amount-positive">Rp {{ number_format($grandTotalNetto, 2, ',', '.') }}</span>
+                                <span class="amount-positive">{{ $mataUang }} {{ number_format($grandTotalNetto, 2, ',', '.') }}</span>
                             @else
-                                <span class="amount-negative">Rp {{ number_format($grandTotalNetto, 2, ',', '.') }}</span>
+                                <span class="amount-negative">{{ $mataUang }} {{ number_format($grandTotalNetto, 2, ',', '.') }}</span>
                             @endif
                         </td>
                     </tr>
