@@ -126,6 +126,8 @@ class InvoiceController extends Controller
         $totalVolumeMmbtu = 0;
         $processedDates = [];
         $hargaGas = 0;
+        $totalBiayaPerItem = 0;
+        $grupHarga = [];
 
         if ($invoice->period_type === 'custom') {
             // Group by pricing period, sama seperti show()
@@ -187,16 +189,29 @@ class InvoiceController extends Controller
                     $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $customer->pembagi_sm3_ke_mmbtu ?? 1);
                     $hargaGas = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? $customer->harga_per_mmbtu_usd ?? 0);
                     $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
-                    $totalVolumeMmbtu += $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                    $volumeItem = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                    $totalVolumeMmbtu += $volumeItem;
                 } else {
                     $volumeSm3 = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
                     $hargaGas = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
+                    $volumeItem = $volumeSm3;
                 }
 
                 $totalVolume += $volumeSm3;
+                // Biaya dihitung per data pencatatan dengan harga periodenya sendiri
+                // (sama dengan billing & dashboard), lalu dijumlahkan
+                $totalBiayaPerItem += $volumeItem * $hargaGas;
+                $kunciHarga = (string) $hargaGas;
+                if (!isset($grupHarga[$kunciHarga])) {
+                    $grupHarga[$kunciHarga] = ['harga' => $hargaGas, 'volume' => 0, 'volume_sm3' => 0, 'start_date' => $waktuAwal->copy(), 'end_date' => $waktuAwal->copy()];
+                }
+                $grupHarga[$kunciHarga]['volume'] += $volumeItem;
+                $grupHarga[$kunciHarga]['volume_sm3'] += $volumeSm3;
+                if ($waktuAwal->lt($grupHarga[$kunciHarga]['start_date'])) $grupHarga[$kunciHarga]['start_date'] = $waktuAwal->copy();
+                if ($waktuAwal->gt($grupHarga[$kunciHarga]['end_date'])) $grupHarga[$kunciHarga]['end_date'] = $waktuAwal->copy();
             }
 
-            $totalBiaya = $isMmbtu ? $totalVolumeMmbtu * $hargaGas : $totalVolume * $hargaGas;
+            $totalBiaya = $totalBiayaPerItem;
         }
 
         return $isMmbtu ? round($totalBiaya, 2) : round($totalBiaya);
@@ -463,6 +478,8 @@ class InvoiceController extends Controller
             // PERBAIKAN: For monthly period, tambahkan deteksi duplikasi sama seperti Billing
             $hargaGas = 0;
             $totalVolumeMmbtu = 0;
+            $totalBiayaPerItem = 0;
+            $grupHarga = [];
 
             foreach ($dataPencatatan as $item) {
                 $dataInput = $this->ensureArray($item->data_input);
@@ -495,13 +512,26 @@ class InvoiceController extends Controller
                     $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $customer->pembagi_sm3_ke_mmbtu ?? 1);
                     $hargaGas = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? $customer->harga_per_mmbtu_usd ?? 0);
                     $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
-                    $totalVolumeMmbtu += $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                    $volumeItem = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                    $totalVolumeMmbtu += $volumeItem;
                 } else {
                     $volumeSm3 = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
                     $hargaGas = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
+                    $volumeItem = $volumeSm3;
                 }
 
                 $totalVolume += $volumeSm3;
+                // Biaya dihitung per data pencatatan dengan harga periodenya sendiri
+                // (sama dengan billing & dashboard), lalu dijumlahkan
+                $totalBiayaPerItem += $volumeItem * $hargaGas;
+                $kunciHarga = (string) $hargaGas;
+                if (!isset($grupHarga[$kunciHarga])) {
+                    $grupHarga[$kunciHarga] = ['harga' => $hargaGas, 'volume' => 0, 'volume_sm3' => 0, 'start_date' => $waktuAwal->copy(), 'end_date' => $waktuAwal->copy()];
+                }
+                $grupHarga[$kunciHarga]['volume'] += $volumeItem;
+                $grupHarga[$kunciHarga]['volume_sm3'] += $volumeSm3;
+                if ($waktuAwal->lt($grupHarga[$kunciHarga]['start_date'])) $grupHarga[$kunciHarga]['start_date'] = $waktuAwal->copy();
+                if ($waktuAwal->gt($grupHarga[$kunciHarga]['end_date'])) $grupHarga[$kunciHarga]['end_date'] = $waktuAwal->copy();
 
                 // DEBUG: Log setiap item yang diproses
                 \Log::debug('Invoice store - Processing item', [
@@ -513,12 +543,8 @@ class InvoiceController extends Controller
                 ]);
             }
 
-            // Calculate total cost with total volume
-            if ($isMmbtu) {
-                $totalBiaya = $totalVolumeMmbtu * $hargaGas;
-            } else {
-                $totalBiaya = $totalVolume * $hargaGas;
-            }
+            // Total = jumlah biaya per data pencatatan (tiap data memakai harga periodenya)
+            $totalBiaya = $totalBiayaPerItem;
         }
         
         // FINAL DEBUG: Log invoice results
@@ -531,8 +557,8 @@ class InvoiceController extends Controller
             'unique_dates_processed' => count($processedDates)
         ]);
 
-        // Bulatkan total biaya untuk konsistensi
-        $totalBiaya = round($totalBiaya);
+        // Bulatkan total biaya: Rupiah ke rupiah penuh, USD (customer MMBTU) ke 2 desimal (sen)
+        $totalBiaya = $isMmbtu ? round($totalBiaya, 2) : round($totalBiaya);
         
         // Buat invoice dan billing secara bersamaan dalam database transaction
         DB::beginTransaction();
@@ -889,6 +915,8 @@ class InvoiceController extends Controller
             // PERBAIKAN: For monthly period, tambahkan deteksi duplikasi sama seperti Billing
             $hargaGas = 0;
             $totalVolumeMmbtu = 0;
+            $totalBiayaPerItem = 0;
+            $grupHarga = [];
 
             foreach ($dataPencatatan as $item) {
                 $dataInput = $this->ensureArray($item->data_input);
@@ -926,13 +954,26 @@ class InvoiceController extends Controller
                     $pembajangSm3Mmbtu = floatval($itemPricingInfo['pembagi_sm3_ke_mmbtu'] ?? $customer->pembagi_sm3_ke_mmbtu ?? 1);
                     $hargaGas = floatval($itemPricingInfo['harga_per_mmbtu_usd'] ?? $customer->harga_per_mmbtu_usd ?? 0);
                     $volumeSm3 = $volumeFlowMeter * $koreksiMeter;
-                    $totalVolumeMmbtu += $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                    $volumeItem = $pembajangSm3Mmbtu > 0 ? $volumeSm3 / $pembajangSm3Mmbtu : 0;
+                    $totalVolumeMmbtu += $volumeItem;
                 } else {
                     $volumeSm3 = $volumeFlowMeter * floatval($itemPricingInfo['koreksi_meter'] ?? $customer->koreksi_meter);
                     $hargaGas = floatval($itemPricingInfo['harga_per_meter_kubik'] ?? $customer->harga_per_meter_kubik);
+                    $volumeItem = $volumeSm3;
                 }
 
                 $totalVolume += $volumeSm3;
+                // Biaya dihitung per data pencatatan dengan harga periodenya sendiri
+                // (sama dengan billing & dashboard), lalu dijumlahkan
+                $totalBiayaPerItem += $volumeItem * $hargaGas;
+                $kunciHarga = (string) $hargaGas;
+                if (!isset($grupHarga[$kunciHarga])) {
+                    $grupHarga[$kunciHarga] = ['harga' => $hargaGas, 'volume' => 0, 'volume_sm3' => 0, 'start_date' => $waktuAwal->copy(), 'end_date' => $waktuAwal->copy()];
+                }
+                $grupHarga[$kunciHarga]['volume'] += $volumeItem;
+                $grupHarga[$kunciHarga]['volume_sm3'] += $volumeSm3;
+                if ($waktuAwal->lt($grupHarga[$kunciHarga]['start_date'])) $grupHarga[$kunciHarga]['start_date'] = $waktuAwal->copy();
+                if ($waktuAwal->gt($grupHarga[$kunciHarga]['end_date'])) $grupHarga[$kunciHarga]['end_date'] = $waktuAwal->copy();
 
                 // DEBUG: Log setiap item yang diproses di show (monthly)
                 \Log::debug('Invoice show - Processing unique item (monthly)', [
@@ -946,25 +987,39 @@ class InvoiceController extends Controller
                 ]);
             }
 
-            // Calculate total cost with total volume
-            if ($isMmbtu) {
-                $totalBiaya = $totalVolumeMmbtu * $hargaGas;
+            // Total = jumlah biaya per data pencatatan (tiap data memakai harga periodenya)
+            $totalBiaya = $totalBiayaPerItem;
+
+            if (count($grupHarga) <= 1) {
+                // Satu harga sebulan penuh: satu baris
+                $periodePemakaian = Carbon::createFromDate($invoice->period_year, $invoice->period_month, 1)->format('1 F Y') . " - " .
+                                 Carbon::createFromDate($invoice->period_year, $invoice->period_month, 1)->endOfMonth()->format('d F Y');
+                $pemakaianGas[] = [
+                    'no' => 1,
+                    'periode_pemakaian' => $periodePemakaian,
+                    'volume_sm3' => $totalVolume,
+                    'volume_mmbtu' => $isMmbtu ? $totalVolumeMmbtu : null,
+                    'harga_gas' => $hargaGas,
+                    'biaya_pemakaian' => $totalBiaya
+                ];
             } else {
-                $totalBiaya = $totalVolume * $hargaGas;
+                // Lebih dari satu harga dalam sebulan (periode khusus): satu baris per harga
+                uasort($grupHarga, fn ($a, $b) => $a['start_date']->timestamp - $b['start_date']->timestamp);
+                $rowNumber = 1;
+                foreach ($grupHarga as $grup) {
+                    $periodePemakaian = $grup['start_date']->format('Y-m-d') === $grup['end_date']->format('Y-m-d')
+                        ? $grup['start_date']->format('d F Y')
+                        : $grup['start_date']->format('d F Y') . ' - ' . $grup['end_date']->format('d F Y');
+                    $pemakaianGas[] = [
+                        'no' => $rowNumber++,
+                        'periode_pemakaian' => $periodePemakaian,
+                        'volume_sm3' => $grup['volume_sm3'],
+                        'volume_mmbtu' => $isMmbtu ? $grup['volume'] : null,
+                        'harga_gas' => $grup['harga'],
+                        'biaya_pemakaian' => $grup['volume'] * $grup['harga'],
+                    ];
+                }
             }
-
-            // Create a single row with period's total
-            $periodePemakaian = Carbon::createFromDate($invoice->period_year, $invoice->period_month, 1)->format('1 F Y') . " - " .
-                             Carbon::createFromDate($invoice->period_year, $invoice->period_month, 1)->endOfMonth()->format('d F Y');
-
-            $pemakaianGas[] = [
-                'no' => 1,
-                'periode_pemakaian' => $periodePemakaian,
-                'volume_sm3' => $totalVolume,
-                'volume_mmbtu' => $isMmbtu ? $totalVolumeMmbtu : null,
-                'harga_gas' => $hargaGas,
-                'biaya_pemakaian' => $totalBiaya
-            ];
         }
         
         // DEBUG: Log final show data

@@ -25,6 +25,9 @@ use Illuminate\Support\Str;
  *   ---
  *   (isi Markdown)
  *
+ * Opsional `peran: customer, admin` membatasi artikel ke role tertentu saja
+ * (dipakai bila beberapa role berbagi route yang sama, mis. customer/fob/mmbtu).
+ *
  * Akses: artikel tampil bila user boleh membuka SALAH SATU route di `route`
  * (dibaca dari middleware `role:` route tsb). `route: *` = semua user login.
  * Jadi kalau akses menu berubah di routes/web.php, akses artikel ikut berubah.
@@ -70,7 +73,10 @@ class Panduan
     /** Artikel yang boleh dibaca user ini. */
     public static function untuk(User $user): Collection
     {
-        return self::semua()->filter(fn ($a) => self::bolehAkses($user, $a['route']))->values();
+        return self::semua()
+            ->filter(fn ($a) => empty($a['peran']) || in_array($user->role, $a['peran'], true))
+            ->filter(fn ($a) => self::bolehAkses($user, $a['route']))
+            ->values();
     }
 
     public static function cari(User $user, ?string $q): Collection
@@ -171,6 +177,7 @@ class Panduan
             'urutan' => (int) ($meta['urutan'] ?? 999),
             'menu' => $meta['menu'] ?? '',
             'route' => $daftar($meta['route'] ?? '', ','),
+            'peran' => $daftar($meta['peran'] ?? '', ','),
             'kata_kunci' => $daftar($meta['kata_kunci'] ?? '', ','),
             'ringkasan' => $meta['ringkasan'] ?? '',
             'alur' => $daftar($meta['alur'] ?? '', '|'),
