@@ -15,9 +15,9 @@ Tabel **Daftar Customer** di menu **Pencatatan Data Customer** menampilkan sisa 
 
 | Kolom | Isi |
 |---|---|
-| Sisa Saldo | Total deposit − total pemakaian (sama dengan "Saldo" di halaman detail customer). Merah bila minus. |
+| Sisa Saldo | Total deposit − total pemakaian (sama dengan "Saldo" di halaman detail customer). Merah bila minus atau di bawah minimum saldo. |
 | Minimum Saldo | Batas bawah saldo yang diatur untuk customer itu. |
-| Status | **Di bawah minimum**, **Belum diatur**, **Aman**, atau **Tanpa deposit**. |
+| Status Saldo | **Di bawah minimum**, **Belum diatur**, **Aman**, atau **Tanpa deposit**. |
 
 Minimum saldo **khusus customer Rupiah** dan nominalnya dalam **Rupiah**. Customer **MMBTU** tetap tercantum dengan saldo USD dan MMBTU sebagai informasi, tetapi tidak punya minimum saldo dan tidak memunculkan peringatan (status *MMBTU · tidak dipantau*).
 

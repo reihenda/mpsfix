@@ -62,7 +62,7 @@
                                 <th>Nama Customer</th>
                                 <th class="text-right">Sisa Saldo</th>
                                 <th class="text-right">Minimum Saldo</th>
-                                <th>Status</th>
+                                <th>Status Saldo</th>
                                 <th>Total Data Pencatatan</th>
                                 <th>Aksi</th>
                             </tr>
@@ -83,7 +83,7 @@
                                             <span class="badge badge-primary ml-1">MMBTU</span>
                                         @endif
                                     </td>
-                                    <td class="text-right text-nowrap {{ $s['saldo'] < 0 ? 'text-danger' : '' }}" data-order="{{ $s['saldo'] }}">
+                                    <td class="text-right text-nowrap {{ ($s['saldo'] < 0 || $s['status'] === 'di_bawah') ? 'text-danger font-weight-bold' : '' }}" data-order="{{ $s['saldo'] }}">
                                         {{ $s['saldo'] < 0 ? '-' : '' }}{{ $s['mata_uang'] }} {{ number_format(abs($s['saldo']), $desimal, ',', '.') }}
                                         @if ($s['saldo_mmbtu'] !== null)
                                             <small class="d-block text-muted">{{ number_format($s['saldo_mmbtu'], 2, ',', '.') }} MMBTU</small>
