@@ -1831,4 +1831,56 @@ class User extends Authenticatable
             'total_purchases' => round($r['pakai_usd'], 2),
         ])->saveQuietly();
     }
+
+    /**
+     * Status saldo terhadap minimum saldo (daftar Pencatatan Data Customer).
+     * Minimum saldo khusus customer Rupiah (total deposit - total pembelian).
+     * Customer MMBTU: saldo USD/MMBTU tetap dikembalikan sebagai info, status 'tidak_berlaku'.
+     *
+     * @return array{saldo: float, saldo_mmbtu: ?float, mata_uang: string, minimum: ?float,
+     *               status: string, selisih: ?float}
+     *   status: belum_diatur | tanpa_deposit | di_bawah | aman | tidak_berlaku
+     */
+    public function statusSaldoMinimum(): array
+    {
+        if ($this->isMmbtu()) {
+            $s = $this->saldoMmbtu(now());
+            $saldo = $s['usd'];
+            $saldoMmbtu = $s['mmbtu'];
+            $mataUang = '$';
+        } else {
+            $saldo = $this->getCurrentBalance();
+            $saldoMmbtu = null;
+            $mataUang = 'Rp';
+        }
+
+        $minimum = $this->saldo_minimum !== null ? (float) $this->saldo_minimum : null;
+
+        if ($this->isMmbtu()) {
+            // Minimum saldo hanya untuk customer yang memakai Rupiah
+            return [
+                'saldo' => $saldo, 'saldo_mmbtu' => $saldoMmbtu, 'mata_uang' => $mataUang,
+                'minimum' => null, 'status' => 'tidak_berlaku', 'selisih' => null,
+            ];
+        }
+
+        if ($this->saldo_minimum_tanpa_deposit) {
+            $status = 'tanpa_deposit';
+        } elseif ($minimum === null) {
+            $status = 'belum_diatur';
+        } elseif ($saldo < $minimum) {
+            $status = 'di_bawah';
+        } else {
+            $status = 'aman';
+        }
+
+        return [
+            'saldo' => $saldo,
+            'saldo_mmbtu' => $saldoMmbtu,
+            'mata_uang' => $mataUang,
+            'minimum' => $minimum,
+            'status' => $status,
+            'selisih' => ($minimum !== null && !$this->saldo_minimum_tanpa_deposit) ? $saldo - $minimum : null,
+        ];
+    }
 }

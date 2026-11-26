@@ -341,10 +341,45 @@ class DataPencatatanController extends Controller
     public function index()
     {
         // Fetch only customers (not admin or superadmin)
-        $customers = User::whereIn('role', [User::ROLE_CUSTOMER, User::ROLE_MMBTU])->get();
+        $customers = User::whereIn('role', [User::ROLE_CUSTOMER, User::ROLE_MMBTU])
+            ->withCount('dataPencatatan')
+            ->orderBy('name')
+            ->get();
+
+        // Sisa saldo & status terhadap minimum saldo per customer
+        $saldo = $customers->mapWithKeys(fn ($c) => [$c->id => $c->statusSaldoMinimum()]);
+        $diBawahMinimum = $customers->filter(fn ($c) => $saldo[$c->id]['status'] === 'di_bawah')->values();
+        $belumDiatur = $customers->filter(fn ($c) => $saldo[$c->id]['status'] === 'belum_diatur')->values();
+        $bolehAturMinimum = Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isKeuangan();
+
         // Fetch FOB users
         $fobs = User::where('role', User::ROLE_FOB)->get();
-        return view('data-pencatatan.index', compact('customers', 'fobs'));
+        return view('data-pencatatan.index', compact('customers', 'fobs', 'saldo', 'diBawahMinimum', 'belumDiatur', 'bolehAturMinimum'));
+    }
+
+    /**
+     * Atur minimum saldo customer (atau tandai "tidak ada deposit").
+     */
+    public function updateSaldoMinimum(Request $request, User $customer)
+    {
+        abort_unless(Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isKeuangan(), 403);
+        // Minimum saldo khusus customer Rupiah (bukan MMBTU/FOB)
+        abort_unless($customer->isCustomer(), 404);
+
+        $data = $request->validate([
+            'mode' => 'required|in:nominal,tanpa_deposit',
+            'saldo_minimum' => 'required_if:mode,nominal|nullable|integer|min:0',
+        ]);
+
+        if ($data['mode'] === 'tanpa_deposit') {
+            $customer->forceFill(['saldo_minimum' => null, 'saldo_minimum_tanpa_deposit' => true])->saveQuietly();
+            $pesan = "{$customer->name} ditandai tidak ada deposit (tanpa peringatan saldo).";
+        } else {
+            $customer->forceFill(['saldo_minimum' => $data['saldo_minimum'], 'saldo_minimum_tanpa_deposit' => false])->saveQuietly();
+            $pesan = "Minimum saldo {$customer->name} diatur: Rp " . number_format($data['saldo_minimum'], 0, ',', '.') . '.';
+        }
+
+        return redirect()->route('data-pencatatan.index')->with('success', $pesan);
     }
 
     // Menampilkan detail pencatatan untuk customer tertentu

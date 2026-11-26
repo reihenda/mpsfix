@@ -174,6 +174,10 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
     // Dashboard untuk Keuangan
     Route::get('/keuangan', [KeuanganController::class, 'index'])->name('keuangan.index');
 
+    // Minimum saldo customer (peringatan di daftar Pencatatan Data Customer)
+    Route::post('/data-pencatatan/customer/{customer}/saldo-minimum', [DataPencatatanController::class, 'updateSaldoMinimum'])
+        ->name('data-pencatatan.saldo-minimum');
+
     // Kurs USD bulanan (kurs historis untuk Rupiah customer MMBTU)
     Route::get('/kurs-usd', [App\Http\Controllers\KursUsdController::class, 'index'])->name('kurs-usd.index');
     Route::post('/kurs-usd', [App\Http\Controllers\KursUsdController::class, 'store'])->name('kurs-usd.store');
