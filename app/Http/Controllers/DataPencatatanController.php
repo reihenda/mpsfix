@@ -351,10 +351,49 @@ class DataPencatatanController extends Controller
         $diBawahMinimum = $customers->filter(fn ($c) => $saldo[$c->id]['status'] === 'di_bawah')->values();
         $belumDiatur = $customers->filter(fn ($c) => $saldo[$c->id]['status'] === 'belum_diatur')->values();
         $bolehAturMinimum = Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isKeuangan();
+        $notifPenerima = implode(', ', \App\Models\PengaturanSistem::penerimaNotifSaldo());
+        $notifAktif = \App\Models\PengaturanSistem::notifSaldoAktif();
 
         // Fetch FOB users
         $fobs = User::where('role', User::ROLE_FOB)->get();
-        return view('data-pencatatan.index', compact('customers', 'fobs', 'saldo', 'diBawahMinimum', 'belumDiatur', 'bolehAturMinimum'));
+        return view('data-pencatatan.index', compact('customers', 'fobs', 'saldo', 'diBawahMinimum', 'belumDiatur', 'bolehAturMinimum', 'notifPenerima', 'notifAktif'));
+    }
+
+    /** Simpan penerima & status notifikasi email saldo di bawah minimum (09.00 WIB). */
+    public function simpanNotifikasiSaldo(Request $request)
+    {
+        abort_unless(Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isKeuangan(), 403);
+
+        $data = $request->validate([
+            'penerima' => 'nullable|string|max:1000',
+            'aktif' => 'nullable|boolean',
+        ]);
+
+        $daftar = preg_split('/[\s,;]+/', (string) ($data['penerima'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
+        $salah = array_values(array_filter($daftar, fn ($e) => !filter_var($e, FILTER_VALIDATE_EMAIL)));
+        if ($salah) {
+            return back()->withErrors(['penerima' => 'Alamat email tidak valid: ' . implode(', ', $salah)])->withInput();
+        }
+        $aktif = (bool) ($data['aktif'] ?? false);
+        if ($aktif && !$daftar) {
+            return back()->withErrors(['penerima' => 'Isi minimal satu email penerima untuk mengaktifkan notifikasi.'])->withInput();
+        }
+
+        \App\Models\PengaturanSistem::simpan(\App\Models\PengaturanSistem::NOTIF_SALDO_PENERIMA, implode(',', array_unique($daftar)));
+        \App\Models\PengaturanSistem::simpan(\App\Models\PengaturanSistem::NOTIF_SALDO_AKTIF, $aktif ? '1' : '0');
+
+        return redirect()->route('data-pencatatan.index')->with('success', $aktif
+            ? 'Notifikasi email aktif: dikirim setiap hari 09.00 WIB bila ada customer di bawah minimum.'
+            : 'Pengaturan notifikasi email disimpan (nonaktif).');
+    }
+
+    /** Kirim email notifikasi saldo sekarang (tes) ke penerima yang tersimpan. */
+    public function tesNotifikasiSaldo(\App\Services\NotifikasiSaldoService $notifikasi)
+    {
+        abort_unless(Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isKeuangan(), 403);
+
+        $hasil = $notifikasi->kirim(true);
+        return redirect()->route('data-pencatatan.index')->with($hasil['terkirim'] ? 'success' : 'error', $hasil['pesan']);
     }
 
     /**

@@ -177,6 +177,10 @@ Route::middleware(['auth', 'role:admin,superadmin,keuangan'])->group(function ()
     // Minimum saldo customer (peringatan di daftar Pencatatan Data Customer)
     Route::post('/data-pencatatan/customer/{customer}/saldo-minimum', [DataPencatatanController::class, 'updateSaldoMinimum'])
         ->name('data-pencatatan.saldo-minimum');
+    Route::post('/data-pencatatan/notifikasi-saldo', [DataPencatatanController::class, 'simpanNotifikasiSaldo'])
+        ->name('data-pencatatan.notifikasi-saldo');
+    Route::post('/data-pencatatan/notifikasi-saldo/tes', [DataPencatatanController::class, 'tesNotifikasiSaldo'])
+        ->name('data-pencatatan.notifikasi-saldo.tes');
 
     // Kurs USD bulanan (kurs historis untuk Rupiah customer MMBTU)
     Route::get('/kurs-usd', [App\Http\Controllers\KursUsdController::class, 'index'])->name('kurs-usd.index');

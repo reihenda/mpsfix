@@ -22,3 +22,15 @@ Schedule::command('cartrack:sinkron-trip')
     ->everyMinute()
     ->withoutOverlapping(30)
     ->runInBackground();
+
+// Email notifikasi customer Rupiah yang saldonya di bawah minimum: setiap hari 09.00 WIB.
+// Hanya dikirim bila notifikasi aktif, ada penerima, dan ada customer di bawah minimum.
+Artisan::command('notifikasi:saldo-minimum {--tes : Kirim walau tidak ada customer di bawah minimum}', function () {
+    $hasil = app(\App\Services\NotifikasiSaldoService::class)->kirim((bool) $this->option('tes'));
+    $this->info($hasil['pesan']);
+})->purpose('Kirim email customer yang saldonya di bawah minimum');
+
+Schedule::command('notifikasi:saldo-minimum')
+    ->dailyAt('09:00')
+    ->timezone('Asia/Jakarta')
+    ->withoutOverlapping(30);

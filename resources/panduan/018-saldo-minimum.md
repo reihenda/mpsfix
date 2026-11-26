@@ -37,3 +37,16 @@ Hanya **Admin, Superadmin, dan Keuangan** yang dapat mengatur.
    - **Minimum saldo**: isi nominalnya dalam Rupiah (angka bulat).
    - **Tidak ada deposit**: untuk customer yang memang tidak memakai deposit sehingga saldonya minus. Customer ini tidak akan memunculkan peringatan.
 3. Klik **Simpan**.
+
+## Notifikasi email harian
+
+Setiap hari pukul **09.00 WIB**, sistem dapat mengirim email berisi daftar customer Rupiah yang saldonya **di bawah minimum** (sisa saldo, minimum, dan kekurangannya), ditambah daftar customer yang minimumnya belum diatur. Email **hanya dikirim bila ada** customer di bawah minimum.
+
+Mengatur (Admin, Superadmin, Keuangan):
+
+1. Di halaman **Pencatatan Data Customer**, klik **Notifikasi Email** di kanan atas tabel.
+2. Isi **Email penerima** (beberapa email dipisah koma atau baris baru).
+3. Nyalakan **Aktifkan notifikasi harian**, lalu klik **Simpan**.
+4. Klik **Kirim tes sekarang** untuk memastikan email sampai. Email tes selalu dikirim, walau tidak ada customer di bawah minimum.
+
+Kalau email tes gagal, pesan error akan muncul di atas tabel. Biasanya karena pengaturan akun email pengirim di server belum lengkap; hubungi admin sistem.

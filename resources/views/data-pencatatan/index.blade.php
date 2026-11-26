@@ -13,6 +13,12 @@
                     <button type="button" class="close" data-dismiss="alert">&times;</button>
                 </div>
             @endif
+            @if (session('error'))
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <i class="fas fa-times-circle mr-1"></i> {{ session('error') }}
+                    <button type="button" class="close" data-dismiss="alert">&times;</button>
+                </div>
+            @endif
             @if ($errors->any())
                 <div class="alert alert-danger">
                     @foreach ($errors->all() as $error)<div>{{ $error }}</div>@endforeach
@@ -46,13 +52,20 @@
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">Daftar Customer</h3>
-                    @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
-                        <div class="card-tools">
+                    <div class="card-tools">
+                        @if ($bolehAturMinimum)
+                            <button type="button" class="btn btn-light btn-sm mr-1" data-toggle="modal" data-target="#modalNotifikasiSaldo"
+                                    title="Email harian 09.00 WIB untuk customer di bawah minimum saldo">
+                                <i class="fas fa-envelope mr-1"></i> Notifikasi Email
+                                <span class="badge badge-{{ $notifAktif ? 'success' : 'secondary' }} ml-1">{{ $notifAktif ? 'Aktif' : 'Nonaktif' }}</span>
+                            </button>
+                        @endif
+                        @if (Auth::user()->isAdmin() || Auth::user()->isSuperAdmin() || Auth::user()->isStaff())
                             <a href="{{ route('data-pencatatan.create') }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-plus"></i> Tambah Data Pencatatan
                             </a>
-                        </div>
-                    @endif
+                        @endif
+                    </div>
                 </div>
                 <div class="card-body table-responsive">
                     <table class="table table-bordered table-striped" id="customersTable">
@@ -151,6 +164,49 @@
         </div>
 
         @if ($bolehAturMinimum)
+        {{-- Modal pengaturan notifikasi email saldo --}}
+        <div class="modal fade" id="modalNotifikasiSaldo" tabindex="-1" role="dialog" aria-labelledby="judulNotifikasiSaldo">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <form method="POST" action="{{ route('data-pencatatan.notifikasi-saldo') }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="judulNotifikasiSaldo"><i class="fas fa-envelope mr-2"></i>Notifikasi Email Saldo</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Tutup">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted small">
+                                Setiap hari pukul <strong>09.00 WIB</strong>, sistem mengirim email berisi customer Rupiah yang saldonya
+                                <strong>di bawah minimum</strong>. Email hanya dikirim bila ada customer yang di bawah minimum.
+                            </p>
+                            <div class="form-group">
+                                <label for="penerimaNotif">Email penerima</label>
+                                <textarea class="form-control" id="penerimaNotif" name="penerima" rows="3"
+                                          placeholder="mis. keuangan@mosafaprimasinergi.co.id, direktur@mosafaprimasinergi.co.id">{{ old('penerima', $notifPenerima) }}</textarea>
+                                <small class="text-muted">Pisahkan beberapa email dengan koma atau baris baru.</small>
+                            </div>
+                            <div class="custom-control custom-switch">
+                                <input type="hidden" name="aktif" value="0">
+                                <input type="checkbox" class="custom-control-input" id="aktifNotif" name="aktif" value="1" {{ old('aktif', $notifAktif) ? 'checked' : '' }}>
+                                <label class="custom-control-label" for="aktifNotif">Aktifkan notifikasi harian</label>
+                            </div>
+                        </div>
+                        <div class="modal-footer d-flex justify-content-between">
+                            <button type="submit" form="formTesNotif" class="btn btn-outline-info" {{ $notifPenerima ? '' : 'disabled' }}
+                                    title="{{ $notifPenerima ? 'Kirim email sekarang ke penerima yang sudah tersimpan' : 'Simpan penerima dulu' }}">
+                                <i class="fas fa-paper-plane mr-1"></i> Kirim tes sekarang
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-default" data-dismiss="modal">Batal</button>
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save mr-1"></i> Simpan</button>
+                            </div>
+                        </div>
+                    </form>
+                    <form method="POST" action="{{ route('data-pencatatan.notifikasi-saldo.tes') }}" id="formTesNotif">@csrf</form>
+                </div>
+            </div>
+        </div>
+
         {{-- Modal atur minimum saldo --}}
         <div class="modal fade" id="modalMinimumSaldo" tabindex="-1" role="dialog" aria-labelledby="judulMinimumSaldo">
             <div class="modal-dialog" role="document">
