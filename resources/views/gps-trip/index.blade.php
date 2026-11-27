@@ -698,7 +698,12 @@
                     <input type="hidden" name="mulai" id="bukti-mulai">
                     <div class="form-group mb-2">
                         <label class="small mb-1">Tambah foto bukti <span class="text-muted">(JPG/PNG/WEBP, maks. 5 foto, 8 MB per foto)</span></label>
+                        <div id="bukti-tempel" tabindex="0" class="border rounded text-center text-muted small p-3 mb-2" style="border-style:dashed !important;border-width:2px !important;cursor:text;outline:none;">
+                            <i class="fas fa-paste mr-1"></i> Tempel screenshot di sini (<kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>V</kbd>) atau seret foto ke kotak ini
+                        </div>
+                        <div id="bukti-pratinjau" class="d-flex flex-wrap"></div>
                         <input type="file" name="foto[]" id="bukti-foto" class="form-control-file" accept="image/jpeg,image/png,image/webp" multiple required>
+                        <div id="bukti-galat" class="text-danger small mt-1"></div>
                     </div>
                     <div class="form-group mb-2">
                         <label class="small mb-1">Catatan <span class="text-muted">(opsional, mis. alasan atau penjelasan driver)</span></label>
@@ -885,6 +890,70 @@
         });
     }
 
+    // --- Bukti foto berhenti lama: tempel (paste) / seret / pilih file
+    var inputFoto = document.getElementById('bukti-foto');
+    var zonaTempel = document.getElementById('bukti-tempel');
+    var MAKS_FOTO = 5, MAKS_BYTE = 8 * 1024 * 1024, TIPE_OK = ['image/jpeg', 'image/png', 'image/webp'];
+    function tampilkanPratinjau() {
+        var wadah = document.getElementById('bukti-pratinjau');
+        wadah.innerHTML = '';
+        Array.prototype.forEach.call(inputFoto.files, function (f, i) {
+            var kotak = document.createElement('div');
+            kotak.className = 'position-relative mr-2 mb-2';
+            var img = document.createElement('img');
+            img.src = URL.createObjectURL(f);
+            img.style.cssText = 'width:96px;height:72px;object-fit:cover;border-radius:4px;border:1px solid #dee2e6;';
+            img.onload = function () { URL.revokeObjectURL(img.src); };
+            var x = document.createElement('button');
+            x.type = 'button'; x.className = 'btn btn-danger btn-xs position-absolute'; x.style.cssText = 'top:2px;right:2px;padding:0 5px;line-height:1.3;';
+            x.title = 'Batal pilih foto ini'; x.innerHTML = '&times;';
+            x.addEventListener('click', function () {
+                var dt = new DataTransfer();
+                Array.prototype.forEach.call(inputFoto.files, function (g, j) { if (j !== i) dt.items.add(g); });
+                inputFoto.files = dt.files;
+                tampilkanPratinjau();
+            });
+            kotak.appendChild(img); kotak.appendChild(x);
+            wadah.appendChild(kotak);
+        });
+    }
+    function tambahFoto(daftar) {
+        var galat = document.getElementById('bukti-galat');
+        galat.textContent = '';
+        var dt = new DataTransfer();
+        Array.prototype.forEach.call(inputFoto.files, function (f) { dt.items.add(f); });
+        var pesan = [];
+        Array.prototype.forEach.call(daftar, function (f, i) {
+            if (TIPE_OK.indexOf(f.type) === -1) { pesan.push('Hanya JPG/PNG/WEBP.'); return; }
+            if (f.size > MAKS_BYTE) { pesan.push('Foto lebih dari 8 MB dilewati.'); return; }
+            if (dt.files.length >= MAKS_FOTO) { pesan.push('Maksimal ' + MAKS_FOTO + ' foto.'); return; }
+            if (!f.name || f.name === 'image.png') {
+                var cap = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+                f = new File([f], 'screenshot-' + cap + '-' + (dt.files.length + 1) + '.' + f.type.split('/')[1], { type: f.type });
+            }
+            dt.items.add(f);
+        });
+        inputFoto.files = dt.files;
+        galat.textContent = pesan.filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' ');
+        tampilkanPratinjau();
+    }
+    inputFoto.addEventListener('change', tampilkanPratinjau);
+    document.addEventListener('paste', function (e) {
+        if (!$('#modalBukti').hasClass('show')) return;
+        var items = (e.clipboardData || {}).files || [];
+        if (!items.length) return;
+        e.preventDefault();
+        tambahFoto(items);
+    });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+        zonaTempel.addEventListener(ev, function (e) { e.preventDefault(); zonaTempel.classList.add('bg-light', 'border-primary'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+        zonaTempel.addEventListener(ev, function () { zonaTempel.classList.remove('bg-light', 'border-primary'); });
+    });
+    zonaTempel.addEventListener('drop', function (e) { e.preventDefault(); tambahFoto(e.dataTransfer.files); });
+    $('#modalBukti').on('shown.bs.modal', function () { zonaTempel.focus(); });
+
     // --- Bukti foto berhenti lama
     document.querySelectorAll('.js-bukti').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -896,6 +965,8 @@
             document.getElementById('bukti-nopol').value = d.nopol;
             document.getElementById('bukti-mulai').value = d.mulai;
             document.getElementById('bukti-foto').value = '';
+            document.getElementById('bukti-galat').textContent = '';
+            tampilkanPratinjau();
             var daftar = document.getElementById('bukti-daftar');
             daftar.innerHTML = '';
             foto.forEach(function (f) {
