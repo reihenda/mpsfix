@@ -490,6 +490,9 @@
                             @unless ($terdaftar)
                                 <span class="badge badge-warning ml-2" title="Nopol ini belum ada di Kelola Mobil/NOPOL">belum terdaftar di NOPOL</span>
                             @endunless
+                            @if (GpsTrip::semuaTervalidasi($daftar))
+                                <span class="badge badge-success ml-1" title="Semua trip yang dihitung sudah divalidasi"><i class="fas fa-check-double mr-1"></i>All Trip Validated</span>
+                            @endif
                             @if ($nBelumValid > 0)
                                 <span class="badge badge-warning ml-1" title="Trip dihitung yang belum divalidasi">{{ $nBelumValid }} belum valid</span>
                             @endif

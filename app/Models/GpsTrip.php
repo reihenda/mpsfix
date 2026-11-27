@@ -104,6 +104,14 @@ class GpsTrip extends Model
         return ($this->durasi_trip_detik ?? 0) >= self::AMBANG_NOISE_DETIK;
     }
 
+    /** Semua trip yang dihitung di daftar ini sudah divalidasi (dan ada minimal satu). */
+    public static function semuaTervalidasi($trips): bool
+    {
+        $dihitung = collect($trips)->where('dihitung', true);
+
+        return $dihitung->isNotEmpty() && $dihitung->every(fn ($t) => $t->divalidasi);
+    }
+
     public function operator()
     {
         return $this->belongsTo(OperatorGtm::class, 'operator_gtm_id');

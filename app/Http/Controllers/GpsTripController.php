@@ -76,7 +76,9 @@ class GpsTripController extends Controller
             $nomorTrip[$trip->id] = $urutan[$kunci];
         }
 
-        $perKendaraan = $trips->groupBy('nopol');
+        // Kendaraan yang semua trip dihitungnya sudah divalidasi ditaruh paling bawah (urutan nopol tetap)
+        $perKendaraan = $trips->groupBy('nopol')
+            ->sortBy(fn ($daftar) => GpsTrip::semuaTervalidasi($daftar) ? 1 : 0);
 
         // Rekap per driver (hanya trip yang dihitung dari hasil filter)
         $rekapDriver = $trips->where('dihitung', true)
