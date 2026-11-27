@@ -155,8 +155,12 @@ class OperatorGtmController extends Controller
         $potonganGps = [];
         if ($lemburRecords->isNotEmpty()) {
             $buktiSet = \App\Models\GpsHentiBukti::himpunan(now()->subYears(2), now()->addDay());
+            $abaikanSet = \App\Models\GpsHentiAbaikan::himpunan(now()->subYears(2), now()->addDay());
             foreach (\App\Models\GpsTrip::whereIn('operator_gtm_lembur_id', $lemburRecords->pluck('id'))->get() as $trip) {
-                foreach ($trip->hentiDenganBukti($buktiSet) as $h) {
+                foreach ($trip->hentiDenganBukti($buktiSet, $abaikanSet) as $h) {
+                    if ($h['diabaikan']) {
+                        continue; // ditandai tetap dihitung (geofence belum akurat): bukan potongan
+                    }
                     $potonganGps[$trip->operator_gtm_lembur_id][] = $h + ['nopol' => $trip->nopol];
                 }
             }

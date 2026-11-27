@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\GpsGeofence;
+use App\Models\GpsHentiAbaikan;
 use App\Models\GpsHentiBukti;
 use App\Models\GpsSinkronPeriode;
 use App\Models\GpsTrip;
@@ -134,6 +135,7 @@ class GpsTripController extends Controller
         // Berhenti lama di luar geofence (> 1 jam, jam kerjanya dipotong) di periode ini, terlepas dari filter di atas
         $hentiLama = [];
         $buktiSet = GpsHentiBukti::himpunan($awal->copy()->subDay(), $akhir->copy()->addDay());
+        $abaikanSet = GpsHentiAbaikan::himpunan($awal->copy()->subDay(), $akhir->copy()->addDay());
         $buktiFoto = GpsHentiBukti::with('pengunggah:id,name')
             ->whereBetween('waktu_mulai', [$awal->copy()->subDay(), $akhir->copy()->addDay()])
             ->orderBy('id')
@@ -154,7 +156,7 @@ class GpsTripController extends Controller
             ->whereBetween('waktu_mulai', [$awal, $akhir])
             ->get();
         foreach ($tripHenti as $trip) {
-            foreach ($trip->hentiDenganBukti($buktiSet) as $h) {
+            foreach ($trip->hentiDenganBukti($buktiSet, $abaikanSet) as $h) {
                 $hentiLama[] = $h + [
                     'foto' => $buktiFoto[$h['kunci']] ?? [],
                     'trip_id' => $trip->id,
@@ -165,10 +167,11 @@ class GpsTripController extends Controller
                 ];
             }
         }
-        usort($hentiLama, fn ($a, $b) => [$a['nopol'], $a['mulai']] <=> [$b['nopol'], $b['mulai']]);
+        // Yang ditandai tetap dihitung ditaruh paling bawah
+        usort($hentiLama, fn ($a, $b) => [$a['diabaikan'], $a['nopol'], $a['mulai']] <=> [$b['diabaikan'], $b['nopol'], $b['mulai']]);
 
         return view('gps-trip.index', compact(
-            'hentiLama', 'buktiSet',
+            'hentiLama', 'buktiSet', 'abaikanSet',
             'bulan', 'perKendaraan', 'nomorTrip', 'rekapDriver', 'ringkasan', 'daftarNopol',
             'operators', 'kunciTerdaftar', 'geofenceCustomer', 'tampil', 'driver', 'noise',
             'validasi', 'belumValidasi', 'sinkronTerakhir', 'sinkronMenunggu', 'periodeSinkron', 'periodeLabel', 'periodeBerjalan'
@@ -215,6 +218,7 @@ class GpsTripController extends Controller
             return back()->withErrors(['foto' => 'Kejadian berhenti lama itu tidak ditemukan (mungkin data tripnya berubah setelah sinkron). Muat ulang halaman.']);
         }
 
+        GpsHentiAbaikan::where('nopol', $data['nopol'])->where('waktu_mulai', $kejadian['mulai_teks'])->delete();
         foreach ($request->file('foto') as $file) {
             $path = $file->store('henti-bukti/'.substr($data['mulai'], 0, 7), GpsHentiBukti::DISK);
             GpsHentiBukti::create([
@@ -248,6 +252,63 @@ class GpsTripController extends Controller
 
         return back()->with('success', 'Foto bukti dihapus. Bila itu foto terakhir, jam kerja untuk berhenti lama ini tidak lagi dipotong.'
             .$this->terapkanUlangHenti($nopol, $mulai));
+    }
+
+    /**
+     * Tandai kejadian berhenti lama sebagai "tetap dihitung" (bukan berhenti sungguhan, mis. geofence belum akurat).
+     * Hanya untuk kejadian yang belum punya foto bukti, jadi jam kerja dan data lembur tidak berubah.
+     */
+    public function abaikanHenti(Request $request)
+    {
+        $data = $request->validate([
+            'nopol' => ['required', 'string', 'max:30'],
+            'mulai' => ['required', 'date_format:Y-m-d H:i:s'],
+            'alasan' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $kejadian = $this->cariHenti($data['nopol'], $data['mulai']);
+        if (!$kejadian) {
+            return back()->with('error', 'Kejadian berhenti lama itu tidak ditemukan (mungkin data tripnya berubah setelah sinkron). Muat ulang halaman.');
+        }
+        if (GpsHentiBukti::where('nopol', $data['nopol'])->where('waktu_mulai', $kejadian['mulai_teks'])->exists()) {
+            return back()->with('error', 'Kejadian ini sudah punya foto bukti (jam kerja dipotong). Hapus fotonya dulu bila memang mau tetap dihitung.');
+        }
+
+        GpsHentiAbaikan::updateOrCreate(
+            ['nopol' => $data['nopol'], 'waktu_mulai' => $kejadian['mulai_teks']],
+            [
+                'waktu_selesai' => $kejadian['selesai_teks'],
+                'alasan' => $data['alasan'] ?? null,
+                'dibuat_oleh' => $request->user()?->id,
+            ]
+        );
+
+        return back()->with('success', 'Berhenti lama '.$data['nopol'].' '.Carbon::parse($kejadian['tanggal'])->format('d/m').' '.$kejadian['jam_mulai'].'–'.$kejadian['jam_selesai'].' ditandai tetap dihitung sebagai jam kerja.');
+    }
+
+    public function batalAbaikanHenti(GpsHentiAbaikan $abaikan)
+    {
+        $abaikan->delete();
+
+        return back()->with('success', 'Tanda "tetap dihitung" dibatalkan. Kejadian ini kembali menunggu foto bukti.');
+    }
+
+    /** Kejadian berhenti lama (hentiDiJalan) untuk nopol + waktu mulai berhenti, atau null bila tidak terdeteksi. */
+    private function cariHenti(string $nopol, string $mulai): ?array
+    {
+        $trips = GpsTrip::where('nopol', $nopol)
+            ->where('waktu_mulai', '<=', $mulai)
+            ->where('waktu_selesai', '>=', $mulai)
+            ->get();
+        foreach ($trips as $trip) {
+            foreach ($trip->hentiDiJalan() as $h) {
+                if ($h['mulai_teks'] === $mulai) {
+                    return $h;
+                }
+            }
+        }
+
+        return null;
     }
 
     /** Foto bukti berubah: hitung ulang data lembur hari trip valid yang memuat kejadian berhenti itu. */

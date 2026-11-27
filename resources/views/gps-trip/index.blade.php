@@ -320,7 +320,10 @@
                         <small class="header-sekunder ml-1">
                             {{ collect($hentiLama)->pluck('nopol')->unique()->count() }} kendaraan ·
                             {{ collect($hentiLama)->where('terbukti', true)->count() }} dipotong ({{ GpsTrip::formatDurasi(collect($hentiLama)->where('terbukti', true)->sum('durasi')) }} jam) ·
-                            {{ collect($hentiLama)->where('terbukti', false)->count() }} menunggu bukti
+                            {{ collect($hentiLama)->where('terbukti', false)->where('diabaikan', false)->count() }} menunggu bukti
+                            @if (collect($hentiLama)->where('diabaikan', true)->isNotEmpty())
+                                · {{ collect($hentiLama)->where('diabaikan', true)->count() }} tetap dihitung
+                            @endif
                         </small>
                     </h3>
                 </div>
@@ -329,6 +332,7 @@
                         Mobil berhenti lebih dari 1 jam di titik yang sama di luar geofence mana pun (mogok / berhenti di tengah jalan).
                         Jam kerja <strong>baru dipotong setelah ada foto bukti</strong>; tanpa foto, jam tetap dihitung penuh.
                         Antre di SPBG atau di dalam geofence tidak masuk daftar ini.
+                        Bila sebenarnya mobil sedang di customer tapi geofencenya belum akurat, klik <strong>Tetap dihitung</strong>.
                     </div>
                     <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
                         <table class="table table-sm table-hover table-bordered mb-0" style="min-width: 720px;">
@@ -345,7 +349,7 @@
                             </thead>
                             <tbody>
                                 @foreach ($hentiLama as $h)
-                                    <tr>
+                                    <tr class="{{ $h['diabaikan'] ? 'text-muted' : '' }}">
                                         <td class="text-nowrap"><a href="{{ route('gps-trip.index', ['bulan' => $bulan, 'nopol' => $h['nopol']]) }}" title="Lihat trip kendaraan ini">{{ $h['nopol'] }}</a></td>
                                         <td>{{ $h['driver'] ?? '—' }}</td>
                                         <td class="text-nowrap">{{ \Carbon\Carbon::parse($h['tanggal'])->format('d/m') }} {{ $h['jam_mulai'] }}–{{ $h['jam_selesai'] }}@if (date('Y-m-d', $h['selesai']) !== $h['tanggal']) <small class="text-muted">(+{{ \Carbon\Carbon::parse($h['tanggal'])->diffInDays(\Carbon\Carbon::parse(date('Y-m-d', $h['selesai']))) }} hari)</small>@endif</td>
@@ -367,6 +371,11 @@
                                         <td>
                                             @if ($h['terbukti'])
                                                 <span class="badge badge-danger" title="Ada foto bukti, jam kerja dipotong">dipotong</span>
+                                            @elseif ($h['diabaikan'])
+                                                <span class="badge badge-success" title="Ditandai tetap dihitung{{ $h['abaikan']['oleh'] ? ' oleh '.$h['abaikan']['oleh'] : '' }}{{ $h['abaikan']['waktu'] ? ' ('.$h['abaikan']['waktu'].')' : '' }}{{ $h['abaikan']['alasan'] ? ': '.$h['abaikan']['alasan'] : '' }}">tetap dihitung</span>
+                                                @if ($h['abaikan']['alasan'])
+                                                    <div class="small">{{ \Illuminate\Support\Str::limit($h['abaikan']['alasan'], 60) }}</div>
+                                                @endif
                                             @else
                                                 <span class="badge badge-warning" title="Belum ada foto bukti, jam kerja belum dipotong">menunggu bukti</span>
                                             @endif
@@ -374,10 +383,18 @@
                                                 <span class="badge badge-light border" title="Trip belum divalidasi, belum ikut hitungan lembur">belum valid</span>
                                             @endif
                                             @if ($h['di_lembur'])
-                                                <span class="badge badge-secondary" title="Trip sudah dipakai di data lembur; terapkan ulang di Terapkan ke Lembur setelah bukti berubah">sudah di lembur</span>
+                                                <span class="badge badge-secondary" title="Trip sudah masuk data lembur; data lembur dihitung ulang otomatis saat bukti berubah">sudah di lembur</span>
                                             @endif
                                         </td>
                                         <td class="text-nowrap">
+                                            @if ($h['diabaikan'])
+                                                <form method="POST" action="{{ route('gps-trip.henti-abaikan.hapus', $h['abaikan']['id']) }}" class="d-inline"
+                                                      onsubmit="return confirm('Batalkan tanda tetap dihitung? Kejadian ini kembali menunggu foto bukti.');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-xs btn-outline-secondary"><i class="fas fa-undo mr-1"></i>Batalkan</button>
+                                                </form>
+                                            @else
                                             <button type="button" class="btn btn-xs {{ $h['terbukti'] ? 'btn-outline-danger' : 'btn-warning' }} js-bukti"
                                                     data-nopol="{{ $h['nopol'] }}"
                                                     data-mulai="{{ $h['mulai_teks'] }}"
@@ -386,6 +403,16 @@
                                                     data-foto='@json($h['foto'])'>
                                                 <i class="fas fa-camera mr-1"></i>{{ $h['terbukti'] ? count($h['foto']).' foto' : 'Unggah bukti' }}
                                             </button>
+                                            @unless ($h['terbukti'])
+                                                <button type="button" class="btn btn-xs btn-outline-success js-abaikan ml-1"
+                                                        data-nopol="{{ $h['nopol'] }}"
+                                                        data-mulai="{{ $h['mulai_teks'] }}"
+                                                        data-judul="{{ $h['nopol'] }} · {{ \Carbon\Carbon::parse($h['tanggal'])->format('d/m') }} {{ $h['jam_mulai'] }}–{{ $h['jam_selesai'] }}"
+                                                        title="Bukan berhenti sungguhan (mis. geofence customer belum akurat): jam kerja tetap dihitung penuh, tidak perlu bukti">
+                                                    <i class="fas fa-check mr-1"></i>Tetap dihitung
+                                                </button>
+                                            @endunless
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -464,7 +491,7 @@
             {{-- Per kendaraan: tertutup sebagai default (daftar trip panjang); terbuka bila hanya satu kendaraan / difilter nopol --}}
             @php
                 $bukaAwal = $perKendaraan->count() === 1 || !empty($nopolDipilih);
-                $hentiPerNopol = collect($hentiLama)->groupBy('nopol')->map->count();
+                $hentiPerNopol = collect($hentiLama)->where('diabaikan', false)->groupBy('nopol')->map->count();
             @endphp
             @if ($perKendaraan->count() > 1)
                 <div class="d-flex align-items-center mb-2">
@@ -612,7 +639,14 @@
                                                 @if ($t->status === 'tidak_lengkap')
                                                     <span class="badge badge-warning" title="Akhir trip tidak terbaca di geofence customer atau trip belum selesai di akhir laporan">tidak lengkap</span>
                                                 @endif
-                                                @php $hentiTrip = $t->hentiDenganBukti($buktiSet); @endphp
+                                                @php
+                                                    $hentiSemua = $t->hentiDenganBukti($buktiSet, $abaikanSet);
+                                                    $hentiTrip = array_values(array_filter($hentiSemua, fn ($h) => !$h['diabaikan']));
+                                                    $nAbaikan = count($hentiSemua) - count($hentiTrip);
+                                                @endphp
+                                                @if ($nAbaikan > 0)
+                                                    <span class="badge badge-light border" title="Berhenti lama yang ditandai tetap dihitung (mis. geofence belum akurat). Jam kerja tidak dipotong.">{{ $nAbaikan }} berhenti tetap dihitung</span>
+                                                @endif
                                                 @if (count($hentiTrip) > 0)
                                                     @php
                                                         $detikTerpotong = collect($hentiTrip)->where('terbukti', true)->sum('durasi');
@@ -716,6 +750,13 @@
         </div>
     </div>
 </div>
+
+<form id="form-abaikan" action="{{ route('gps-trip.henti-abaikan.simpan') }}" method="POST" class="d-none">
+    @csrf
+    <input type="hidden" name="nopol">
+    <input type="hidden" name="mulai">
+    <input type="hidden" name="alasan">
+</form>
 
 <div class="modal fade" id="modalEdit" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
@@ -953,6 +994,19 @@
     });
     zonaTempel.addEventListener('drop', function (e) { e.preventDefault(); tambahFoto(e.dataTransfer.files); });
     $('#modalBukti').on('shown.bs.modal', function () { zonaTempel.focus(); });
+
+    // --- Berhenti lama: tandai tetap dihitung
+    document.querySelectorAll('.js-abaikan').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var alasan = prompt('Tandai ' + btn.dataset.judul + ' sebagai TETAP DIHITUNG (jam kerja tidak dipotong)?\n\nAlasan (opsional), mis. "geofence customer X belum akurat":', '');
+            if (alasan === null) return;
+            var f = document.getElementById('form-abaikan');
+            f.elements.nopol.value = btn.dataset.nopol;
+            f.elements.mulai.value = btn.dataset.mulai;
+            f.elements.alasan.value = alasan.trim();
+            f.submit();
+        });
+    });
 
     // --- Bukti foto berhenti lama
     document.querySelectorAll('.js-bukti').forEach(function (btn) {

@@ -238,9 +238,22 @@ class GpsTrip extends Model
      *
      * @param array<string, int> $bukti kunci => jumlah foto (GpsHentiBukti::himpunan())
      */
-    public function hentiDenganBukti(array $bukti): array
+    /**
+     * hentiDiJalan() + status bukti. $abaikan (GpsHentiAbaikan::himpunan) = kejadian yang ditandai "tetap dihitung":
+     * diabaikan=true, tidak menunggu bukti dan tidak dipotong (kecuali sudah punya foto, foto tetap menang).
+     */
+    public function hentiDenganBukti(array $bukti, array $abaikan = []): array
     {
-        return array_map(fn ($h) => $h + ['bukti' => $bukti[$h['kunci']] ?? 0, 'terbukti' => ($bukti[$h['kunci']] ?? 0) > 0], $this->hentiDiJalan());
+        return array_map(function ($h) use ($bukti, $abaikan) {
+            $n = $bukti[$h['kunci']] ?? 0;
+
+            return $h + [
+                'bukti' => $n,
+                'terbukti' => $n > 0,
+                'diabaikan' => $n === 0 && isset($abaikan[$h['kunci']]),
+                'abaikan' => $abaikan[$h['kunci']] ?? null,
+            ];
+        }, $this->hentiDiJalan());
     }
 
     public function getHentiDiJalanDetikAttribute(): int

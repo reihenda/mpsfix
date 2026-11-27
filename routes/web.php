@@ -375,6 +375,8 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
         Route::post('/henti-bukti', [$c, 'simpanBukti'])->name('henti-bukti.simpan');
         Route::get('/henti-bukti/{bukti}/foto', [$c, 'fotoBukti'])->name('henti-bukti.foto')->where('bukti', '[0-9]+');
         Route::delete('/henti-bukti/{bukti}', [$c, 'hapusBukti'])->name('henti-bukti.hapus')->where('bukti', '[0-9]+');
+        Route::post('/henti-abaikan', [$c, 'abaikanHenti'])->name('henti-abaikan.simpan');
+        Route::delete('/henti-abaikan/{abaikan}', [$c, 'batalAbaikanHenti'])->name('henti-abaikan.hapus')->where('abaikan', '[0-9]+');
         Route::get('/lembur', [$c, 'lembur'])->name('lembur');
         Route::post('/lembur', [$c, 'terapkanLembur'])->name('lembur.terapkan');
         Route::put('/{gpsTrip}', [$c, 'update'])->name('update')->where('gpsTrip', '[0-9]+');
